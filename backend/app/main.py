@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import time
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -28,11 +29,8 @@ from .logger import setup_logging, get_logger
 setup_logging()
 logger = get_logger("main")
 
-app = FastAPI(title="FinanceCrew API", version="0.4.0")
-
-
-@app.on_event("startup")
-def _startup():
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
     # 数据库索引迁移
     try:
         from .db_migrations import run_migrations
@@ -45,15 +43,15 @@ def _startup():
         start_scheduler()
     except Exception as e:
         logger.warning("调度器启动失败: %s", e)
-
-
-@app.on_event("shutdown")
-def _shutdown_scheduler():
+    yield
     try:
         from .scheduler import stop_scheduler
         stop_scheduler()
     except Exception:
         pass
+
+
+app = FastAPI(title="FinanceCrew API", version="0.4.0", lifespan=lifespan)
 
 
 # CORS: 只允许本机和局域网（收紧安全）

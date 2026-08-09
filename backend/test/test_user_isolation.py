@@ -19,9 +19,40 @@ def test_fastapi_app_imports_all_routes():
     from app.main import app
 
     assert len(app.routes) >= 95
-    client = TestClient(app)
-    assert client.get("/api/config").status_code == 401
-    assert client.get("/api/reflection/600519").status_code == 401
+    with TestClient(app) as client:
+        assert client.get("/api/config").status_code == 401
+        assert client.get("/api/reflection/600519").status_code == 401
+
+
+def test_health_reports_runtime_dependencies():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    with TestClient(app) as client:
+        response = client.get("/api/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "database": "ok",
+        "scheduler": "running",
+    }
+
+
+def test_health_fails_when_database_is_unavailable(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.routes import system
+
+    def fail_to_connect():
+        raise OSError("database unavailable")
+
+    monkeypatch.setattr(system.config, "_connect", fail_to_connect)
+    with TestClient(app) as client:
+        response = client.get("/api/health")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "database unavailable"}
 
 
 def test_analysis_lookup_is_scoped_to_user(isolated_db):

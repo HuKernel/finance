@@ -310,6 +310,11 @@ def start_scheduler() -> None:
     logger.info("调度器恢复 %d 个定时任务", len(rows))
 
 
+def is_scheduler_running() -> bool:
+    with _lock:
+        return bool(_scheduler and _scheduler.running)
+
+
 def stop_scheduler() -> None:
     """FastAPI shutdown 时调用。"""
     global _scheduler

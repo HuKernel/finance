@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from .. import config, scheduler
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
 from ..deps import get_current_user, require_admin
@@ -34,7 +35,18 @@ from ..models import LLMConfig
 
 @router.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    try:
+        with config._connect() as conn:
+            conn.execute("SELECT 1")
+    except Exception:
+        raise HTTPException(status_code=503, detail="database unavailable")
+
+    scheduler_status = "running" if scheduler.is_scheduler_running() else "stopped"
+    return {
+        "status": "ok" if scheduler_status == "running" else "degraded",
+        "database": "ok",
+        "scheduler": scheduler_status,
+    }
 
 
 
