@@ -50,11 +50,19 @@ class Trader:
             "必须服从风控经理的审批结果。只输出JSON，不要输出其他文字。"
         )
         data = self.llm.chat_json(system, user_prompt)
+        action = str(data.get("action", "观望"))
+        if not risk.approved:
+            action = "回避"
+        elif action not in {"买入", "卖出", "观望", "回避"}:
+            action = "观望"
+        position_pct = _clamp(data.get("position_pct"), risk.max_position_pct)
+        if action in {"观望", "回避"}:
+            position_pct = 0.0
         return TradePlan(
-            action=str(data.get("action", "观望")),
+            action=action,
             target_price=_num(data.get("target_price")),
             stop_loss=_num(data.get("stop_loss")),
-            position_pct=float(data.get("position_pct", 0) or 0),
+            position_pct=position_pct,
             reasoning=str(data.get("reasoning", "")),
             risk_warnings=[str(w) for w in data.get("risk_warnings", [])][:4],
         )
@@ -68,3 +76,11 @@ def _num(v: Any):
         return f if f == f else None
     except (TypeError, ValueError):
         return None
+
+
+def _clamp(value: Any, upper: float) -> float:
+    try:
+        number = float(value or 0)
+        return max(0.0, min(max(0.0, upper), number)) if number == number else 0.0
+    except (TypeError, ValueError):
+        return 0.0

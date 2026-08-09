@@ -122,14 +122,22 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 def fan_out_analysts(state: AgentState) -> list[Send]:
     """Map 阶段：为每个分析师角色分发一个 Send 任务（LangGraph 并行执行）。
 
-    支持用户配置：从 context 中的 enabled_analysts 过滤，
+    支持用户配置：从用户画像的 analyst_config 过滤，
     如果未配置则默认全部启用。
     mode（"standard"|"agentic"）透传给每个 run_analyst 任务，
     决定选用标准分析师还是自主调工具的 Agentic 变体。
     """
     ctx = state.get("context", {})
     mode = state.get("mode", "standard")
-    enabled = ctx.get("enabled_analysts")
+    enabled = None
+    user_id = state.get("user_id")
+    if user_id:
+        try:
+            from ..auth import get_profile
+
+            enabled = get_profile(user_id).get("analyst_config")
+        except Exception:
+            pass
     if enabled and isinstance(enabled, list):
         roles = [r for r in ANALYST_ORDER if r in enabled]
     else:
@@ -288,16 +296,16 @@ def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     # 投票统计：根据评分自动判定
     votes = {"bull": 0, "bear": 0, "neutral": 0}
     for v in views:
-        if v.score >= 6:
+        if v.score >= 3:
             votes["bull"] += 1
-        elif v.score <= 4:
+        elif v.score <= -3:
             votes["bear"] += 1
         else:
             votes["neutral"] += 1
 
     # 投票结果调整评分（看多票多则加分，看空票多则减分）
     vote_adjustment = (votes["bull"] - votes["bear"]) * 0.3
-    adjusted_score = round(max(0, min(10, score + vote_adjustment)), 2)
+    adjusted_score = round(max(-10, min(10, score + vote_adjustment)), 2)
 
     # 记录综合共识决策（供交易后反思）
     try:

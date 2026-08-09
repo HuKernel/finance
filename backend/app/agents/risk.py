@@ -42,13 +42,19 @@ class RiskManager:
             "只输出JSON，不要输出其他文字。"
         )
         data = self.llm.chat_json(system, user_prompt)
-        try:
-            approved = bool(data.get("approved", True))
-        except Exception:
-            approved = True
+        approved = data.get("approved") is True
+        position_limit = 10.0 if abs(consensus_score) > 6 else 5.0
         return RiskReview(
             approved=approved,
             verdict=str(data.get("verdict", "")),
-            max_position_pct=float(data.get("max_position_pct", 0) or 0),
-            stop_loss_pct=float(data.get("stop_loss_pct", 0) or 0),
+            max_position_pct=_clamp(data.get("max_position_pct"), position_limit) if approved else 0.0,
+            stop_loss_pct=_clamp(data.get("stop_loss_pct"), 100.0) if approved else 0.0,
         )
+
+
+def _clamp(value: Any, upper: float) -> float:
+    try:
+        number = float(value or 0)
+        return max(0.0, min(upper, number)) if number == number else 0.0
+    except (TypeError, ValueError):
+        return 0.0

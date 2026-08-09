@@ -15,7 +15,6 @@ function AnalyzePane() {
   const [steps, setSteps] = useState<{ label: string; status: 'running' | 'done' }[]>([])
   const [analystViews, setAnalystViews] = useState<{ role: string; title: string; summary: string; score: number }[]>([])
   const [riskReview, setRiskReview] = useState<{ approved: boolean; verdict: string; max_position_pct: number; stop_loss_pct: number } | null>(null)
-  const [userConfirmed, setUserConfirmed] = useState(false)
   const [reflections, setReflections] = useState<any[]>([])
   const [reflectionLoading, setReflectionLoading] = useState(false)
 
@@ -33,7 +32,6 @@ function AnalyzePane() {
     setError('')
     setResult(null)
     setRiskReview(null)
-    setUserConfirmed(false)
     setSteps([{ label: '数据收集', status: 'running' }])
     setAnalystViews([])
     try {
@@ -117,8 +115,7 @@ function AnalyzePane() {
           )}
         </div>
       )}
-      {/* 风控审查 Human-in-the-loop 确认（独立于 loading，流结束后仍显示） */}
-      {riskReview && !userConfirmed && (
+      {riskReview && !result && (
         <div className={`risk-review-card ${riskReview.approved ? 'approved' : 'blocked'}`}>
           <div className="risk-review-head">
             风控审查{riskReview.approved ? '通过' : '否决'}
@@ -129,14 +126,9 @@ function AnalyzePane() {
               建议最大仓位 {riskReview.max_position_pct}% | 止损 {riskReview.stop_loss_pct}%
             </div>
           )}
-          <div className="risk-review-actions">
-            <button onClick={() => setUserConfirmed(true)}>确认继续</button>
-            <button className="ghost" onClick={() => { setUserConfirmed(true) }}>跳过交易计划</button>
-          </div>
         </div>
       )}
-      {result && userConfirmed && <ReportView result={result} />}
-      {result && !userConfirmed && !riskReview && <ReportView result={result} />}
+      {result && <ReportView result={result} />}
 
       {(result || reflections.length > 0) && (
         <div className="pane" style={{ marginTop: 24 }}>

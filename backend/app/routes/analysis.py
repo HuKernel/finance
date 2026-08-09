@@ -93,7 +93,7 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
                                 "score": getattr(view, "score", 0),
                             })
 
-                    # 风控审查结果推送（Human-in-the-loop：前端展示确认按钮）
+                    # 推送风控审查结果供前端展示
                     if node_name == "risk_node" and isinstance(node_output, dict):
                         review = node_output.get("risk_review")
                         if review:
