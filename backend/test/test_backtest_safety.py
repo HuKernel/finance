@@ -1,6 +1,7 @@
 import pandas as pd
 
 from app.backtest.engine import SignalGenerator, _affordable_shares, _execute_signals
+from app.backtest import strategies
 from app.backtest_analysis import full_analysis
 
 
@@ -34,6 +35,32 @@ def test_signal_executes_at_next_open_without_negative_cash():
     assert result["final_value"] >= 0
     assert result["trades"] == 1
     assert _affordable_shares(10000, 99.99, "600519", True) == 0
+
+
+def test_ai_simulation_executes_decisions_at_next_open(monkeypatch):
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=5),
+        "open": [10.0, 11.0, 12.0, 13.0, 14.0],
+        "close": [10.5, 11.5, 12.5, 13.5, 14.5],
+        "volume": [1000] * 5,
+        "ma5": [10.0] * 5,
+        "ma20": [10.0] * 5,
+    })
+
+    def decide(context, _position):
+        return ("BUY", "buy") if context["date"] == "2026-01-01" else ("SELL", "sell")
+
+    monkeypatch.setattr(strategies, "_ai_decision", decide)
+    result = strategies._backtest_ai(df, 10000, symbol="600519", slippage=0)
+
+    buy, sell = result["trades_log"]
+    assert (buy["signal_date"], buy["date"], buy["price"]) == ("2026-01-01", "2026-01-02", 11)
+    assert (sell["signal_date"], sell["date"], sell["price"]) == ("2026-01-04", "2026-01-05", 14)
+    assert buy["shares"] % 100 == 0
+    assert result["trades"] == 1
+    assert result["strict_backtest"] is False
+    assert result["methodology"] == "ai_scenario_simulation"
+    assert len(result["warnings"]) == 2
 
 
 def test_advanced_modules_include_runtime_dependencies():

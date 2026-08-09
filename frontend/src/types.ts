@@ -226,6 +226,9 @@ export interface BacktestResult {
   max_drawdown: number
   trades: number
   win_rate: number
+  methodology?: string
+  strict_backtest?: boolean
+  warnings?: string[]
   // 新增指标
   annual_return?: number
   annual_volatility?: number
@@ -238,7 +241,7 @@ export interface BacktestResult {
   skewness?: number
   kurtosis?: number
   max_dd_duration?: number
-  trades_log: { date: string; action: string; price: number; shares: number; reason?: string }[]
+  trades_log: { date: string; signal_date?: string; action: string; price: number; shares: number; reason?: string }[]
   equity_curve: { date: string; value: number }[]
   error?: string
 }

@@ -32,7 +32,7 @@ const STRATEGIES = [
     { key: 'grid_pct', label: '间距%', default: 5 },
   ]},
   { key: 'hold', label: '买入持有(基准)', params: [] },
-  { key: 'ai', label: 'AI增强策略', params: [] },
+  { key: 'ai', label: 'AI情景模拟（非严格回测）', params: [] },
 ]
 
 type PageTab = 'basic' | 'analysis'
@@ -101,7 +101,7 @@ export default function BacktestPage() {
           <span>含手续费</span>
         </label>
         <button className="btn-primary" onClick={run} disabled={loading}>
-          {loading ? (strategy === 'ai' ? 'AI分析中(较慢)...' : '回测中...') : '开始回测'}
+          {loading ? (strategy === 'ai' ? 'AI模拟中(较慢)...' : '回测中...') : (strategy === 'ai' ? '开始模拟' : '开始回测')}
         </button>
       </div>
 
@@ -124,6 +124,9 @@ export default function BacktestPage() {
 
       {result && !result.error && (
         <>
+          {result.warnings?.map((warning, i) => (
+            <div key={i} className="alert-error">{warning}</div>
+          ))}
           {/* KPI 卡片 - 扩展指标 */}
           <div className="backtest-summary">
             <div className="kpi-card">

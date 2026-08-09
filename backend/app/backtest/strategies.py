@@ -23,6 +23,7 @@ from .engine import (
     _sell_price,
     _can_buy,
     _can_sell,
+    _affordable_shares,
     _execute_signals,
     apply_buy_cost,
     apply_sell_cost,
@@ -1072,15 +1073,12 @@ def _backtest_ai(
     percentage: float = 100.0,
     slippage: float = 0.001,
 ) -> dict[str, Any]:
-    """AI增强策略：大模型每隔3个交易日决策一次，综合技术指标做买卖。
-
-    交易频率：每3个交易日调一次LLM（平衡速度和响应度）。
-    每次决策买入时按可用资金的 percentage% 配置（默认满仓），卖出时清仓。
-    """
+    """AI 情景模拟：收盘后决策，下一交易日开盘执行。"""
     capital = float(capital)
-    shares = 0.0
+    shares = 0
     cash = capital
     avg_cost = 0.0
+    buy_cost = 0.0
     trades_log: list[dict] = []
     equity_curve: list[dict] = []
     wins = 0
@@ -1089,13 +1087,53 @@ def _backtest_ai(
     max_dd = 0.0
     decision_interval = 3
     last_decision_day = -decision_interval
+    pending: tuple[str, str, int] | None = None
     pct = max(min(float(percentage), 100.0), 0.0) / 100.0
     use_symbol = symbol or sym
 
     for i in range(len(df)):
         row = df.iloc[i]
         close = float(row["close"])
+        execution_price = float(row.get("open", close))
         date = row["date"].strftime("%Y-%m-%d")
+
+        if pending is not None:
+            action, reason, signal_i = pending
+            signal_date = df.iloc[signal_i]["date"].strftime("%Y-%m-%d")
+            prev_close = float(df.iloc[i - 1]["close"])
+            if action == "BUY" and shares == 0 and _can_buy(row, prev_close, use_symbol):
+                buy_px = _buy_price(execution_price, slippage)
+                buy_shares = _affordable_shares(cash * pct, buy_px, use_symbol, enable_cost)
+                if buy_shares > 0:
+                    shares = buy_shares
+                    if enable_cost:
+                        cash, buy_cost = apply_buy_cost(cash, buy_px, shares)
+                    else:
+                        cash -= shares * buy_px
+                        buy_cost = 0.0
+                    avg_cost = buy_px
+                    trades_log.append({
+                        "date": date, "signal_date": signal_date, "action": "BUY",
+                        "price": round(buy_px, 4), "shares": shares, "reason": reason,
+                    })
+            elif action == "SELL" and shares > 0 and _can_sell(row, prev_close, use_symbol):
+                sell_px = _sell_price(execution_price, slippage)
+                total_sells += 1
+                if enable_cost:
+                    cash, sell_cost = apply_sell_cost(cash, sell_px, shares)
+                else:
+                    cash += shares * sell_px
+                    sell_cost = 0.0
+                if (sell_px - avg_cost) * shares - buy_cost - sell_cost > 0:
+                    wins += 1
+                trades_log.append({
+                    "date": date, "signal_date": signal_date, "action": "SELL",
+                    "price": round(sell_px, 4), "shares": shares, "reason": reason,
+                })
+                shares = 0
+                avg_cost = 0.0
+                buy_cost = 0.0
+            pending = None
 
         if i - last_decision_day >= decision_interval:
             last_decision_day = i
@@ -1108,45 +1146,20 @@ def _backtest_ai(
             }
 
             action, reason = _ai_decision(context, position_info)
-
-            if action == "BUY" and cash > close * 100 and shares == 0:
+            if action == "BUY" and shares == 0:
                 if record_signals and signal_log is not None:
                     from ..signal_features import build_signal_features
                     feat = build_signal_features(df, i, use_symbol, 1, "ai")
                     if feat:
                         signal_log.append(feat)
-
-                buy_px = _buy_price(close, slippage)
-                buy_amount = cash * pct
-                buy_shares = int(buy_amount // buy_px) if buy_px > 0 else 0
-                if buy_shares > 0:
-                    avg_cost = buy_px
-                    shares = buy_shares
-                    if enable_cost:
-                        cash, _ = apply_buy_cost(cash, buy_px, buy_shares)
-                    else:
-                        cash -= buy_shares * buy_px
-                    trades_log.append({"date": date, "action": "BUY", "price": round(buy_px, 4),
-                                       "shares": buy_shares, "reason": reason})
-
+                pending = (action, reason, i)
             elif action == "SELL" and shares > 0:
                 if record_signals and signal_log is not None:
                     from ..signal_features import build_signal_features
                     feat = build_signal_features(df, i, use_symbol, -1, "ai")
                     if feat:
                         signal_log.append(feat)
-                sell_px = _sell_price(close, slippage)
-                total_sells += 1
-                if sell_px > avg_cost:
-                    wins += 1
-                if enable_cost:
-                    cash, _ = apply_sell_cost(cash, sell_px, int(shares))
-                else:
-                    cash += shares * sell_px
-                trades_log.append({"date": date, "action": "SELL", "price": round(sell_px, 4),
-                                   "shares": int(shares), "reason": reason})
-                shares = 0
-                avg_cost = 0.0
+                pending = (action, reason, i)
 
         value = cash + shares * close
         equity_curve.append({"date": date, "value": round(value, 2)})
@@ -1159,20 +1172,32 @@ def _backtest_ai(
     final_price = float(df.iloc[-1]["close"])
     if shares > 0:
         sell_px = _sell_price(final_price, slippage)
+        total_sells += 1
         if enable_cost:
-            cash, _ = apply_sell_cost(cash, sell_px, int(shares))
+            cash, sell_cost = apply_sell_cost(cash, sell_px, shares)
         else:
             cash += shares * sell_px
+            sell_cost = 0.0
+        if (sell_px - avg_cost) * shares - buy_cost - sell_cost > 0:
+            wins += 1
         trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL",
-                           "price": round(sell_px, 4), "shares": int(shares)})
+                           "price": round(sell_px, 4), "shares": shares, "reason": "期末平仓"})
+        equity_curve[-1]["value"] = round(cash, 2)
+        max_dd = max(max_dd, (peak_value - cash) / peak_value * 100.0 if peak_value > 0 else 0.0)
     final_value = cash
 
     return {
         "final_value": round(final_value, 2),
         "total_return": round((final_value / capital - 1) * 100, 2),
         "max_drawdown": round(max_dd, 2),
-        "trades": len(trades_log),
+        "trades": total_sells,
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
         "trades_log": trades_log,
         "equity_curve": equity_curve,
+        "methodology": "ai_scenario_simulation",
+        "strict_backtest": False,
+        "warnings": [
+            "AI 模型可能包含历史时点之后的知识，结果属于情景模拟，不是严格历史回测。",
+            "模型输出可能随服务版本变化，不应作为策略有效性或实盘收益依据。",
+        ],
     }
