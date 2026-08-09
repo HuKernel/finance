@@ -67,6 +67,20 @@ def apply_sell_cost(cash: float, price: float, shares: int) -> tuple[float, floa
     return cash + price * shares - cost["total"], cost["total"]
 
 
+def _affordable_shares(
+    budget: float,
+    price: float,
+    symbol: str,
+    enable_cost: bool,
+) -> int:
+    """按预算计算可买数量；A股按100股一手，并为手续费预留现金。"""
+    lot = 1 if symbol.lower().startswith(("hk", "us")) else 100
+    shares = int(budget // price) // lot * lot if price > 0 else 0
+    while shares > 0 and enable_cost and price * shares + calc_trade_cost(price, shares, True)["total"] > budget:
+        shares -= lot
+    return max(shares, 0)
+
+
 # ==================== 滑点/仓位/A股规则 辅助 ====================
 
 def _buy_price(price: float, slippage: float) -> float:
@@ -89,7 +103,8 @@ def _is_limit_up(row, prev_close: float, symbol: str = "") -> bool:
         return False
     # A股: 科创板(688)/创业板(300)涨20%, 其他涨10%
     limit_pct = 0.199 if (sym.startswith("688") or sym.startswith("300") or sym.startswith("301")) else 0.099
-    return (float(row["close"]) - prev_close) / prev_close >= limit_pct
+    price = float(row.get("open", row["close"]))
+    return (price - prev_close) / prev_close >= limit_pct
 
 
 def _is_limit_down(row, prev_close: float, symbol: str = "") -> bool:
@@ -102,7 +117,8 @@ def _is_limit_down(row, prev_close: float, symbol: str = "") -> bool:
         return False
     # A股: 科创板/创业板跌20%, 其他跌10%
     limit_pct = 0.199 if (sym.startswith("688") or sym.startswith("300") or sym.startswith("301")) else 0.099
-    return (prev_close - float(row["close"])) / prev_close >= limit_pct
+    price = float(row.get("open", row["close"]))
+    return (prev_close - price) / prev_close >= limit_pct
 
 
 def _can_buy(row, prev_close: float, symbol: str = "") -> bool:
@@ -208,6 +224,7 @@ def _execute_signals(
     shares = 0.0
     cash = capital
     buy_price = 0.0
+    buy_cost = 0.0
     trades_log: list[dict] = []
     equity_curve: list[dict] = []
     wins = 0
@@ -219,12 +236,13 @@ def _execute_signals(
         row = df.iloc[i]
         prev = df.iloc[i - 1]
         close = float(row["close"])
+        execution_price = float(row.get("open", close))
         date = row["date"].strftime("%Y-%m-%d")
         prev_close = float(prev["close"])
 
         position = shares > 0
         try:
-            sig = generator.generate(df, i, position)
+            sig = generator.generate(df, i - 1, position)
         except Exception:
             sig = "HOLD"
 
@@ -236,18 +254,19 @@ def _execute_signals(
             else:
                 if record_signals and signal_log is not None:
                     from ..signal_features import build_signal_features
-                    feat = build_signal_features(df, i, symbol, 1, strat_name)
+                    feat = build_signal_features(df, i - 1, symbol, 1, strat_name)
                     if feat:
                         signal_log.append(feat)
-                buy_px = _buy_price(close, slippage)
+                buy_px = _buy_price(execution_price, slippage)
                 buy_amount = cash * pct
-                buy_shares = int(buy_amount // buy_px) if buy_px > 0 else 0
+                buy_shares = _affordable_shares(buy_amount, buy_px, symbol, enable_cost)
                 if buy_shares > 0:
                     shares = buy_shares
                     if enable_cost:
-                        cash, _ = apply_buy_cost(cash, buy_px, int(shares))
+                        cash, buy_cost = apply_buy_cost(cash, buy_px, int(shares))
                     else:
                         cash -= shares * buy_px
+                        buy_cost = 0.0
                     buy_price = buy_px
                     trades_log.append({"date": date, "action": "BUY", "price": round(buy_px, 4), "shares": int(shares)})
 
@@ -259,20 +278,22 @@ def _execute_signals(
             else:
                 if record_signals and signal_log is not None:
                     from ..signal_features import build_signal_features
-                    feat = build_signal_features(df, i, symbol, -1, strat_name)
+                    feat = build_signal_features(df, i - 1, symbol, -1, strat_name)
                     if feat:
                         signal_log.append(feat)
-                sell_px = _sell_price(close, slippage)
+                sell_px = _sell_price(execution_price, slippage)
                 total_sells += 1
-                if sell_px > buy_price:
-                    wins += 1
                 if enable_cost:
-                    cash, _ = apply_sell_cost(cash, sell_px, int(shares))
+                    cash, sell_cost = apply_sell_cost(cash, sell_px, int(shares))
                 else:
                     cash += shares * sell_px
+                    sell_cost = 0.0
+                if (sell_px - buy_price) * shares - buy_cost - sell_cost > 0:
+                    wins += 1
                 trades_log.append({"date": date, "action": "SELL", "price": round(sell_px, 4), "shares": int(shares)})
                 shares = 0
                 buy_price = 0.0
+                buy_cost = 0.0
 
         # ---- 权益 & 回撤 ----
         value = cash + shares * close
@@ -287,21 +308,28 @@ def _execute_signals(
     final_price = float(df.iloc[-1]["close"])
     if shares > 0:
         sell_px = _sell_price(final_price, slippage)
+        total_sells += 1
         if enable_cost:
-            cash, _ = apply_sell_cost(cash, sell_px, int(shares))
+            cash, sell_cost = apply_sell_cost(cash, sell_px, int(shares))
         else:
             cash += shares * sell_px
+            sell_cost = 0.0
+        if (sell_px - buy_price) * shares - buy_cost - sell_cost > 0:
+            wins += 1
         trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL",
                            "price": round(sell_px, 4), "shares": int(shares)})
         shares = 0
+        equity_curve[-1]["value"] = round(cash, 2)
+        dd = (peak_value - cash) / peak_value * 100.0 if peak_value > 0 else 0.0
+        max_dd = max(max_dd, dd)
     final_value = cash
 
     return {
         "final_value": round(final_value, 2),
         "total_return": round((final_value / capital - 1) * 100, 2),
         "max_drawdown": round(max_dd, 2),
-        "trades": len(trades_log),
+        "trades": total_sells,
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }

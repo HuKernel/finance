@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any
 import pandas as pd
 
+from ..data import fetcher as datalayer
+
 
 def run_layered_test(
     symbol: str,

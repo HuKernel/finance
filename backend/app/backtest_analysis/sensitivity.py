@@ -2,6 +2,11 @@
 from __future__ import annotations
 from typing import Any
 import pandas as pd
+import numpy as np
+
+from .. import backtest as bt
+from ..data import fetcher as datalayer
+from .scoring import calc_profit_factor
 
 
 def run_parameter_sensitivity(
@@ -37,7 +42,7 @@ def run_parameter_sensitivity(
                 "slow": slow,
                 "total_return": r["total_return"],
                 "max_drawdown": r["max_drawdown"],
-                "trades": len(r["trades_log"]),
+                "trades": r["trades"],
                 "pf": pf,
             })
 

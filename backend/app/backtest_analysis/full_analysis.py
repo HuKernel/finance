@@ -1,6 +1,7 @@
 """回测深度分析 - full_analysis模块"""
 from __future__ import annotations
-from typing import Any
+import math
+from typing import Any, Optional
 import pandas as pd
 from .scoring import calc_profit_factor, calc_recovery_factor, calc_comprehensive_score
 from .. import backtest as bt
@@ -25,7 +26,8 @@ def run_full_analysis(
     # PF/RF/评分
     pf = calc_profit_factor(original["trades_log"])
     net_profit = original["final_value"] - initial_capital
-    rf = calc_recovery_factor(net_profit, original["max_drawdown"])
+    max_drawdown_amount = initial_capital * original["max_drawdown"] / 100
+    rf = calc_recovery_factor(net_profit, max_drawdown_amount)
     score = calc_comprehensive_score(
         original["total_return"], original["max_drawdown"], pf, rf,
         original["trades"], original.get("benchmark_return", 0),
@@ -97,52 +99,13 @@ def _run_strategy_on_df(
         "slippage": params.pop("slippage", 0.001),
     }
     symbol = params.pop("symbol", "")
-    result: Optional[dict] = None
-
-    try:
-        if strategy in ("ma_cross", "dual_ma"):
-            result = bt._backtest_ma_cross(
-                df, capital, symbol=symbol,
-                fast_period=params.get("fast_period", 5),
-                slow_period=params.get("slow_period", 20),
-                **common,
-            )
-        elif strategy == "macd":
-            result = bt._backtest_macd(
-                df, capital, symbol=symbol,
-                fastperiod=params.get("fastperiod", 12),
-                slowperiod=params.get("slowperiod", 26),
-                signalperiod=params.get("signalperiod", 9),
-                **common,
-            )
-        elif strategy == "kdj":
-            result = bt._backtest_kdj(
-                df, capital, symbol=symbol,
-                k_period=params.get("k_period", 9),
-                d_period=params.get("d_period", 3),
-                **common,
-            )
-        elif strategy == "boll":
-            result = bt._backtest_boll(
-                df, capital, symbol=symbol,
-                boll_period=params.get("boll_period", 20),
-                boll_std=params.get("boll_std", 2.0),
-                **common,
-            )
-        elif strategy == "rsi":
-            result = bt._backtest_rsi(
-                df, capital, symbol=symbol,
-                rsi_period=params.get("rsi_period", 14),
-                rsi_oversold=params.get("rsi_oversold", 30),
-                rsi_overbought=params.get("rsi_overbought", 70),
-                **common,
-            )
-        elif strategy == "hold":
-            result = bt._backtest_hold(df, capital, **common)
-        else:
-            return None
-    except Exception:
+    generator = bt._build_signal_generator(strategy, **params)
+    if generator is None:
         return None
+    prepared = generator.prepare(df)
+    if len(prepared) < max(generator.min_rows(), 5):
+        return None
+    result = bt._execute_signals(generator, prepared, capital, symbol=symbol, **common)
 
     if not result:
         return None

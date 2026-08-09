@@ -1,8 +1,10 @@
 """回测深度分析 - walk_forward模块"""
 from __future__ import annotations
-from typing import Any
+import math
+from typing import Any, Optional
 import pandas as pd
-from .full_analysis import _run_strategy_on_df
+import numpy as np
+from .full_analysis import _run_strategy_on_df, _sharpe_from_equity, _WF_PARAM_GRID
 from .. import backtest as bt
 from ..data import fetcher as datalayer
 

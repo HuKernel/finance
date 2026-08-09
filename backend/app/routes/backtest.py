@@ -1,6 +1,7 @@
 """路由模块: backtest"""
 from __future__ import annotations
 from typing import Any
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -78,7 +79,10 @@ def backtest_analysis_api(
         if not r:
             return {"error": "数据不足"}
         pf = ba.calc_profit_factor(r["trades_log"])
-        rf = ba.calc_recovery_factor(r["final_value"] - 100000, r["max_drawdown"])
+        rf = ba.calc_recovery_factor(
+            r["final_value"] - 100000,
+            100000 * r["max_drawdown"] / 100,
+        )
         score = ba.calc_comprehensive_score(r["total_return"], r["max_drawdown"], pf, rf, r["trades"])
         return {"profit_factor": pf, "recovery_factor": rf, "score": score}
     else:

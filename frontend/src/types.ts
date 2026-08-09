@@ -228,10 +228,10 @@ export interface BacktestResult {
   win_rate: number
   // 新增指标
   annual_return?: number
+  annual_volatility?: number
   sharpe_ratio?: number
   sortino_ratio?: number
   calmar_ratio?: number
-  volatility?: number
   max_consecutive_losses?: number
   ewm_sharpe?: number
   cvar_95?: number

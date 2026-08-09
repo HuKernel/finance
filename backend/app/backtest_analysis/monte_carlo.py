@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 import random
 import math
+import numpy as np
+
+from .. import backtest as bt
 
 
 def run_monte_carlo(

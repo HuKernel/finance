@@ -205,10 +205,8 @@ class HoldSignal(SignalGenerator):
     name = "hold"
 
     def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
-        if i == 1 and not position:
+        if i == 0 and not position:
             return "BUY"
-        if i == len(df) - 1 and position:
-            return "SELL"
         return "HOLD"
 
 
@@ -371,7 +369,7 @@ def _backtest_ma_cross(
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
 
@@ -486,7 +484,7 @@ def _backtest_macd(
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
 
@@ -594,7 +592,7 @@ def _backtest_kdj(
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
 
@@ -703,7 +701,7 @@ def _backtest_boll(
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
 
@@ -811,7 +809,7 @@ def _backtest_rsi(
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
 
@@ -916,7 +914,7 @@ def _backtest_grid(
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
 
@@ -1175,6 +1173,6 @@ def _backtest_ai(
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }

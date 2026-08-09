@@ -4,6 +4,13 @@ from typing import Any
 import pandas as pd
 import numpy as np
 from .full_analysis import _run_strategy_on_df
+from .walk_forward import (
+    _CPCV_PARAM_GRID,
+    _equity_curve_period_return,
+    _equity_curve_segment,
+    _optimize_params_on_train,
+)
+from .full_analysis import _sharpe_from_equity
 from .. import backtest as bt
 from ..data import fetcher as datalayer
 

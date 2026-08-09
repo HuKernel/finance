@@ -168,7 +168,7 @@ export default function BacktestPage() {
             </div>
             <div className="kpi-card">
               <span className="kpi-label">波动率</span>
-              <span className="kpi-value">{(result.volatility ?? 0).toFixed(1)}%</span>
+              <span className="kpi-value">{(result.annual_volatility ?? 0).toFixed(1)}%</span>
             </div>
             <div className="kpi-card">
               <span className="kpi-label">交易次数</span>
@@ -227,13 +227,13 @@ export default function BacktestPage() {
 
           {result.trades_log.length > 0 && (
             <div className="backtest-trades">
-              <h4>交易记录（最近{result.trades_log.length}笔）</h4>
+              <h4>交易记录（最近{Math.min(result.trades_log.length, 20)}笔）</h4>
               <table className="portfolio-table">
                 <thead>
                   <tr><th>日期</th><th>操作</th><th>价格</th><th>数量</th>{strategy === 'ai' && <th>AI理由</th>}</tr>
                 </thead>
                 <tbody>
-                  {result.trades_log.map((t, i) => (
+                  {result.trades_log.slice(-20).map((t, i) => (
                     <tr key={i}>
                       <td>{t.date}</td>
                       <td className={t.action === 'BUY' ? 'up' : 'down'}>{t.action === 'BUY' ? '买入' : '卖出'}</td>

@@ -207,6 +207,7 @@ def run_backtest(
 
     signal_log: list[dict[str, Any]] = []
     result: Optional[dict[str, Any]] = None
+    evaluation_df = df
 
     # ---- 优先走信号-执行解耦架构（AlphaModel 重构）----
     # 所有支持信号生成器的策略走统一执行器 _execute_signals；
@@ -224,6 +225,7 @@ def run_backtest(
             if len(df_prepared) < max(generator.min_rows(), 5):
                 result = _empty_result()
             else:
+                evaluation_df = df_prepared
                 # 自定义执行（如 grid 多仓位策略）
                 custom = generator.execute(
                     df_prepared, initial_capital,
@@ -248,8 +250,11 @@ def run_backtest(
                         slippage=slippage,
                     )
         except Exception:
-            # 任何异常 → 回退到原 _backtest_* 保证向后兼容
+            # 不回退到旧的同K线成交实现，避免静默产生带未来偏差的结果
             result = None
+
+    if generator is not None and result is None:
+        return None
 
     # ---- Fallback：原 _backtest_* 函数（完全向后兼容）----
     if result is None:
@@ -323,8 +328,8 @@ def run_backtest(
             return None
 
     # ---- 基准：买入持有 ----
-    first_price = float(df.iloc[0]["close"])
-    last_price = float(df.iloc[-1]["close"])
+    first_price = float(evaluation_df.iloc[0]["close"])
+    last_price = float(evaluation_df.iloc[-1]["close"])
     benchmark_return = (last_price / first_price - 1) * 100
 
     total_return = float(result.get("total_return", 0.0))
@@ -333,7 +338,7 @@ def run_backtest(
     result.update({
         "strategy": strategy,
         "symbol": sym,
-        "period": f"{df.iloc[0]['date'].strftime('%Y-%m-%d')} ~ {df.iloc[-1]['date'].strftime('%Y-%m-%d')}",
+        "period": f"{evaluation_df.iloc[0]['date'].strftime('%Y-%m-%d')} ~ {evaluation_df.iloc[-1]['date'].strftime('%Y-%m-%d')}",
         "initial_capital": initial_capital,
         "benchmark_return": round(benchmark_return, 2),
         "excess_return": round(total_return - benchmark_return, 2),
