@@ -1,45 +1,56 @@
 # FinanceCrew - 多智能体金融投研平台
 
-多智能体驱动的 A股/港股/美股 投研平台：**对话式智能体 + 多智能体深度研报 + 实时行情可视化 + 投资组合管理 + 策略回测**。
+多智能体驱动的 A股/港股/美股 投研平台：**对话式智能体 + 多智能体深度研报 + 实时行情可视化 + 投资组合管理 + 策略回测 + 投资论文追踪**。
 
 ## 核心功能
 
 ### 智能体
-- **智能对话**：LangGraph ReAct 智能体，自主调用 9 种工具（行情/K线/财务/龙虎榜/新闻/行业对比/情绪面/估值/投研流水线），基于真实数据回答
-- **多智能体投研**：5 位分析师（宏观/基本面/技术面/情绪面/资金面）独立研判 -> 多空辩论 -> 共识评分 -> 风控审查 -> 交易计划
-- **记忆反哺**：用户画像与偏好注入所有分析师 prompt，影响评分方向和仓位建议
+- **智能对话**：LangGraph ReAct 智能体，自主调用 12 种工具（行情/K线/财务/龙虎榜/新闻/搜索/行业对比/情绪面/估值/投研流水线/历史投研搜索/网页搜索），基于真实数据回答
+- **意图识别**：自动检测用户消息中的分析意图（"分析茅台""调研苹果短线"），直接触发完整投研流水线
+- **长期记忆**：跨会话记住用户关注的标的和偏好（只从用户消息提取，不污染AI回复）
+- **多智能体投研**：5 位分析师（宏观/基本面/技术面/情绪面/资金面）独立研判 → 多空辩论 → 共识评分 → 风控审查 → 交易计划
+- **Agentic 模式**：分析师可自主调用工具（联网搜索、行情查询），不限于预设数据
+- **投研知识库**：搜索用户历史投研分析记录，AI 可引用过去的研究结论
 
 ### 行情与数据
-- **三市场覆盖**：A股/港股/美股实时行情、K线（日K+分时）、技术指标（MACD/KDJ/BOLL）
+- **三市场覆盖**：A股/港股/美股实时行情、K线（日K/周K/月K/5分/15分/30分/60分 + 当日分时）、技术指标（MA/MACD/KDJ/BOLL/RSI/ATR/ADX）
+- **美股数据源**：Polygon.io（日K + 5分钟K线）+ 东财push2delay + 腾讯 + 新浪多接口fallback
+- **分时图**：A股/港股/美股分时，美股时间自动转北京时间，跨午夜时间轴正确映射
 - **自选股**：侧栏 watchlist + 行情卡片星标按钮，三处同步
 - **热门股票**：每日动态排序（涨幅前6），不固定列表
-- **情绪面分析**：东财人气榜排名趋势 + 雪球关注度 + 量价资金动能 + 综合情绪评分
-- **DCF估值**：三阶段现金流折现模型，季度数据自动年化，计算内在价值与偏离度
+- **情绪面分析**：A股用东财人气榜+雪球+量价资金；港股/美股用联网搜索获取舆情
+- **DCF估值**：三阶段现金流折现模型，支持A股/港股/美股
+- **市场数据**：板块轮动、条件选股（自定义筛选条件）、融资融券、北向资金（沪股通/深股通实时排行）
 
 ### 投资管理
 - **投资组合**：持仓追踪（买入加权成本/卖出减仓）、实时盈亏、交易历史
-- **策略回测**：3种策略（MA均线交叉/网格交易/买入持有），计算超额收益/最大回撤/胜率/权益曲线
-- **行业对比**：同行 PE/PB/涨跌幅对比 + LLM 自动生成同行 + DB 持久化
+- **策略回测**：10种策略（MA均线交叉/双均线/MACD/KDJ/BOLL/RSI/网格/买入持有/AI增强/自定义），含超额收益/最大回撤/胜率/权益曲线
+- **回测深度分析**：蒙特卡洛模拟、分层测试、参数敏感度热力图、Walk-Forward验证、CPCV/PBO稳健性检验
+- **投资论文追踪**：记录投资逻辑（thesis），定期检查偏离度（drift detection），支持手动结算
 
-### 预警系统
-- **价格预警**：4种类型（价格突破/跌破、涨跌幅超限）
-- **技术指标预警**：MA5金叉/死叉MA20、放量突破（量比）
-- **实时通知**：30秒轮询 + 弹窗通知 + 可重新激活（re-arm）
+### 预警与定时
+- **价格预警**：4种类型（价格突破/跌破、涨跌幅超限），30秒轮询 + 弹窗通知
+- **定时分析**：自定义定时任务（cron表达式），自动执行投研分析并保存
+- **反思引擎**：记录每次投研决策，N天后自动结算实际收益，反思决策质量
 
 ### 安全
 - **per-user LLM Key**：每个用户独立 API Key，AES-256-GCM 加密存储，前端永远脱敏
 - **登录安全**：频率限制（5次失败锁定15分钟）、密码 PBKDF2-SHA256 哈希
 - **反爬限流**：全局请求频率限制（60次/分钟），CORS 白名单
-- **认证保护**：所有敏感 API 需登录（分析报告/LLM配置/投资组合/预警等）
+- **数据隔离**：所有用户数据（对话/组合/预警/分析/记忆）按 user_id 隔离
 
 ### UI/UX
-- **极简风格**：直角/细线/大留白/克制配色（参考 Linear/Bloomberg Terminal）
+- **极简风格**：直角/细线/大留白/克制配色（翠绿强调色 #10b981，参考 Linear/Bloomberg Terminal）
 - **暗色/亮色主题**：一键切换
-- **个人中心**：模型配置 + 用户画像 + 修改密码，三栏导航
-- **PDF导出**：投研报告打印优化（分页控制、导航隐藏）
+- **自定义弹窗系统**：全局 toast（成功/失败/警告）+ confirm 确认框，不使用原生 alert/confirm
+- **ErrorBoundary**：组件级错误边界，单页崩溃不白屏
+- **移动端适配**：@media 断点（平板1024px/手机768px），导航横滑、表格滚动、表单单列
+- **K线图**：自绘SVG（日K蜡烛图+分时折线+多周期+多日分时），nice-number动态刻度，低对比度网格，十字光标跟随
+- **懒加载**：katex/backtest图表按需加载，减小首屏体积
+- **PDF导出**：投研报告打印优化
 - **Docker部署**：多阶段构建，一行启动
 
-技术栈：LangChain + LangGraph + FastAPI + React 19/Vite/TypeScript + SQLite + 腾讯行情/akshare 数据。
+技术栈：LangChain + LangGraph + FastAPI + React 19/Vite/TypeScript + SQLite + 腾讯/东财/akshare/Polygon.io 数据。
 
 ## 快速开始
 
@@ -76,66 +87,149 @@ docker run -p 8000:8000 -v financecrew-data:/app/backend/data financecrew
 ```
 backend/
   app/
-    main.py          # FastAPI 入口（认证/投研/对话/行情/组合/回测/预警/估值 API + 前端托管）
-    config.py        # LLM 配置管理（SQLite 持久化）
-    llm.py           # LangChain ChatOpenAI 客户端（支持 per-user 配置）
-    auth.py          # JWT 认证 + 用户画像 + per-user LLM Key 加密 + 频率限制
-    chat.py          # 对话智能体（LangGraph ReAct + 会话存储 + SSE 流式）
-    tools.py         # 智能体工具集（行情/财务/龙虎榜/新闻/行业/情绪/估值/投研）
-    cache.py         # SQLite 数据缓存层（TTL 过期）
-    alert.py         # 价格预警系统（CRUD + 技术指标 + 批量查询）
-    valuation.py     # DCF 现金流折现估值模型
-    portfolio.py     # 投资组合管理（持仓/买卖/盈亏/交易历史）
-    backtest.py      # 策略回测（MA交叉/网格/持有）
-    llm_compare.py   # 多 LLM 模型对比
-    graph/           # LangGraph 投研流水线（state/nodes/builder）
-    agents/          # 分析师/风控/交易员角色
-    data/            # 数据层（腾讯行情/K线 + akshare 财务/龙虎榜/新闻/情绪）
-    memory.py        # 分析历史
-  test/              # pytest 单元测试（14项，覆盖 fetcher + alert）
+    main.py              # FastAPI 入口（路由注册 + 中间件 + 静态托管）
+    deps.py              # 共享依赖（认证守卫，避免循环导入）
+    pipeline.py          # 投研流水线薄封装（LangGraph 状态图）
+    config.py            # LLM 配置管理 + DB 连接
+    db_migrations.py     # 数据库索引迁移（幂等）
+    llm.py               # LangChain ChatOpenAI 客户端
+    auth.py              # JWT 认证 + 用户画像 + per-user LLM Key 加密
+    cache.py             # SQLite 数据缓存层（TTL 过期）
+    valuation.py         # DCF 现金流折现估值模型
+    portfolio.py         # 投资组合管理
+    alert.py             # 价格预警系统
+    tools.py             # 智能体工具集（12种工具）
+    scheduler.py         # 定时分析调度器
+    reflection_engine.py # 反思引擎（决策记录 + N天结算）
+    thesis_tracker.py    # 投资论文追踪 + 偏离检测
+    knowledge_base.py    # 投研知识库（历史分析检索）
+    ic_evaluator.py      # 信号IC评估
+    routes/              # API 路由（13个模块）
+      system.py          # 健康/配置/LLM对比
+      auth.py            # 注册/登录/用户管理
+      analysis.py        # 投研分析（SSE流式）
+      market.py          # 行情/K线/对比
+      portfolio.py       # 组合/交易
+      backtest.py        # 回测/深度分析
+      alerts.py          # 预警CRUD
+      chat.py            # 对话（SSE流式）
+      scheduler.py       # 定时任务管理
+      thesis.py          # 投资论文
+      knowledge.py       # 知识库搜索
+      reflection.py      # 反思结算
+      market_data.py     # 板块/选股/融资融券/北向资金
+    chat/                # 对话模块（从 chat.py 拆分）
+      prompts.py         # 系统提示词定义
+      db.py              # 会话/消息 CRUD + build_agent
+      memory.py          # 长期记忆管理（只从用户消息提取）
+      intent.py          # 意图识别（触发投研分析）
+      peers.py           # 行业同行管理
+      streaming.py       # SSE 流式对话
+    graph/               # LangGraph 投研流水线
+      state.py           # 状态定义
+      nodes.py           # 节点（collect_data/analysts/debate/consensus/risk/trader）
+      builder.py         # 图构建器
+    agents/              # 分析师/风控/交易员角色
+      analysts.py        # 标准分析师（5角色）
+      agentic.py         # Agentic 分析师（自主调工具）
+      roles.py           # 角色注册表
+    data/                # 数据层
+      fetcher.py         # 兼容入口（重导出全部公共函数）
+      a_stock.py         # A股数据兼容shim
+      stock_data.py      # A股行情/K线/分时
+      tech_signals.py    # 技术指标计算
+      financials.py      # 财务/龙虎榜
+      search.py          # 股票搜索
+      hk_us_stock.py     # 港股/美股（多接口fallback + 时区转换）
+      polygon_us.py      # Polygon.io 美股数据源
+      news.py            # 新闻/快讯
+      sentiment.py       # 社交情绪
+      market.py          # 行业对比/热门
+      utils.py           # 通用工具函数
+      north_flow.py      # 北向资金
+      sector_flow.py     # 板块轮动
+      stock_screener.py  # 条件选股
+      margin_data.py     # 融资融券
+    backtest/            # 策略回测包
+      strategies.py      # 10种策略信号生成器
+      indicators.py      # 技术指标计算
+      metrics.py         # 统计指标（夏普/回撤/胜率等）
+      engine.py          # 回测执行引擎
+    backtest_analysis/   # 回测深度分析包
+      scoring.py         # 综合评分
+      monte_carlo.py     # 蒙特卡洛模拟
+      layered.py         # 分层测试
+      sensitivity.py     # 参数敏感度
+      walk_forward.py    # Walk-Forward验证
+      cpcv.py            # 组合交叉验证
+      pbo.py             # 过拟合概率
+      full_analysis.py   # 完整分析流水线
+  test/                  # pytest 单元测试
 frontend/
   src/
-    App.tsx          # 主界面（8个标签页 + 登录守卫 + 预警铃铛）
-    ChatPage.tsx     # 智能对话页（流式回复 + 热门轮播 + 行情卡片）
-    QuoteCard.tsx    # 行情卡片（K线图 + 指标 + 星标按钮）
-    KLineChart.tsx   # SVG 蜡烛图（日K/分时/MACD/KDJ/BOLL/全屏）
-    QuotePage.tsx    # 行情页（搜索 + 对比 + 热门）
-    PortfolioPage.tsx# 投资组合（持仓表 + 盈亏KPI + 交易记录）
-    BacktestPage.tsx # 策略回测（权益曲线SVG + 交易记录）
-    ProfilePage.tsx  # 个人中心（模型配置 + 用户画像 + 修改密码）
-    AlertBell.tsx    # 全局预警通知（铃铛 + 轮询 + 弹窗 + CRUD）
-    LoginPage.tsx    # 登录/注册
+    App.tsx              # 主界面（11个标签页 + 登录守卫 + ErrorBoundary）
+    ChatPage.tsx         # 智能对话（流式 + 热门轮播 + 行情卡片）
+    QuotePage.tsx        # 行情页（K线 + 对比 + 分时实时刷新）
+    QuoteCard.tsx        # 行情卡片（K线/分时切换 + 星标）
+    KLineChart.tsx       # SVG 蜡烛图（日K/分时/MACD/KDJ/多周期/跨午夜/十字光标）
+    Markdown.tsx         # Markdown 渲染（katex懒加载）
+    BacktestPage.tsx     # 策略回测（图表懒加载）
+    BacktestAnalysis.tsx # 回测深度分析
+    MarketDataPage.tsx   # 市场数据（4Tab：板块/选股/融资/北向）
+    PortfolioPage.tsx    # 投资组合
+    ThesisPage.tsx       # 投资论文
+    SchedulerPage.tsx    # 定时分析
+    ProfilePage.tsx      # 个人中心
+    AdminPage.tsx        # 管理后台
+    Modal.tsx            # 自定义弹窗系统（toast/confirm）
+    ErrorBoundary.tsx    # 错误边界
+    HistoryPage.tsx      # 投研历史
+    AlertBell.tsx        # 全局预警
+    LoginPage.tsx        # 登录/注册
 .github/workflows/
-  ci.yml             # CI（后端 pytest + 前端 build + Docker build）
+  ci.yml                 # CI（后端 pytest + 前端 build + Docker build）
 ```
 
-## API 一览
+## 智能体工具（12种）
 
-| 接口 | 方法 | 说明 |
+| 工具 | 功能 | A股 | 港股 | 美股 |
+|------|------|:---:|:---:|:---:|
+| get_quote | 实时行情快照 | OK | OK | OK |
+| get_kline | K线数据（多周期） | OK | OK | OK |
+| get_financials | 财务摘要 | OK | OK | OK |
+| get_news | 个股新闻 | OK | OK | OK |
+| get_market_news | 实时财经快讯 | OK | OK | OK |
+| search_stock | 搜索股票代码 | OK | OK | OK |
+| web_search | 联网搜索（DuckDuckGo） | OK | OK | OK |
+| compare_industry | 行业对比 | OK | OK | OK |
+| get_sentiment | 社交情绪 | OK | OK | OK |
+| get_valuation | DCF估值 | OK | OK | OK |
+| run_research | 完整投研流水线 | OK | OK | OK |
+| search_my_research | 搜索历史投研记录 | OK | OK | OK |
+| get_lhb | 龙虎榜（A股独有） | OK | - | - |
+
+## API 一览（95+ 端点）
+
+| 模块 | 接口 | 说明 |
 |------|------|------|
-| /api/auth/register, /login, /me | POST/GET | 注册/登录/当前用户（频率限制） |
-| /api/auth/profile | GET/PUT | 用户画像（风险偏好/自选股） |
-| /api/auth/change-password | POST | 修改密码（需旧密码验证） |
-| /api/auth/llm-config | GET/PUT | per-user LLM 配置（Key 加密存储） |
-| /api/chat, /api/chat/stream | POST | 对话（ReAct 智能体 + SSE 流式） |
-| /api/chat/session(s) | POST/GET/DELETE | 会话管理 |
-| /api/analysis, /api/analysis/stream | POST | 多智能体投研分析（SSE 流式） |
-| /api/quote/{symbol} | GET | 实时行情 + K线 + 技术指标 |
-| /api/search/{q} | GET | 股票搜索（A股/港股/美股） |
-| /api/hot | GET | 每日热门股票（涨幅排序） |
-| /api/news/{symbol} | GET | 个股新闻 |
-| /api/industry/{symbol} | GET | 行业对比（同行 PE/PB） |
-| /api/sentiment/{symbol} | GET | 社交情绪面数据 |
-| /api/dcf/{symbol} | GET | DCF 估值 |
-| /api/portfolio | GET | 投资组合（持仓 + 实时盈亏） |
-| /api/portfolio/buy, /sell | POST | 买入/卖出记录 |
-| /api/portfolio/transactions | GET | 交易历史 |
-| /api/backtest/{symbol} | GET | 策略回测（3种策略） |
-| /api/alerts | GET/POST/DELETE | 价格预警 CRUD |
-| /api/alerts/check | POST | 预警触发检查（30秒轮询） |
-| /api/alerts/{id}/reactivate | POST | 重新激活已触发预警 |
-| /api/llm-compare | POST | 多 LLM 模型对比 |
-| /api/history | GET/DELETE | 投研分析历史 |
+| 认证 | /api/auth/register, /login, /me, /profile, /change-password | 注册/登录/用户画像/密码 |
+| LLM配置 | /api/auth/llm-config | per-user LLM Key（加密） |
+| 对话 | /api/chat, /api/chat/stream, /api/chat/session(s) | ReAct 智能体 + SSE + 会话管理 |
+| 投研 | /api/analysis, /api/analysis/stream | 多智能体分析（SSE流式） |
+| 行情 | /api/quote/{symbol}, /api/search/{q}, /api/hot | 行情/K线/搜索/热门 |
+| 新闻 | /api/news/{symbol}, /api/flash | 个股新闻/快讯 |
+| 行业 | /api/industry/{symbol}, /api/industry/peers | 行业对比/同行管理 |
+| 情绪 | /api/sentiment/{symbol} | 社交情绪面 |
+| 估值 | /api/dcf/{symbol} | DCF估值 |
+| 组合 | /api/portfolio, /buy, /sell, /transactions | 持仓/买卖/交易历史 |
+| 回测 | /api/backtest/{symbol}, /api/backtest-analysis/* | 回测/蒙特卡洛/分层/敏感度 |
+| 预警 | /api/alerts, /check, /{id}/reactivate | 预警CRUD/检查/重新激活 |
+| 知识库 | /api/knowledge/search, /stats | 历史投研检索/统计 |
+| 论文 | /api/theses, /api/thesis-drift/{ticker} | 投资论文/偏离检测 |
+| 反思 | /api/reflection/settle/{ticker} | 手动结算pending决策 |
+| 定时 | /api/scheduled-tasks | 定时分析任务管理 |
+| 市场数据 | /api/market/sectors, /screener, /margin, /north-flow | 板块/选股/融资/北向 |
+| LLM对比 | /api/llm-compare | 多模型对比 |
 
 ## 免责声明
 
