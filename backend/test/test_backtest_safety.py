@@ -63,6 +63,32 @@ def test_ai_simulation_executes_decisions_at_next_open(monkeypatch):
     assert len(result["warnings"]) == 2
 
 
+def test_grid_uses_prior_close_and_next_open_with_a_share_lots():
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=4),
+        "open": [10.0, 10.5, 9.0, 10.5],
+        "close": [10.0, 9.0, 10.0, 10.5],
+    })
+
+    result = strategies._backtest_grid(
+        df, 100000, 0.05, symbol="600519", slippage=0, enable_cost=True,
+    )
+
+    first_buy, grid_buy, grid_sell = result["trades_log"][:3]
+    assert (first_buy["signal_date"], first_buy["date"], first_buy["price"]) == (
+        "2026-01-01", "2026-01-02", 10.5,
+    )
+    assert (grid_buy["signal_date"], grid_buy["date"], grid_buy["price"]) == (
+        "2026-01-02", "2026-01-03", 9,
+    )
+    assert (grid_sell["signal_date"], grid_sell["date"], grid_sell["price"]) == (
+        "2026-01-03", "2026-01-04", 10.5,
+    )
+    assert all(t["shares"] % 100 == 0 for t in result["trades_log"])
+    assert result["trades"] == 2  # 网格卖出 + 期末平仓
+    assert result["win_rate"] == 100
+
+
 def test_advanced_modules_include_runtime_dependencies():
     from app.backtest_analysis import layered, monte_carlo, pbo, sensitivity, walk_forward
 

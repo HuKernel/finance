@@ -312,7 +312,7 @@ def run_backtest(
             )
         elif strategy == "grid":
             grid_pct = kwargs.get("grid_pct", 0.05)
-            result = _backtest_grid(df, initial_capital, grid_pct, **common)
+            result = _backtest_grid(df, initial_capital, grid_pct, symbol=symbol, **common)
         elif strategy == "hold":
             result = _backtest_hold(df, initial_capital, **common)
         elif strategy == "ai":

@@ -194,6 +194,7 @@ class GridSignal(SignalGenerator):
     def execute(self, df: pd.DataFrame, capital: float, **opts) -> Optional[dict]:
         return _backtest_grid(
             df, capital, self.grid_pct,
+            symbol=opts.get("symbol", ""),
             enable_cost=opts.get("enable_cost", True),
             percentage=opts.get("percentage", 100.0),
             slippage=opts.get("slippage", 0.001),
@@ -833,62 +834,73 @@ def _backtest_grid(
     df,
     capital: float,
     grid_pct: float,
+    symbol: str = "",
     enable_cost: bool = True,
     percentage: float = 100.0,
     slippage: float = 0.001,
 ) -> dict[str, Any]:
-    """简易网格策略：价格每跌grid_pct买入一份，每涨grid_pct卖出一份。
-
-    （保留原逻辑，叠加滑点/仓位比例与复利。）
-    """
+    """网格策略：收盘触发信号，下一交易日开盘成交。"""
     capital = float(capital)
-    shares = 0.0
+    shares = 0
     cash = capital
-    base_price = _buy_price(float(df.iloc[0]["close"]), slippage)
-    position_value = capital * 0.5  # 首次用50%资金建仓
-    shares = int(position_value // base_price) if base_price > 0 else 0
-    if enable_cost and shares > 0:
-        cash, _ = apply_buy_cost(cash, base_price, int(shares))
-    else:
-        cash -= shares * base_price
-    last_grid_price = base_price
-    trades_log = [{"date": df.iloc[0]["date"].strftime("%Y-%m-%d"),
-                   "action": "BUY", "price": round(base_price, 4), "shares": int(shares)}]
+    cost_basis = 0.0
+    last_grid_price = float(df.iloc[0]["close"])
+    trades_log: list[dict] = []
     equity_curve: list[dict] = []
     peak_value = capital
     max_dd = 0.0
+    wins = 0
+    total_sells = 0
     pct = max(min(float(percentage), 100.0), 0.0) / 100.0
+    lot = 1 if symbol.lower().startswith(("hk", "us")) else 100
 
-    for _, row in df.iterrows():
+    for i in range(1, len(df)):
+        row = df.iloc[i]
+        prev = df.iloc[i - 1]
         close = float(row["close"])
+        prev_close = float(prev["close"])
+        open_price = float(row.get("open", close))
         date = row["date"].strftime("%Y-%m-%d")
+        signal_date = prev["date"].strftime("%Y-%m-%d")
 
-        # 跌了grid_pct → 买入
-        if close <= last_grid_price * (1 - grid_pct) and cash > close * 100:
-            buy_px = _buy_price(close, slippage)
-            buy_amount = cash * pct * 0.2  # 单次用可用资金20%
-            buy_shares = int(buy_amount // buy_px) if buy_px > 0 else 0
+        initial_buy = i == 1 and shares == 0
+        grid_buy = prev_close <= last_grid_price * (1 - grid_pct)
+        grid_sell = prev_close >= last_grid_price * (1 + grid_pct)
+
+        if (initial_buy or grid_buy) and cash > 0 and _can_buy(row, prev_close, symbol):
+            buy_px = _buy_price(open_price, slippage)
+            buy_amount = cash * pct * (0.5 if initial_buy else 0.2)
+            buy_shares = _affordable_shares(buy_amount, buy_px, symbol, enable_cost)
             if buy_shares > 0:
                 shares += buy_shares
                 if enable_cost:
-                    cash, _ = apply_buy_cost(cash, buy_px, buy_shares)
+                    cash, buy_fee = apply_buy_cost(cash, buy_px, buy_shares)
                 else:
                     cash -= buy_shares * buy_px
-                last_grid_price = close
-                trades_log.append({"date": date, "action": "BUY", "price": round(buy_px, 4), "shares": buy_shares})
+                    buy_fee = 0.0
+                cost_basis += buy_shares * buy_px + buy_fee
+                last_grid_price = prev_close
+                trades_log.append({"date": date, "signal_date": signal_date, "action": "BUY",
+                                   "price": round(buy_px, 4), "shares": buy_shares})
 
-        # 涨了grid_pct → 卖出
-        elif close >= last_grid_price * (1 + grid_pct) and shares > 10:
-            sell_px = _sell_price(close, slippage)
-            sell_shares = min(int(shares), int(capital * 0.1 // sell_px)) if sell_px > 0 else 0
+        elif grid_sell and shares > 0 and _can_sell(row, prev_close, symbol):
+            sell_px = _sell_price(open_price, slippage)
+            target_shares = int(capital * 0.1 // sell_px) // lot * lot if sell_px > 0 else 0
+            sell_shares = min(shares, target_shares)
             if sell_shares > 0:
+                allocated_cost = cost_basis * sell_shares / shares
                 shares -= sell_shares
                 if enable_cost:
-                    cash, _ = apply_sell_cost(cash, sell_px, sell_shares)
+                    cash, sell_fee = apply_sell_cost(cash, sell_px, sell_shares)
                 else:
                     cash += sell_shares * sell_px
-                last_grid_price = close
-                trades_log.append({"date": date, "action": "SELL", "price": round(sell_px, 4), "shares": sell_shares})
+                    sell_fee = 0.0
+                total_sells += 1
+                wins += sell_shares * sell_px - sell_fee > allocated_cost
+                cost_basis -= allocated_cost
+                last_grid_price = prev_close
+                trades_log.append({"date": date, "signal_date": signal_date, "action": "SELL",
+                                   "price": round(sell_px, 4), "shares": sell_shares})
 
         value = cash + shares * close
         equity_curve.append({"date": date, "value": round(value, 2)})
@@ -901,20 +913,25 @@ def _backtest_grid(
     final_price = float(df.iloc[-1]["close"])
     if shares > 0:
         sell_px = _sell_price(final_price, slippage)
+        total_sells += 1
         if enable_cost:
-            cash, _ = apply_sell_cost(cash, sell_px, int(shares))
+            cash, sell_fee = apply_sell_cost(cash, sell_px, shares)
         else:
             cash += shares * sell_px
+            sell_fee = 0.0
+        wins += shares * sell_px - sell_fee > cost_basis
         trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL",
-                           "price": round(sell_px, 4), "shares": int(shares)})
+                           "price": round(sell_px, 4), "shares": shares})
+        equity_curve[-1]["value"] = round(cash, 2)
+        max_dd = max(max_dd, (peak_value - cash) / peak_value * 100.0 if peak_value > 0 else 0.0)
     final_value = cash
 
     return {
         "final_value": round(final_value, 2),
         "total_return": round((final_value / capital - 1) * 100, 2),
         "max_drawdown": round(max_dd, 2),
-        "trades": len(trades_log),
-        "win_rate": 0,
+        "trades": total_sells,
+        "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
         "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
