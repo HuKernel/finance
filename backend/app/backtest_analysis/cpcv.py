@@ -1,17 +1,10 @@
 """回测深度分析 - cpcv模块"""
 from __future__ import annotations
 from typing import Any
-import pandas as pd
 import numpy as np
 from .full_analysis import _run_strategy_on_df
-from .walk_forward import (
-    _CPCV_PARAM_GRID,
-    _equity_curve_period_return,
-    _equity_curve_segment,
-    _optimize_params_on_train,
-)
+from .walk_forward import _CPCV_PARAM_GRID
 from .full_analysis import _sharpe_from_equity
-from .. import backtest as bt
 from ..data import fetcher as datalayer
 
 
@@ -60,6 +53,53 @@ def _apply_embargo(
     return [i for i in train_idx if i not in embargo_set]
 
 
+def _contiguous_ranges(indices: list[int]) -> list[tuple[int, int]]:
+    """把索引拆成连续半开区间，避免跨越被清洗或留出的数据。"""
+    ordered = sorted(set(indices))
+    if not ordered:
+        return []
+    ranges = []
+    start = previous = ordered[0]
+    for current in ordered[1:]:
+        if current != previous + 1:
+            ranges.append((start, previous + 1))
+            start = current
+        previous = current
+    ranges.append((start, previous + 1))
+    return ranges
+
+
+def _evaluate_on_blocks(
+    df,
+    indices: list[int],
+    strategy: str,
+    capital: float,
+    params: dict,
+    **execution,
+) -> dict[str, float] | None:
+    """独立回测每个连续块，按块长度汇总统计量。"""
+    returns = []
+    sharpes = []
+    weights = []
+    has_trade = False
+    for start, end in _contiguous_ranges(indices):
+        block = df.iloc[start:end].reset_index(drop=True)
+        result = _run_strategy_on_df(block, strategy, capital, **execution, **params)
+        if not result:
+            continue
+        has_trade = has_trade or result.get("trades", 0) > 0
+        returns.append(float(result.get("total_return", 0.0)))
+        sharpes.append(_sharpe_from_equity(result.get("equity_curve", [])))
+        weights.append(end - start)
+    if not returns or not has_trade:
+        return None
+    return {
+        "return": float(np.average(returns, weights=weights)),
+        "sharpe": float(np.average(sharpes, weights=weights)),
+        "blocks": len(returns),
+    }
+
+
 
 
 def run_cpcv(
@@ -95,7 +135,7 @@ def run_cpcv(
                              train_return, test_return, train_sharpe, test_sharpe}, ...],
             summary: {n_combinations, avg_oos_return, oos_win_rate,
                       oos_sharpe_mean, oos_sharpe_std, consistency},
-            oos_equity_curve: [{combo, value}, ...],  # 各组合 OOS 收益复利链接
+            oos_distribution: [{combo, return, value}, ...],
         }
     """
     from itertools import combinations
@@ -124,7 +164,12 @@ def run_cpcv(
     combos = list(combinations(range(n_groups), n_test_groups))
     results: list[dict] = []
     oos_values: list[dict] = []
-    oos_capital = capital
+    execution = {
+        "enable_cost": enable_cost,
+        "percentage": percentage,
+        "slippage": slippage,
+        "symbol": sym,
+    }
 
     for ci, test_groups in enumerate(combos):
         test_idx = []
@@ -143,67 +188,40 @@ def run_cpcv(
         if len(train_idx_purged) < 30:
             continue
 
-        train_df = df.iloc[sorted(train_idx_purged)].reset_index(drop=True)
-        # test 需要一定 warm-up；用 train 末尾的指标预热段 + test 段拼接，
-        # 仅取 test 区间权益。这里简化：用 train_purged 的最后一段做 warm-up。
-        # 为避免顺序混乱（embargo 后 train 不连续），直接对 test 区间独立回测，
-        # 同时附上 test 区间前的原始序列（最多 60 行）做指标预热。
-        test_sorted = sorted(test_idx)
-        test_start_row = test_sorted[0]
-        test_end_row = test_sorted[-1] + 1
-        warmup_start = max(0, test_start_row - 60)
-        # test 区间若不连续（多组拼接），取覆盖范围 [min, max] 的连续段，
-        # 内部空隙用全部行（含部分 train）作为上下文，回测只取 test 权益段
-        full_test_df = df.iloc[warmup_start:test_end_row].reset_index(drop=True)
-
-        if len(train_df) < 30 or len(full_test_df) < 30:
+        best_params = None
+        train_stats = None
+        for params in param_grid:
+            stats = _evaluate_on_blocks(
+                df, train_idx_purged, strategy, capital, params, **execution,
+            )
+            if stats and (train_stats is None or stats["return"] > train_stats["return"]):
+                best_params = dict(params)
+                train_stats = stats
+        if best_params is None or train_stats is None:
             continue
 
-        # ---- 训练：参数网格搜索 ----
-        best_params, train_return = _optimize_params_on_train(
-            train_df, strategy, capital, param_grid,
+        test_stats = _evaluate_on_blocks(
+            df, test_idx, strategy, capital, best_params, **execution,
         )
-        if best_params is None:
+        if test_stats is None:
             continue
-
-        train_res = _run_strategy_on_df(
-            train_df, strategy, capital,
-            enable_cost=enable_cost, percentage=percentage, slippage=slippage,
-            **best_params,
-        )
-        train_sharpe = _sharpe_from_equity(train_res.get("equity_curve", [])) if train_res else 0.0
-
-        # ---- 测试：用最优参数在 warmup+test 上回测，取 test 段权益 ----
-        test_res = _run_strategy_on_df(
-            full_test_df, strategy, oos_capital,
-            enable_cost=enable_cost, percentage=percentage, slippage=slippage,
-            **best_params,
-        )
-        test_return = 0.0
-        test_sharpe = 0.0
-        if test_res and test_res.get("equity_curve"):
-            eq = test_res["equity_curve"]
-            # test 段对应原始 test 行数（连续区间内属于 test 的行数）
-            test_klines_in_range = sum(1 for i in range(warmup_start, test_end_row) if i in set(test_sorted))
-            seg_start = max(len(eq) - max(test_klines_in_range, 5), 1)
-            test_return = _equity_curve_period_return(eq, seg_start)
-            test_seg = _equity_curve_segment(eq, seg_start)
-            test_sharpe = _sharpe_from_equity(test_seg) if len(test_seg) >= 3 else 0.0
-            oos_capital *= (1.0 + test_return / 100.0)
 
         oos_values.append({
             "combo": ci,
-            "value": round(oos_capital, 2),
+            "return": round(test_stats["return"], 2),
+            "value": round(capital * (1.0 + test_stats["return"] / 100.0), 2),
         })
 
         results.append({
             "combo_idx": ci,
             "test_groups": list(test_groups),
             "best_params": best_params,
-            "train_return": round(train_return, 2),
-            "test_return": round(test_return, 2),
-            "train_sharpe": round(train_sharpe, 3),
-            "test_sharpe": round(test_sharpe, 3),
+            "train_return": round(train_stats["return"], 2),
+            "test_return": round(test_stats["return"], 2),
+            "train_sharpe": round(train_stats["sharpe"], 3),
+            "test_sharpe": round(test_stats["sharpe"], 3),
+            "train_blocks": int(train_stats["blocks"]),
+            "test_blocks": int(test_stats["blocks"]),
         })
 
     if not results:
@@ -228,7 +246,6 @@ def run_cpcv(
         "oos_sharpe_mean": round(oos_sharpe_mean, 3),
         "oos_sharpe_std": round(oos_sharpe_std, 3),
         "consistency": round(consistency, 1),
-        "total_oos_return": round((oos_capital / capital - 1) * 100, 2),
     }
 
     return {
@@ -239,7 +256,8 @@ def run_cpcv(
         "embargo_pct": embargo_pct,
         "combinations": results,
         "summary": summary,
-        "oos_equity_curve": oos_values,
+        "methodology": "independent_contiguous_blocks",
+        "oos_distribution": oos_values,
     }
 
 

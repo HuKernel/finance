@@ -5,9 +5,8 @@ from typing import Any
 import numpy as np
 
 from ..data import fetcher as datalayer
-from .cpcv import _cpcv_split_groups
-from .full_analysis import _run_strategy_on_df
-from .walk_forward import _CPCV_PARAM_GRID, _equity_curve_period_return
+from .cpcv import _cpcv_split_groups, _evaluate_on_blocks
+from .walk_forward import _CPCV_PARAM_GRID
 
 
 def run_pbo(
@@ -72,12 +71,17 @@ def run_pbo(
     bounds = _cpcv_split_groups(n, n_groups)
     combos = list(combinations(range(n_groups), n_test_groups))
 
-    median_rank = n_strategies / 2.0  # 中位数排名
     is_best_rank_freq = [0] * n_strategies  # IS 排名第一的策略是哪个 idx
     below_median_count = 0
     valid_combos = 0
     combo_results: list[dict] = []
     logits: list[float] = []  # 每个 combo 的 logit(用于直方图)
+    execution = {
+        "enable_cost": enable_cost,
+        "percentage": percentage,
+        "slippage": slippage,
+        "symbol": sym,
+    }
 
     for ci, test_groups in enumerate(combos):
         test_idx = []
@@ -91,44 +95,24 @@ def run_pbo(
         if not test_idx or not train_idx:
             continue
 
-        train_df = df.iloc[sorted(train_idx)].reset_index(drop=True)
-        test_sorted = sorted(test_idx)
-        test_start_row = test_sorted[0]
-        test_end_row = test_sorted[-1] + 1
-        warmup_start = max(0, test_start_row - 60)
-        full_test_df = df.iloc[warmup_start:test_end_row].reset_index(drop=True)
-
-        if len(train_df) < 30 or len(full_test_df) < 30:
-            continue
-
         # ---- 对每组参数在 IS 和 OOS 上分别回测 ----
         is_returns: list[float] = []
         oos_returns: list[float] = []
         for params in param_grid:
-            is_res = _run_strategy_on_df(
-                train_df, strategy, capital,
-                enable_cost=enable_cost, percentage=percentage, slippage=slippage,
-                **params,
+            is_stats = _evaluate_on_blocks(
+                df, train_idx, strategy, capital, params, **execution,
             )
-            is_ret = is_res.get("total_return", -math.inf) if is_res and is_res.get("trades", 0) > 0 else -math.inf
-            is_returns.append(is_ret)
-
-            oos_res = _run_strategy_on_df(
-                full_test_df, strategy, capital,
-                enable_cost=enable_cost, percentage=percentage, slippage=slippage,
-                **params,
+            oos_stats = _evaluate_on_blocks(
+                df, test_idx, strategy, capital, params, **execution,
             )
-            if oos_res and oos_res.get("equity_curve"):
-                eq = oos_res["equity_curve"]
-                test_klines_in_range = sum(1 for i in range(warmup_start, test_end_row) if i in set(test_sorted))
-                seg_start = max(len(eq) - max(test_klines_in_range, 5), 1)
-                oos_ret = _equity_curve_period_return(eq, seg_start)
-            else:
-                oos_ret = -math.inf
-            oos_returns.append(oos_ret)
+            is_returns.append(is_stats["return"] if is_stats else -math.inf)
+            oos_returns.append(oos_stats["return"] if oos_stats else -math.inf)
 
         # 过滤掉全 -inf 的无效结果
-        valid_mask = [i for i, v in enumerate(is_returns) if v > -math.inf]
+        valid_mask = [
+            i for i, value in enumerate(is_returns)
+            if value > -math.inf and oos_returns[i] > -math.inf
+        ]
         if len(valid_mask) < 2:
             continue
         # 对齐 IS / OOS 的有效策略
@@ -142,20 +126,17 @@ def run_pbo(
         is_best_idx = idx_map[is_best_local]
         is_best_rank_freq[is_best_idx] += 1
 
-        # OOS 排名（降序）
-        oos_order = sorted(range(len(oos_arr)), key=lambda k: oos_arr[k], reverse=True)
-        oos_rank_of = {local: r + 1 for r, local in enumerate(oos_order)}
-        is_best_oos_rank = oos_rank_of[is_best_local]
-
-        # effective median rank（基于有效策略数）
-        eff_median = len(oos_arr) / 2.0
-        below_median = is_best_oos_rank > eff_median
+        # 并列值使用平均名次；排名分位数越高表示 OOS 越好。
+        selected_return = oos_arr[is_best_local]
+        greater = sum(value > selected_return for value in oos_arr)
+        equal = sum(value == selected_return for value in oos_arr)
+        is_best_oos_rank = greater + (equal + 1) / 2.0
+        rank_percentile = (len(oos_arr) + 1 - is_best_oos_rank) / (len(oos_arr) + 1)
+        below_median = rank_percentile < 0.5
         if below_median:
             below_median_count += 1
 
-        # logit: ln( (1-pbo_sample) / pbo_sample ), pbo_sample 用 0/1 平滑
-        p_sample = 0.25 if below_median else 0.75  # 平滑避免 log(0)
-        logit = math.log(p_sample / (1.0 - p_sample))
+        logit = math.log(rank_percentile / (1.0 - rank_percentile))
         logits.append(logit)
 
         combo_results.append({
@@ -164,6 +145,7 @@ def run_pbo(
             "is_best_idx": is_best_idx,
             "is_best_return": round(is_arr[is_best_local], 2),
             "oos_rank": is_best_oos_rank,
+            "oos_rank_percentile": round(rank_percentile, 4),
             "oos_return_of_best": round(oos_arr[is_best_local], 2),
             "below_median": bool(below_median),
         })
@@ -212,5 +194,6 @@ def run_pbo(
         "logits": logit_hist,
         "is_rank_freq": is_rank_freq,
         "combinations": combo_results,
+        "methodology": "independent_contiguous_blocks",
     }
 

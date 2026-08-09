@@ -2,7 +2,7 @@ import pandas as pd
 
 from app.backtest.engine import SignalGenerator, _affordable_shares, _execute_signals
 from app.backtest import strategies
-from app.backtest_analysis import full_analysis
+from app.backtest_analysis import cpcv, full_analysis, pbo
 
 
 class CloseSignal(SignalGenerator):
@@ -87,6 +87,78 @@ def test_grid_uses_prior_close_and_next_open_with_a_share_lots():
     assert all(t["shares"] % 100 == 0 for t in result["trades_log"])
     assert result["trades"] == 2  # 网格卖出 + 期末平仓
     assert result["win_rate"] == 100
+
+
+def test_cpcv_evaluates_disjoint_ranges_as_independent_blocks(monkeypatch):
+    df = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=100),
+        "close": range(100),
+    })
+    seen = []
+
+    def fake_run(block, *_args, **_kwargs):
+        seen.append((int(block["close"].iloc[0]), int(block["close"].iloc[-1])))
+        return {
+            "trades": 1 if block["close"].iloc[0] == 0 else 0,
+            "total_return": 10 if block["close"].iloc[0] == 0 else 0,
+            "equity_curve": [{"value": 100}, {"value": 101}, {"value": 102}],
+        }
+
+    monkeypatch.setattr(cpcv, "_run_strategy_on_df", fake_run)
+    stats = cpcv._evaluate_on_blocks(
+        df, list(range(0, 40)) + list(range(60, 100)), "ma_cross", 100000, {},
+    )
+
+    assert seen == [(0, 39), (60, 99)]
+    assert stats["blocks"] == 2
+    assert stats["return"] == 5
+
+
+def test_cpcv_reports_distribution_without_compounding_combinations(monkeypatch):
+    hist = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=180),
+        "close": range(180),
+    })
+    monkeypatch.setattr(cpcv.datalayer, "get_history", lambda *_args, **_kwargs: hist)
+    monkeypatch.setattr(
+        cpcv, "_evaluate_on_blocks",
+        lambda _df, _idx, _strategy, _capital, params, **_execution: {
+            "return": 10 if params["id"] == 1 else 5,
+            "sharpe": 1,
+            "blocks": 1,
+        },
+    )
+
+    result = cpcv.run_cpcv(
+        "600519", n_groups=3, n_test_groups=1,
+        param_grid=[{"id": 1}, {"id": 2}],
+    )
+
+    assert [point["value"] for point in result["oos_distribution"]] == [110000] * 3
+    assert "oos_equity_curve" not in result
+    assert "total_oos_return" not in result["summary"]
+
+
+def test_pbo_uses_oos_rank_percentile_logit(monkeypatch):
+    hist = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=180),
+        "close": range(180),
+    })
+    monkeypatch.setattr(pbo.datalayer, "get_history", lambda *_args, **_kwargs: hist)
+
+    def fake_evaluate(_df, indices, _strategy, _capital, params, **_execution):
+        returns = {1: 3, 2: 2, 3: 1} if len(indices) > 60 else {1: 1, 2: 3, 3: 2}
+        return {"return": returns[params["id"]], "sharpe": 1, "blocks": 1}
+
+    monkeypatch.setattr(pbo, "_evaluate_on_blocks", fake_evaluate)
+    result = pbo.run_pbo(
+        "600519", n_groups=3, n_test_groups=1,
+        param_grid=[{"id": 1}, {"id": 2}, {"id": 3}],
+    )
+
+    assert result["pbo"] == 1
+    assert all(item["oos_rank_percentile"] == 0.25 for item in result["combinations"])
+    assert all(item["below_median"] for item in result["combinations"])
 
 
 def test_advanced_modules_include_runtime_dependencies():
