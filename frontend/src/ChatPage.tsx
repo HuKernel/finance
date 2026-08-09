@@ -174,7 +174,7 @@ function HotCarousel() {
     if (paused) return
     const t = window.setInterval(() => { setDir(1); setIdx((i) => (i + 1) % HOT_CODES.length) }, 6000)
     return () => window.clearInterval(t)
-  }, [idx, paused])
+  }, [paused, HOT_CODES.length])
 
   const go = (d: 1 | -1) => {
     setDir(d)

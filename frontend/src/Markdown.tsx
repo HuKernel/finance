@@ -1,6 +1,7 @@
 // Markdown 渲染组件：聊天气泡与报告文本的美化渲染
 // katex 懒加载：只有遇到公式时才动态加载（减小首屏 chunk ~200KB）
 import React from 'react'
+import 'katex/dist/katex.min.css'
 
 // katex 动态加载缓存
 let _katex: any = null

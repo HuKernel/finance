@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
 
@@ -14,14 +14,14 @@ export default function ThesisPage() {
   const [checkingAll, setCheckingAll] = useState(false)
   const [checkingIds, setCheckingIds] = useState<Set<number>>(new Set())
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const t = await api.listTheses(filter === 'all' ? undefined : filter)
       setTheses(t)
     } catch { /* ignore */ }
-  }
+  }, [filter])
 
-  useEffect(() => { load() }, [filter])
+  useEffect(() => { load() }, [load])
 
   const loadChecks = async (id: number) => {
     try {

@@ -1,5 +1,5 @@
 // 行情卡片：K线/分时切换 + 15秒实时轮询 + 新闻，跟随对话消息内嵌展示
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
 import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
@@ -72,7 +72,7 @@ export default function QuoteCard({ code }: { code: string }) {
   const [starred, setStarred] = useState(false)
   const timerRef = useRef<number | null>(null)
 
-  const load = async (m: 'day' | 'minute', fresh: number) => {
+  const load = useCallback(async (m: 'day' | 'minute', fresh: number) => {
     try {
       const q = await api.getQuote(code, 60, m, fresh)
       setData(q)
@@ -80,7 +80,7 @@ export default function QuoteCard({ code }: { code: string }) {
     } catch {
       setErr('行情加载失败')
     }
-  }
+  }, [code])
 
   // 预加载全量K线（"全部"选项用；只加载一次）
   useEffect(() => {
@@ -92,13 +92,14 @@ export default function QuoteCard({ code }: { code: string }) {
   }, [code])
 
   useEffect(() => {
+    load(mode, 0)
+  }, [load, mode])
+
+  useEffect(() => {
     let cancelled = false
     ;(async () => {
-      await load(mode, 0)
-      if (!cancelled) {
-        const n = await api.getNews(code).catch(() => null)
-        if (n) setNews(n.news)
-      }
+      const n = await api.getNews(code).catch(() => null)
+      if (!cancelled && n) setNews(n.news)
     })()
     // 检查是否已在自选列表
     api.getProfile().then((p) => { if (!cancelled) setStarred((p.watchlist || []).includes(code)) }).catch(() => {})
@@ -114,11 +115,10 @@ export default function QuoteCard({ code }: { code: string }) {
     return () => {
       if (timerRef.current) window.clearInterval(timerRef.current)
     }
-  }, [live, mode])
+  }, [live, load, mode])
 
   const switchMode = (m: 'day' | 'minute') => {
     setMode(m)
-    load(m, 0)
   }
 
   const toggleStar = async () => {

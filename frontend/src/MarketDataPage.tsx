@@ -419,7 +419,7 @@ function NorthTab() {
     finally { setLoading(false) }
   }, [market])
 
-  useEffect(() => { query() }, [])
+  useEffect(() => { query() }, [query])
 
   // 北向排行30秒自动刷新
   const [autoRefresh, setAutoRefresh] = useState(true)
