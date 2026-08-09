@@ -31,3 +31,14 @@ def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str,
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return user
+
+
+def _resolve_ticker(ticker: str) -> str | None:
+    """把用户输入（公司名/代码）解析为标准代码，复用 tools.resolve_symbol。"""
+    from .tools import resolve_symbol
+    resolved = resolve_symbol(ticker)
+    if resolved.isdigit() and len(resolved) == 6:
+        return resolved
+    if resolved.startswith(("hk", "us")):
+        return resolved
+    return None

@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin
+from ..deps import get_current_user, require_admin, _resolve_ticker
 
 router = APIRouter()
 
