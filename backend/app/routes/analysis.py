@@ -16,6 +16,7 @@ from ..models import AnalysisRequest
 from ..data import fetcher as datalayer
 from ..config import get_config, save_config
 from ..llm import LLMClient
+from .. import memory
 import json, time
 
 
