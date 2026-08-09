@@ -21,7 +21,6 @@ def list_theses_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """列出用户的投资论文。status=active/invalidated/all。"""
-    from .thesis_tracker import list_theses
     return list_theses(user["id"], status, ticker or None)
 
 
@@ -32,7 +31,6 @@ def create_thesis_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """创建投资论文。body: {ticker, name, thesis_text, key_assumptions[], invalidation_conditions[], score, horizon}"""
-    from .thesis_tracker import create_thesis
     return create_thesis(
         user["id"],
         ticker=body.get("ticker", ""),
@@ -53,7 +51,6 @@ def update_thesis_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """更新投资论文。"""
-    from .thesis_tracker import update_thesis
     return update_thesis(
         thesis_id, user["id"],
         thesis_text=body.get("thesis_text"),
@@ -72,7 +69,6 @@ def delete_thesis_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
     """删除投资论文。"""
-    from .thesis_tracker import delete_thesis
     ok = delete_thesis(thesis_id, user["id"])
     return {"ok": "deleted" if ok else "not_found"}
 
@@ -84,9 +80,7 @@ def check_thesis_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """手动触发证伪检查。"""
-    from .thesis_tracker import check_thesis
-    from .llm import LLMClient
-    return check_thesis(thesis_id, LLMClient())
+    return check_thesis(thesis_id, user["id"], LLMClient(user_id=user["id"]))
 
 
 
@@ -95,9 +89,7 @@ def check_all_theses_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """批量检查所有active论文。"""
-    from .thesis_tracker import check_all_active_theses
-    from .llm import LLMClient
-    return check_all_active_theses(user["id"], LLMClient())
+    return check_all_active_theses(user["id"], LLMClient(user_id=user["id"]))
 
 
 
@@ -108,8 +100,7 @@ def list_thesis_checks_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """查看论文的检查历史。"""
-    from .thesis_tracker import list_thesis_checks
-    return list_thesis_checks(thesis_id, limit)
+    return list_thesis_checks(thesis_id, user["id"], limit)
 
 
 
@@ -119,9 +110,7 @@ def thesis_drift_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """论文漂移检测：对比同一标的最近的两次分析。"""
-    from .thesis_tracker import detect_thesis_drift
-    from .llm import LLMClient
-    result = detect_thesis_drift(ticker, LLMClient())
+    result = detect_thesis_drift(ticker, user["id"], LLMClient(user_id=user["id"]))
     if result is None:
         raise HTTPException(404, f"需要至少2次{ticker}的分析记录才能做漂移检测")
     return result

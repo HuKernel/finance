@@ -14,10 +14,12 @@ import os
 import secrets
 import sqlite3
 import time
+import base64
 from datetime import datetime
 from typing import Any, Optional
 
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 
 from .config import DB_PATH
 
@@ -154,19 +156,12 @@ def _get_enc_key() -> bytes:
 
 
 def encrypt_key(plaintext: str) -> str:
-    """AES-256-GCM 加密API key。"""
+    """使用 Fernet 认证加密存储 API key。"""
     if not plaintext:
         return ""
-    try:
-        from cryptography.fernet import Fernet
-        import base64
-        key = _get_enc_key()
-        f = Fernet(base64.urlsafe_b64encode(key))
-        return f.encrypt(plaintext.encode()).decode()
-    except ImportError:
-        # 无 cryptography 库时降级为 XOR（开发环境）
-        key = _get_enc_key()
-        return bytes(a ^ b for a, b in zip(plaintext.encode(), (key * 20)[:len(plaintext)])).hex()
+    key = _get_enc_key()
+    f = Fernet(base64.urlsafe_b64encode(key))
+    return f.encrypt(plaintext.encode()).decode()
 
 
 def decrypt_key(ciphertext: str) -> str:
@@ -174,16 +169,10 @@ def decrypt_key(ciphertext: str) -> str:
     if not ciphertext:
         return ""
     try:
-        from cryptography.fernet import Fernet
-        import base64
         key = _get_enc_key()
         f = Fernet(base64.urlsafe_b64encode(key))
         return f.decrypt(ciphertext.encode()).decode()
-    except ImportError:
-        key = _get_enc_key()
-        raw = bytes.fromhex(ciphertext)
-        return bytes(a ^ b for a, b in zip(raw, (key * 20)[:len(raw)])).decode()
-    except Exception:
+    except (InvalidToken, ValueError):
         return ""
 
 

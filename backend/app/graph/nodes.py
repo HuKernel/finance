@@ -40,11 +40,12 @@ def _get_llm(config: RunnableConfig) -> LLMClient:
 
 def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     ticker = state.get("ticker", "")
+    user_id = state.get("user_id")
     # 惰性结算：分析新股票时触发旧决策的反思（失败不阻塞主流程）
     try:
         from ..reflection_engine import settle_pending
 
-        settle_pending(ticker, _get_llm(config))
+        settle_pending(ticker, _get_llm(config), user_id=user_id)
     except Exception:
         pass
 
@@ -98,7 +99,6 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     except Exception:
         ctx["trend"] = None
     # 注入用户长期记忆（反哺分析师：偏好影响评分方向）
-    user_id = state.get("user_id")
     if user_id:
         try:
             from ..chat import get_user_memories
@@ -111,7 +111,7 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     try:
         from ..reflection_engine import build_memory_block
 
-        ctx["reflection_memory"] = build_memory_block(ticker)
+        ctx["reflection_memory"] = build_memory_block(ticker, user_id) if user_id else ""
     except Exception:
         ctx["reflection_memory"] = ""
     return {"context": ctx}
@@ -184,7 +184,10 @@ def aggregate_views(state: AgentState) -> dict[str, Any]:
         today = datetime.now().strftime("%Y-%m-%d")
         for view in views:
             try:
-                record_decision(ticker, view.role, view.score, view.summary, today)
+                record_decision(
+                    ticker, view.role, view.score, view.summary, today,
+                    user_id=state.get("user_id"),
+                )
             except Exception:
                 pass
     except Exception:
@@ -306,6 +309,7 @@ def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
             adjusted_score,
             verdict[:500] if verdict else "",
             datetime.now().strftime("%Y-%m-%d"),
+            user_id=state.get("user_id"),
         )
     except Exception:
         pass

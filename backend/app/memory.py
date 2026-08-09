@@ -42,9 +42,16 @@ def update_analysis(analysis_id: int, result: dict[str, Any], status: str = "com
         )
 
 
-def get_analysis(analysis_id: int) -> Optional[dict[str, Any]]:
+def get_analysis(analysis_id: int, user_id: int | None = None) -> Optional[dict[str, Any]]:
+    _ensure_user_id_column()
     with _connect() as conn:
-        row = conn.execute("SELECT * FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+        if user_id is None:
+            row = conn.execute("SELECT * FROM analyses WHERE id=?", (analysis_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM analyses WHERE id=? AND user_id=?",
+                (analysis_id, user_id),
+            ).fetchone()
     if row is None:
         return None
     out = dict(row)

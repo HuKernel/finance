@@ -76,6 +76,7 @@ def _init_db() -> None:
         conn.execute(
             """CREATE TABLE IF NOT EXISTS reflection_memos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
                 ticker TEXT NOT NULL,
                 role TEXT NOT NULL,
                 decision_date TEXT NOT NULL,
@@ -89,8 +90,14 @@ def _init_db() -> None:
                 status TEXT DEFAULT 'pending'
             )"""
         )
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(reflection_memos)").fetchall()]
+        if "user_id" not in cols:
+            conn.execute("ALTER TABLE reflection_memos ADD COLUMN user_id INTEGER")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_reflection_ticker ON reflection_memos(ticker, status)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reflection_user ON reflection_memos(user_id, ticker, status)"
         )
 
 

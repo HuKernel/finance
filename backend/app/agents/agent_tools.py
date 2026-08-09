@@ -157,13 +157,7 @@ def web_search(query: str) -> str:
         return f"搜索失败: {e}"
 @tool("get_reflection", "获取该股票的历史决策反思经验")
 def get_reflection(ticker: str) -> str:
-    try:
-        from ..reflection_engine import build_memory_block  # 反思引擎为可选项
-
-        block = build_memory_block(ticker)
-        return block if block else "无历史决策反思记录"
-    except Exception:
-        return "反思系统不可用"
+    return "历史反思已通过当前用户的投研上下文提供"
 
 
 # ==================== 角色工具映射 ====================

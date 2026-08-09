@@ -19,7 +19,7 @@ from ..data import fetcher as datalayer
 @router.get("/api/ic-evaluate/{symbol}")
 def ic_evaluate_api(symbol: str, forward_days: int = 5) -> dict[str, Any]:
     """IC/Rank IC信号评估：评估技术指标对未来收益的预测力。"""
-    from .ic_evaluator import evaluate_strategy_signals
+    from ..ic_evaluator import evaluate_strategy_signals
     sym = datalayer._norm_symbol(symbol)
     hist = datalayer.get_history(sym, days=250)
     if hist is None or len(hist) < 60:
@@ -64,7 +64,7 @@ def backtest_analysis_api(
 
     analysis_type: full / monte_carlo / layered / sensitivity / score
     """
-    from . import backtest_analysis as ba
+    from .. import backtest_analysis as ba
     sym = datalayer._norm_symbol(symbol)
 
     if analysis_type == "monte_carlo":
@@ -141,7 +141,7 @@ def walk_forward_api(
     评估策略防过拟合能力与样本外稳定性。
     返回每个窗口的 train/test 收益与 Sharpe，以及样本外累计权益曲线。
     """
-    from . import backtest_analysis as ba
+    from .. import backtest_analysis as ba
     sym = datalayer._norm_symbol(symbol)
     try:
         return ba.run_walk_forward(
@@ -170,7 +170,7 @@ def backtest_cpcv_api(
     每次在样本内做参数搜索、样本外测试，并用 embargo 隔离带防止泄漏。
     返回各组合 IS/OOS 表现、汇总统计与样本外累计权益曲线。
     """
-    from . import backtest_analysis as ba
+    from .. import backtest_analysis as ba
     sym = datalayer._norm_symbol(symbol)
     try:
         return ba.run_cpcv(
@@ -197,7 +197,7 @@ def backtest_pbo_api(
     PBO = 低于中位数的组合比例（<0.5 为良好）。
     返回 PBO、logit 直方图、IS 排名频率与评级。
     """
-    from . import backtest_analysis as ba
+    from .. import backtest_analysis as ba
     sym = datalayer._norm_symbol(symbol)
     try:
         return ba.run_pbo(

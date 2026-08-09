@@ -17,7 +17,7 @@ from ..scheduler import list_tasks, create_task, update_task, delete_task, list_
 @router.get("/api/scheduled-tasks")
 def list_scheduled_tasks(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
     """列出当前用户的定时分析任务。"""
-    from .scheduler import list_tasks
+    from ..scheduler import list_tasks
     return list_tasks(user["id"])
 
 
@@ -28,7 +28,7 @@ def create_scheduled_task(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """创建定时分析任务。body: {name, symbols[], mode, cron_hour, cron_minute}"""
-    from .scheduler import create_task
+    from ..scheduler import create_task
     name = body.get("name") or f"定时分析 {datetime.now().strftime('%m-%d %H:%M')}"
     symbols = body.get("symbols") or []
     if not symbols:
@@ -48,7 +48,7 @@ def update_scheduled_task(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """更新定时分析任务。"""
-    from .scheduler import update_task
+    from ..scheduler import update_task
     return update_task(
         task_id, user["id"],
         name=body.get("name"),
@@ -67,7 +67,7 @@ def delete_scheduled_task(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
     """删除定时分析任务。"""
-    from .scheduler import delete_task
+    from ..scheduler import delete_task
     ok = delete_task(task_id, user["id"])
     return {"ok": "deleted" if ok else "not_found"}
 
@@ -80,8 +80,8 @@ def list_scheduled_results(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """查看定时任务的历史执行结果。"""
-    from .scheduler import list_results
-    return list_results(task_id, limit)
+    from ..scheduler import list_results
+    return list_results(task_id, user["id"], limit)
 
 
 
@@ -91,8 +91,8 @@ def run_scheduled_task_now(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """手动触发一次定时任务（不等时间到，用于测试）。"""
-    from .scheduler import run_task_now
-    result = run_task_now(task_id)
+    from ..scheduler import run_task_now
+    result = run_task_now(task_id, user["id"])
     if result is None:
         from fastapi import HTTPException
         raise HTTPException(404, "任务不存在")
@@ -103,7 +103,7 @@ def run_scheduled_task_now(
 @router.get("/api/scheduled-tasks/trading-day")
 def check_trading_day() -> dict[str, Any]:
     """查询今天是否交易日。"""
-    from .scheduler import is_trading_day
+    from ..scheduler import is_trading_day
     return {"trading_day": is_trading_day(), "date": date.today().isoformat()}
 
 

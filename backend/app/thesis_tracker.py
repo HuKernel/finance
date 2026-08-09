@@ -106,7 +106,7 @@ def create_thesis(
         )
         thesis_id = int(cur.lastrowid)
     logger.info("创建投资论文 #%s: %s(%s)", thesis_id, name, ticker)
-    return get_thesis(thesis_id)
+    return get_thesis(thesis_id, user_id)
 
 
 def list_theses(
@@ -130,11 +130,12 @@ def list_theses(
     return [_row_to_thesis(r) for r in rows]
 
 
-def get_thesis(thesis_id: int) -> dict[str, Any] | None:
+def get_thesis(thesis_id: int, user_id: int) -> dict[str, Any] | None:
     _ensure_tables()
     with _connect() as conn:
         r = conn.execute(
-            "SELECT * FROM investment_theses WHERE id=?", (thesis_id,)
+            "SELECT * FROM investment_theses WHERE id=? AND user_id=?",
+            (thesis_id, user_id),
         ).fetchone()
     return _row_to_thesis(r) if r else None
 
@@ -174,7 +175,7 @@ def update_thesis(
             sets.append("invalidation_reason=?")
             params.append(invalidation_reason)
     if not sets:
-        return get_thesis(thesis_id)
+        return get_thesis(thesis_id, user_id)
     sets.append("updated_at=?")
     params.append(datetime.now().isoformat(timespec="seconds"))
     params.append(thesis_id)
@@ -184,7 +185,7 @@ def update_thesis(
             f"UPDATE investment_theses SET {', '.join(sets)} WHERE id=? AND user_id=?",
             params,
         )
-    return get_thesis(thesis_id)
+    return get_thesis(thesis_id, user_id)
 
 
 def delete_thesis(thesis_id: int, user_id: int) -> bool:
@@ -194,13 +195,14 @@ def delete_thesis(thesis_id: int, user_id: int) -> bool:
             "DELETE FROM investment_theses WHERE id=? AND user_id=?",
             (thesis_id, user_id),
         )
-        conn.execute("DELETE FROM thesis_checks WHERE thesis_id=?", (thesis_id,))
+        if cur.rowcount:
+            conn.execute("DELETE FROM thesis_checks WHERE thesis_id=?", (thesis_id,))
         return cur.rowcount > 0
 
 
 # ---------- 证伪检查 ----------
 
-def check_thesis(thesis_id: int, llm=None) -> dict[str, Any]:
+def check_thesis(thesis_id: int, user_id: int, llm=None) -> dict[str, Any]:
     """检查一条投资论文的证伪条件是否触发。
 
     逻辑：
@@ -213,7 +215,7 @@ def check_thesis(thesis_id: int, llm=None) -> dict[str, Any]:
         {thesis_id, status: valid/warning/invalidated, checks: [...], price}
     """
     _ensure_tables()
-    thesis = get_thesis(thesis_id)
+    thesis = get_thesis(thesis_id, user_id)
     if not thesis:
         return {"error": "论文不存在"}
 
@@ -305,7 +307,7 @@ def check_all_active_theses(user_id: int | None = None, llm=None) -> list[dict[s
     results = []
     for tid in ids:
         try:
-            r = check_thesis(tid, llm)
+            r = check_thesis(tid, user_id, llm)
             results.append(r)
         except Exception as e:
             logger.warning("检查论文 #%s 失败: %s", tid, e)
@@ -314,7 +316,7 @@ def check_all_active_theses(user_id: int | None = None, llm=None) -> list[dict[s
 
 # ---------- 漂移检测 ----------
 
-def detect_thesis_drift(ticker: str, llm=None) -> dict[str, Any] | None:
+def detect_thesis_drift(ticker: str, user_id: int, llm=None) -> dict[str, Any] | None:
     """论文漂移检测：对比同一标的最近的两次投研分析，检测核心结论变化。
 
     从 analyses 表取最近两次分析结果，对比：
@@ -330,9 +332,9 @@ def detect_thesis_drift(ticker: str, llm=None) -> dict[str, Any] | None:
     with _connect() as conn:
         rows = conn.execute(
             "SELECT id, ticker, created_at, result FROM analyses "
-            "WHERE ticker=? AND status='completed' "
+            "WHERE ticker=? AND user_id=? AND status='completed' "
             "ORDER BY id DESC LIMIT 2",
-            (ticker,),
+            (ticker, user_id),
         ).fetchall()
 
     if len(rows) < 2:
@@ -403,13 +405,16 @@ def detect_thesis_drift(ticker: str, llm=None) -> dict[str, Any] | None:
     }
 
 
-def list_thesis_checks(thesis_id: int, limit: int = 10) -> list[dict[str, Any]]:
+def list_thesis_checks(thesis_id: int, user_id: int, limit: int = 10) -> list[dict[str, Any]]:
     """查看某条论文的检查历史。"""
     _ensure_tables()
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT * FROM thesis_checks WHERE thesis_id=? ORDER BY id DESC LIMIT ?",
-            (thesis_id, limit),
+            """SELECT c.* FROM thesis_checks c
+               JOIN investment_theses t ON t.id=c.thesis_id
+               WHERE c.thesis_id=? AND t.user_id=?
+               ORDER BY c.id DESC LIMIT ?""",
+            (thesis_id, user_id, limit),
         ).fetchall()
     results = []
     for r in rows:

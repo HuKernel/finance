@@ -135,12 +135,18 @@ def list_tasks(user_id: int) -> list[dict[str, Any]]:
     return [_row_to_task(r) for r in rows]
 
 
-def get_task(task_id: int) -> dict[str, Any] | None:
+def get_task(task_id: int, user_id: int | None = None) -> dict[str, Any] | None:
     _ensure_tables()
     with _connect() as conn:
-        r = conn.execute(
-            "SELECT * FROM scheduled_tasks WHERE id=?", (task_id,)
-        ).fetchone()
+        if user_id is None:
+            r = conn.execute(
+                "SELECT * FROM scheduled_tasks WHERE id=?", (task_id,)
+            ).fetchone()
+        else:
+            r = conn.execute(
+                "SELECT * FROM scheduled_tasks WHERE id=? AND user_id=?",
+                (task_id, user_id),
+            ).fetchone()
     return _row_to_task(r) if r else None
 
 
@@ -177,7 +183,7 @@ def update_task(
         params.append(1 if enabled else 0)
 
     if not sets:
-        return get_task(task_id)
+        return get_task(task_id, user_id)
 
     params.append(task_id)
     params.append(user_id)
@@ -188,7 +194,7 @@ def update_task(
         )
 
     # 重新注册调度器
-    task = get_task(task_id)
+    task = get_task(task_id, user_id)
     if task:
         if task["enabled"] and cron_hour is not None:
             _register_job(task_id, task["cron_hour"], task["cron_minute"])
@@ -199,24 +205,27 @@ def update_task(
 
 def delete_task(task_id: int, user_id: int) -> bool:
     _ensure_tables()
-    _unregister_job(task_id)
     with _connect() as conn:
         cur = conn.execute(
             "DELETE FROM scheduled_tasks WHERE id=? AND user_id=?",
             (task_id, user_id),
         )
-        conn.execute(
-            "DELETE FROM scheduled_results WHERE task_id=?", (task_id,)
-        )
-        return cur.rowcount > 0
+        if cur.rowcount:
+            conn.execute(
+                "DELETE FROM scheduled_results WHERE task_id=?", (task_id,)
+            )
+        deleted = cur.rowcount > 0
+    if deleted:
+        _unregister_job(task_id)
+    return deleted
 
 
-def list_results(task_id: int, limit: int = 10) -> list[dict[str, Any]]:
+def list_results(task_id: int, user_id: int, limit: int = 10) -> list[dict[str, Any]]:
     _ensure_tables()
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT * FROM scheduled_results WHERE task_id=? ORDER BY id DESC LIMIT ?",
-            (task_id, limit),
+            "SELECT * FROM scheduled_results WHERE task_id=? AND user_id=? ORDER BY id DESC LIMIT ?",
+            (task_id, user_id, limit),
         ).fetchall()
     results = []
     for r in rows:
@@ -226,9 +235,9 @@ def list_results(task_id: int, limit: int = 10) -> list[dict[str, Any]]:
     return results
 
 
-def run_task_now(task_id: int) -> dict[str, Any] | None:
+def run_task_now(task_id: int, user_id: int) -> dict[str, Any] | None:
     """手动触发一次定时任务（不等时间到）。用于测试。"""
-    task = get_task(task_id)
+    task = get_task(task_id, user_id)
     if not task:
         return None
     return _execute_task(task)

@@ -11,7 +11,7 @@ from ..deps import get_current_user, require_admin
 router = APIRouter()
 
 from .. import auth
-from ..pipeline import run_analysis
+from ..pipeline import run_analysis, _GRAPH
 from ..models import AnalysisRequest
 from ..data import fetcher as datalayer
 from ..config import get_config, save_config
@@ -66,8 +66,13 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
     def _generate():
         try:
             yield _sse({"type": "step", "node": "collect_data", "label": "数据收集", "status": "running"})
-            config: dict[str, Any] = {"configurable": {}}
-            state: dict[str, Any] = {"ticker": ticker, "topic": req.topic, "user_id": user["id"]}
+            config: dict[str, Any] = {"configurable": {"llm": LLMClient(user_id=user["id"])}}
+            state: dict[str, Any] = {
+                "ticker": ticker,
+                "topic": req.topic,
+                "user_id": user["id"],
+                "mode": req.mode,
+            }
 
             for chunk in _GRAPH.stream(state, config=config, stream_mode="updates"):
                 for node_name, node_output in chunk.items():
@@ -115,7 +120,7 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
 
 @router.get("/api/analysis/{analysis_id}")
 def get_one(analysis_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    row = memory.get_analysis(analysis_id)
+    row = memory.get_analysis(analysis_id, user_id=user["id"])
     if row is None:
         raise HTTPException(status_code=404, detail="记录不存在")
     return row
@@ -140,7 +145,7 @@ def delete_history(analysis_id: int, user: dict[str, Any] = Depends(get_current_
 @router.get("/api/analysts")
 def list_analysts() -> list[dict[str, str]]:
     """返回所有可用分析师列表。"""
-    from .agents.analysts import ALL_ANALYSTS
+    from ..agents.analysts import ALL_ANALYSTS
     return [{"role": cls.role, "title": cls.title, "description": getattr(cls, "__doc__", "")} for cls in ALL_ANALYSTS]
 
 

@@ -32,6 +32,7 @@ def record_decision(
     score: float,
     summary: str,
     decision_date: str | None = None,
+    user_id: int | None = None,
 ) -> int:
     """记录一条决策到 reflection_memos（status=pending）。
 
@@ -56,9 +57,9 @@ def record_decision(
         with _connect() as conn:
             cur = conn.execute(
                 """INSERT INTO reflection_memos
-                   (ticker, role, decision_date, decision_score, decision_summary, status)
-                   VALUES (?, ?, ?, ?, ?, 'pending')""",
-                (ticker, role, decision_date, score, summary),
+                   (user_id, ticker, role, decision_date, decision_score, decision_summary, status)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending')""",
+                (user_id, ticker, role, decision_date, score, summary),
             )
             return int(cur.lastrowid)
     except Exception as e:
@@ -73,6 +74,7 @@ def settle_pending(
     llm: LLMClient | None = None,
     settlement_days: int = 5,
     force: bool = False,
+    user_id: int | None = None,
 ) -> int:
     """结算某 ticker 的 pending 决策。
 
@@ -96,8 +98,8 @@ def settle_pending(
             rows = conn.execute(
                 """SELECT id, role, decision_date, decision_score, decision_summary
                    FROM reflection_memos
-                   WHERE ticker = ? AND status = 'pending'""",
-                (ticker,),
+                   WHERE ticker = ? AND user_id = ? AND status = 'pending'""",
+                (ticker, user_id),
             ).fetchall()
     except Exception as e:
         logger.warning("settle_pending 查询失败 ticker=%s: %s", ticker, e)
@@ -156,7 +158,7 @@ def settle_pending(
 
 # ---------- 3. 查询反思记录 ----------
 
-def get_recent_memos(ticker: str, limit: int = 5) -> list[dict]:
+def get_recent_memos(ticker: str, user_id: int, limit: int = 5) -> list[dict]:
     """获取某 ticker 最近的已结算反思记录（用于注入下次分析）。"""
     try:
         with _connect() as conn:
@@ -165,10 +167,10 @@ def get_recent_memos(ticker: str, limit: int = 5) -> list[dict]:
                           decision_summary, raw_return, alpha_return,
                           reflection, verdict, settled_at
                    FROM reflection_memos
-                   WHERE ticker = ? AND status = 'settled'
+                   WHERE ticker = ? AND user_id = ? AND status = 'settled'
                    ORDER BY settled_at DESC
                    LIMIT ?""",
-                (ticker, limit),
+                (ticker, user_id, limit),
             ).fetchall()
         return [dict(r) for r in rows]
     except Exception as e:
@@ -176,7 +178,7 @@ def get_recent_memos(ticker: str, limit: int = 5) -> list[dict]:
         return []
 
 
-def get_cross_ticker_memos(limit: int = 3) -> list[dict]:
+def get_cross_ticker_memos(user_id: int, limit: int = 3) -> list[dict]:
     """获取跨 ticker 的反思记录（不同股票的经验教训）。"""
     try:
         with _connect() as conn:
@@ -184,10 +186,10 @@ def get_cross_ticker_memos(limit: int = 3) -> list[dict]:
                 """SELECT ticker, role, decision_date, decision_score,
                           raw_return, alpha_return, reflection, verdict
                    FROM reflection_memos
-                   WHERE status = 'settled'
+                   WHERE user_id = ? AND status = 'settled'
                    ORDER BY settled_at DESC
                    LIMIT ?""",
-                (limit,),
+                (user_id, limit),
             ).fetchall()
         return [dict(r) for r in rows]
     except Exception as e:
@@ -216,13 +218,13 @@ def _fmt_verdict(v: str) -> str:
     )
 
 
-def build_memory_block(ticker: str) -> str:
+def build_memory_block(ticker: str, user_id: int) -> str:
     """构建注入 prompt 的反思记忆块。
 
     返回空字符串表示无可用记忆（调用方应直接跳过注入）。
     """
-    memos = get_recent_memos(ticker, limit=5)
-    cross = get_cross_ticker_memos(limit=3)
+    memos = get_recent_memos(ticker, user_id, limit=5)
+    cross = get_cross_ticker_memos(user_id, limit=3)
     if not memos and not cross:
         return ""
 

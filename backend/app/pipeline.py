@@ -36,6 +36,8 @@ def run_analysis(
     此处捕获的是整个流水线的未预期异常（如 LLM 无 key、数据源全挂、序列化错误等），
     返回一个 error 状态的结果而不是让调用方崩溃。
     """
+    if llm is None and user_id is not None:
+        llm = LLMClient(user_id=user_id)
     config: dict[str, Any] = {"configurable": {"llm": llm}} if llm else {}
     state: dict[str, Any] = {"ticker": ticker, "topic": topic, "user_id": user_id, "mode": mode}
     try:

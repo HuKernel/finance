@@ -126,7 +126,7 @@ async def save_llm_config_api(request: Request, user: dict[str, Any] = Depends(g
 
 def _resolve_ticker(ticker: str) -> str | None:
     """把用户输入（公司名/代码）解析为标准代码，复用 tools.resolve_symbol。"""
-    from .tools import resolve_symbol
+    from ..tools import resolve_symbol
     resolved = resolve_symbol(ticker)
     # 校验是否合法：A股6位数字 / hk+5位 / us+代码
     if resolved.isdigit() and len(resolved) == 6:
@@ -143,7 +143,7 @@ def save_analyst_config(body: dict[str, Any], user: dict[str, Any] = Depends(get
     enabled = body.get("enabled_analysts")
     if not isinstance(enabled, list):
         raise HTTPException(status_code=400, detail="enabled_analysts must be a list")
-    from .agents.analysts import ALL_ANALYSTS
+    from ..agents.analysts import ALL_ANALYSTS
     valid_roles = {cls.role for cls in ALL_ANALYSTS}
     enabled = [r for r in enabled if r in valid_roles]
     auth.update_profile(user["id"], analyst_config=enabled)

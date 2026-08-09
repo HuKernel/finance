@@ -20,7 +20,7 @@ def knowledge_search_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """搜索用户的历史投研分析。"""
-    from .knowledge_base import search_knowledge
+    from ..knowledge_base import search_knowledge
     return search_knowledge(user["id"], q, limit)
 
 
@@ -32,7 +32,7 @@ def knowledge_stock_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """获取用户对某只股票的所有历史分析。"""
-    from .knowledge_base import get_stock_history
+    from ..knowledge_base import get_stock_history
     return get_stock_history(user["id"], ticker, limit)
 
 
@@ -44,7 +44,7 @@ def knowledge_list_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """列出用户所有投研分析（分页）。"""
-    from .knowledge_base import list_all_knowledge
+    from ..knowledge_base import list_all_knowledge
     return list_all_knowledge(user["id"], limit, offset)
 
 
@@ -54,5 +54,5 @@ def knowledge_stats_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """知识库统计信息。"""
-    from .knowledge_base import get_knowledge_stats
+    from ..knowledge_base import get_knowledge_stats
     return get_knowledge_stats(user["id"])

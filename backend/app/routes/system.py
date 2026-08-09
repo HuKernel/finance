@@ -45,13 +45,16 @@ def providers() -> dict[str, Any]:
 
 
 @router.get("/api/config")
-def read_config() -> dict[str, Any]:
+def read_config(admin: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
     return _public_config()
 
 
 
 @router.put("/api/config")
-def write_config(cfg: LLMConfig) -> dict[str, Any]:
+def write_config(
+    cfg: LLMConfig,
+    admin: dict[str, Any] = Depends(require_admin),
+) -> dict[str, Any]:
     save_config(cfg.model_dump())
     return _public_config()
 

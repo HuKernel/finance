@@ -5,7 +5,7 @@
 ## 核心功能
 
 ### 智能体
-- **智能对话**：LangGraph ReAct 智能体，自主调用 12 种工具（行情/K线/财务/龙虎榜/新闻/搜索/行业对比/情绪面/估值/投研流水线/历史投研搜索/网页搜索），基于真实数据回答
+- **智能对话**：LangGraph ReAct 智能体，自主调用 13 种工具（行情/K线/财务/龙虎榜/新闻/搜索/行业对比/情绪面/估值/投研流水线/历史投研搜索/网页搜索），基于真实数据回答
 - **意图识别**：自动检测用户消息中的分析意图（"分析茅台""调研苹果短线"），直接触发完整投研流水线
 - **长期记忆**：跨会话记住用户关注的标的和偏好（只从用户消息提取，不污染AI回复）
 - **多智能体投研**：5 位分析师（宏观/基本面/技术面/情绪面/资金面）独立研判 → 多空辩论 → 共识评分 → 风控审查 → 交易计划
@@ -24,7 +24,7 @@
 
 ### 投资管理
 - **投资组合**：持仓追踪（买入加权成本/卖出减仓）、实时盈亏、交易历史
-- **策略回测**：10种策略（MA均线交叉/双均线/MACD/KDJ/BOLL/RSI/网格/买入持有/AI增强/自定义），含超额收益/最大回撤/胜率/权益曲线
+- **策略回测**：9种策略（MA均线交叉/双均线/MACD/KDJ/BOLL/RSI/网格/买入持有/AI增强），含超额收益/最大回撤/胜率/权益曲线
 - **回测深度分析**：蒙特卡洛模拟、分层测试、参数敏感度热力图、Walk-Forward验证、CPCV/PBO稳健性检验
 - **投资论文追踪**：记录投资逻辑（thesis），定期检查偏离度（drift detection），支持手动结算
 
@@ -34,9 +34,9 @@
 - **反思引擎**：记录每次投研决策，N天后自动结算实际收益，反思决策质量
 
 ### 安全
-- **per-user LLM Key**：每个用户独立 API Key，AES-256-GCM 加密存储，前端永远脱敏
+- **per-user LLM Key**：每个用户独立 API Key，使用 Fernet 认证加密存储，前端永远脱敏
 - **登录安全**：频率限制（5次失败锁定15分钟）、密码 PBKDF2-SHA256 哈希
-- **反爬限流**：全局请求频率限制（60次/分钟），CORS 白名单
+- **反爬限流**：全局请求频率限制（200次/分钟），CORS 白名单
 - **数据隔离**：所有用户数据（对话/组合/预警/分析/记忆）按 user_id 隔离
 
 ### UI/UX
@@ -79,7 +79,7 @@ npm run build
 
 ```bash
 docker build -t financecrew .
-docker run -p 8000:8000 -v financecrew-data:/app/backend/data financecrew
+docker run -p 8000:8000 -v financecrew-data:/app/data financecrew
 ```
 
 ## 项目结构
@@ -131,8 +131,8 @@ backend/
       builder.py         # 图构建器
     agents/              # 分析师/风控/交易员角色
       analysts.py        # 标准分析师（5角色）
-      agentic.py         # Agentic 分析师（自主调工具）
-      roles.py           # 角色注册表
+      agentic_analyst.py # Agentic 分析师（自主调工具）
+      base.py            # 分析师基类
     data/                # 数据层
       fetcher.py         # 兼容入口（重导出全部公共函数）
       a_stock.py         # A股数据兼容shim
@@ -151,7 +151,7 @@ backend/
       stock_screener.py  # 条件选股
       margin_data.py     # 融资融券
     backtest/            # 策略回测包
-      strategies.py      # 10种策略信号生成器
+      strategies.py      # 9种策略信号生成器
       indicators.py      # 技术指标计算
       metrics.py         # 统计指标（夏普/回撤/胜率等）
       engine.py          # 回测执行引擎
@@ -190,7 +190,7 @@ frontend/
   ci.yml                 # CI（后端 pytest + 前端 build + Docker build）
 ```
 
-## 智能体工具（12种）
+## 智能体工具（13种）
 
 | 工具 | 功能 | A股 | 港股 | 美股 |
 |------|------|:---:|:---:|:---:|
