@@ -10,7 +10,7 @@ from ..deps import get_current_user, require_admin
 
 router = APIRouter()
 
-from .. import backtest as bt
+from .. import backtest
 from ..backtest_analysis import run_full_analysis, run_walk_forward, run_cpcv, run_pbo
 from ..ic_evaluator import evaluate_signal_ic
 from ..data import fetcher as datalayer
