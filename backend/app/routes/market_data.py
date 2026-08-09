@@ -11,10 +11,7 @@ from ..deps import get_current_user, require_admin
 router = APIRouter()
 
 from ..data import fetcher as datalayer
-from ..data.north_flow import get_north_flow_overview, get_north_flow_stock, get_north_flow_top_stocks
-from ..data.sector_flow import get_concept_sectors, get_industry_sectors
-from ..data.stock_screener import screen_stocks
-from ..data.margin_data import get_margin_detail, get_margin_top
+from ..data import north_flow, sector_flow, stock_screener, margin_data
 from ..cache import cached, TTL
 
 
@@ -85,14 +82,14 @@ def screener_api(
 @router.get("/api/margin/detail")
 def margin_detail_api(symbol: str | None = None, date: str | None = None) -> dict[str, Any]:
     """融资融券明细（上交所+深交所合并，可按 code 过滤）。date: YYYYMMDD。"""
-    return margin_mod.get_margin_detail(symbol=symbol, date=date)
+    return margin_data.get_margin_detail(symbol=symbol, date=date)
 
 
 
 @router.get("/api/margin/top")
 def margin_top_api(date: str | None = None, limit: int = 20) -> dict[str, Any]:
     """融资余额 TOP / 融券余量 TOP。date: YYYYMMDD。"""
-    return margin_mod.get_margin_top(date=date, limit=limit)
+    return margin_data.get_margin_top(date=date, limit=limit)
 
 
 # ==================== 交易后反思学习闭环 ====================

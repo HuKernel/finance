@@ -10,7 +10,7 @@ from ..deps import get_current_user, require_admin
 
 router = APIRouter()
 
-from .. import portfolio as pf
+from .. import portfolio
 from ..chat import get_peers, auto_generate_peers
 
 
