@@ -61,7 +61,7 @@ cd backend
 uv venv .venv
 uv pip install -r requirements.txt
 # 可选：启用 Polygon 美股数据 fallback
-# PowerShell: $env:POLYGON_API_KEY="你的API Key"
+# 在项目根目录 .env 中填写：POLYGON_API_KEY=你的新API Key
 .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
