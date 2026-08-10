@@ -497,8 +497,8 @@ export default function QuotePage() {
           <div className="qp-news-head">最新新闻</div>
           {news.map((n, i) => (
             <div className="quote-news-item" key={i}>
-              <span className="quote-news-time">{n.time.slice(5, 16)}</span>
-              <span className="quote-news-title">{n.title}</span>
+              <span className="quote-news-time">{n.time.slice(5, 16)} · {n.source}</span>
+              {n.url ? <a className="quote-news-title" href={n.url} target="_blank" rel="noreferrer">{n.title}</a> : <span className="quote-news-title">{n.title}</span>}
             </div>
           ))}
         </div>

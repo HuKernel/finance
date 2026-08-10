@@ -111,7 +111,7 @@ def search(q: str) -> dict[str, Any]:
 def news(symbol: str) -> dict[str, Any]:
     """个股新闻（实时快讯过滤 + 东财兜底）。"""
     sym = datalayer._norm_symbol(symbol)
-    cache_key = f"news:{sym}"
+    cache_key = f"news:response:v2:{sym}"
     result = cached(cache_key, TTL["news"], lambda: {"symbol": sym, "news": datalayer.get_news(sym) or []})
     return result
 

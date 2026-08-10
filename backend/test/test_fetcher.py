@@ -8,7 +8,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from app.data import polygon_us
+from app.data import news as news_data, polygon_us
 from app.data.utils import finalize_ohlcv
 from app.data.fetcher import (
     _norm_symbol,
@@ -83,6 +83,28 @@ def test_finalize_ohlcv_removes_invalid_and_duplicate_rows():
     }
 
 
+def test_flash_news_includes_source_and_original_url(monkeypatch):
+    class Response:
+        @staticmethod
+        def json():
+            return {"result": {"data": {"feed": {"list": [{
+                "rich_text": "测试快讯",
+                "create_time": "2026-08-10 09:30:00",
+                "docurl": "https://finance.sina.com.cn/test",
+            }]}}}}
+
+    monkeypatch.setattr(news_data, "cached", lambda _key, _ttl, fetch: fetch())
+    monkeypatch.setattr(news_data.requests, "get", lambda *_args, **_kwargs: Response())
+
+    assert news_data.get_flash_news() == [{
+        "title": "测试快讯",
+        "time": "2026-08-10 09:30",
+        "published_at": "2026-08-10 09:30",
+        "source": "新浪财经",
+        "url": "https://finance.sina.com.cn/test",
+    }]
+
+
 # ==================== get_stock_brief（需网络） ====================
 
 
@@ -153,7 +175,7 @@ def test_get_history():
 
 
 def test_get_news():
-    """新闻返回 list 且每条有 title/time。"""
+    """新闻返回 list 且每条有标题、时间和来源证据。"""
     try:
         news = get_news("600519")
     except Exception as e:
@@ -166,6 +188,9 @@ def test_get_news():
         assert isinstance(item, dict)
         assert "title" in item
         assert "time" in item
+        assert "published_at" in item
+        assert "source" in item
+        assert "url" in item
 
 
 # ==================== compute_tech_signals（依赖 K线数据） ====================

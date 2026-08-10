@@ -128,6 +128,9 @@ export interface QuoteResponse {
 export interface NewsItem {
   title: string
   time: string
+  published_at: string
+  source: string
+  url: string
 }
 
 export interface SearchItem {

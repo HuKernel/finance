@@ -120,8 +120,8 @@ function HotQuoteCard({ code, brief, news, dir }: {
           <div className="quote-news-head">最新新闻</div>
           {news.slice(0, 3).map((n, i) => (
             <div className="quote-news-item" key={i}>
-              <span className="quote-news-time">{n.time.slice(5, 16)}</span>
-              <span className="quote-news-title">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</span>
+              <span className="quote-news-time">{n.time.slice(5, 16)} · {n.source}</span>
+              {n.url ? <a className="quote-news-title" href={n.url} target="_blank" rel="noreferrer">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</a> : <span className="quote-news-title">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</span>}
             </div>
           ))}
           {news.length > 3 && (
@@ -139,8 +139,8 @@ function HotQuoteCard({ code, brief, news, dir }: {
             <div className="news-modal-list">
               {news.map((n, i) => (
                 <div className="news-modal-item" key={i}>
-                  <span className="quote-news-time">{n.time}</span>
-                  <span className="quote-news-title">{n.title}</span>
+                  <span className="quote-news-time">{n.time} · {n.source}</span>
+                  {n.url ? <a className="quote-news-title" href={n.url} target="_blank" rel="noreferrer">{n.title}</a> : <span className="quote-news-title">{n.title}</span>}
                 </div>
               ))}
             </div>

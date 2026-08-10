@@ -14,6 +14,14 @@ import requests
 from .utils import TTL, _norm_symbol, cached
 
 
+def _clean_url(*values: Any) -> str:
+    for value in values:
+        url = str(value or "").strip()
+        if url.startswith(("https://", "http://")):
+            return url
+    return ""
+
+
 def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str, str]]]:
     """实时财经快讯（新浪 7x24 全球财经直播），缓存 60 秒。
 
@@ -39,12 +47,15 @@ def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str
                 out.append({
                     "title": text,
                     "time": (it.get("create_time") or "")[:16],
+                    "published_at": (it.get("create_time") or "")[:16],
+                    "source": "新浪财经",
+                    "url": _clean_url(it.get("docurl"), it.get("url")),
                 })
             return out or None
         except Exception:
             return None
 
-    data = cached(f"flash:{keyword or 'all'}", 60, _fetch)
+    data = cached(f"flash:v2:{keyword or 'all'}", 60, _fetch)
     if data is None:
         return None
     if keyword:
@@ -115,21 +126,29 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
                     title_head = title[:30].lower()
                     if not any(kw in title_head for kw in name_keywords):
                         continue
-                    out.append({"title": title, "time": (a.get("date", "") or "")[:16]})
+                    published_at = (a.get("date", "") or "")[:16]
+                    out.append({
+                        "title": title,
+                        "time": published_at,
+                        "published_at": published_at,
+                        "source": a.get("mediaName") or a.get("source") or "东方财富",
+                        "url": _clean_url(a.get("url"), a.get("articleUrl")),
+                    })
                     if len(out) >= 8:
                         break
                 return out or None
             except Exception:
                 return None
 
-        extra = cached(f"news:{sym}", TTL["news"], _fetch)
+        extra = cached(f"news:v2:{sym}", TTL["news"], _fetch)
         if extra:
             items.extend(extra)
 
-    # 去重（按标题）
+    # 有原文链接时按链接去重，否则按标题去重。
     seen, uniq = set(), []
     for n in items:
-        if n["title"] not in seen:
-            seen.add(n["title"])
+        key = n.get("url") or n["title"].strip().lower()
+        if key not in seen:
+            seen.add(key)
             uniq.append(n)
     return uniq[:8] or None

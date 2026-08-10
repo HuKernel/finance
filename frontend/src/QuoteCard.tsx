@@ -189,8 +189,8 @@ export default function QuoteCard({ code }: { code: string }) {
           <div className="quote-news-head">最新新闻</div>
           {news.slice(0, 4).map((n, i) => (
             <div className="quote-news-item" key={i}>
-              <span className="quote-news-time">{n.time.slice(5, 16)}</span>
-              <span className="quote-news-title">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</span>
+              <span className="quote-news-time">{n.time.slice(5, 16)} · {n.source}</span>
+              {n.url ? <a className="quote-news-title" href={n.url} target="_blank" rel="noreferrer">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</a> : <span className="quote-news-title">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</span>}
             </div>
           ))}
         </div>
