@@ -20,6 +20,9 @@
 """
 from __future__ import annotations
 
+import hashlib
+import json
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from ..data import fetcher as datalayer
@@ -147,6 +150,61 @@ __all__ = [
 
 
 # ==================== 主入口 ====================
+
+def _build_run_manifest(
+    df,
+    result: dict[str, Any],
+    symbol: str,
+    strategy: str,
+    generator,
+    initial_capital: float,
+    enable_cost: bool,
+    percentage: float,
+    slippage: float,
+) -> dict[str, Any]:
+    """生成可导出的回测运行记录，用于核对数据、参数和执行口径。"""
+    data_columns = [c for c in ("date", "open", "high", "low", "close", "volume") if c in df.columns]
+    data_json = df[data_columns].to_json(orient="records", date_format="iso", date_unit="s", double_precision=10)
+    outcome = {
+        "final_value": result.get("final_value"),
+        "total_return": result.get("total_return"),
+        "max_drawdown": result.get("max_drawdown"),
+        "trades_log": result.get("trades_log", []),
+        "equity_curve": result.get("equity_curve", []),
+    }
+    return {
+        "schema_version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "strategy": {
+            "name": strategy,
+            "parameters": dict(vars(generator)) if generator is not None else {},
+        },
+        "execution": {
+            "engine": "close_signal_next_open_v1",
+            "initial_capital": initial_capital,
+            "position_percentage": percentage,
+            "slippage": slippage,
+            "cost_enabled": enable_cost,
+            "commission_rate": COMMISSION_RATE,
+            "commission_min": COMMISSION_MIN,
+            "stamp_tax_rate": STAMP_TAX_RATE,
+            "transfer_fee_rate": TRANSFER_FEE_RATE,
+            "signal_time": "previous_close",
+            "fill_time": "next_open",
+            "forced_close": "last_close",
+        },
+        "data": {
+            "symbol": symbol,
+            "start": df.iloc[0]["date"].strftime("%Y-%m-%d"),
+            "end": df.iloc[-1]["date"].strftime("%Y-%m-%d"),
+            "rows": len(df),
+            "columns": data_columns,
+            "fingerprint": hashlib.sha256(data_json.encode()).hexdigest(),
+        },
+        "result_fingerprint": hashlib.sha256(
+            json.dumps(outcome, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest(),
+    }
 
 def run_backtest(
     symbol: str,
@@ -364,5 +422,10 @@ def run_backtest(
         result["signal_sample"] = signal_log[:3]
     else:
         result["signal_log_count"] = 0
+
+    result["run_manifest"] = _build_run_manifest(
+        evaluation_df, result, sym, strategy, generator,
+        initial_capital, enable_cost, percentage, slippage,
+    )
 
     return result

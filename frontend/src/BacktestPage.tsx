@@ -68,6 +68,16 @@ export default function BacktestPage() {
     finally { setLoading(false) }
   }
 
+  const downloadRun = () => {
+    if (!result?.run_manifest) return
+    const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `backtest_${result.symbol}_${result.strategy}_${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="pane">
       <div className="pane-head">
@@ -205,6 +215,11 @@ export default function BacktestPage() {
 
           <div className="backtest-period">
             期间: {result.period} | 初始资金: {result.initial_capital.toLocaleString()} | 终值: {result.final_value.toLocaleString()}
+            {result.run_manifest && (
+              <> | 数据指纹: {result.run_manifest.data.fingerprint.slice(0, 12)}…{' '}
+                <button className="btn-primary" onClick={downloadRun}>导出运行记录</button>
+              </>
+            )}
           </div>
 
           <div className="backtest-equity">

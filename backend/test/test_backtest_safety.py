@@ -1,5 +1,8 @@
+import json
+
 import pandas as pd
 
+from app import backtest as backtest_module
 from app.backtest.engine import SignalGenerator, _affordable_shares, _execute_signals
 from app.backtest import strategies
 from app.backtest_analysis import cpcv, full_analysis, pbo
@@ -159,6 +162,35 @@ def test_pbo_uses_oos_rank_percentile_logit(monkeypatch):
     assert result["pbo"] == 1
     assert all(item["oos_rank_percentile"] == 0.25 for item in result["combinations"])
     assert all(item["below_median"] for item in result["combinations"])
+
+
+def test_backtest_run_manifest_records_reproducible_inputs(monkeypatch):
+    closes = [10 + (i % 20) * 0.1 for i in range(80)]
+    hist = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=80),
+        "open": closes,
+        "high": [price + 0.2 for price in closes],
+        "low": [price - 0.2 for price in closes],
+        "close": closes,
+        "volume": [1000 + i for i in range(80)],
+    })
+    monkeypatch.setattr(backtest_module.datalayer, "get_history", lambda *_args, **_kwargs: hist)
+
+    first = backtest_module.run_backtest("600519", fast_period=3, slow_period=10, slippage=0)
+    second = backtest_module.run_backtest("600519", fast_period=3, slow_period=10, slippage=0)
+    manifest = first["run_manifest"]
+
+    assert manifest["strategy"] == {
+        "name": "ma_cross", "parameters": {"fast_period": 3, "slow_period": 10},
+    }
+    assert manifest["execution"]["fill_time"] == "next_open"
+    assert manifest["execution"]["engine"] == "close_signal_next_open_v1"
+    assert manifest["execution"]["commission_min"] == 5
+    assert manifest["data"]["rows"] > 0
+    assert len(manifest["data"]["fingerprint"]) == 64
+    assert manifest["data"]["fingerprint"] == second["run_manifest"]["data"]["fingerprint"]
+    assert manifest["result_fingerprint"] == second["run_manifest"]["result_fingerprint"]
+    json.dumps(first, ensure_ascii=False)
 
 
 def test_advanced_modules_include_runtime_dependencies():

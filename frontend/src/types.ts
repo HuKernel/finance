@@ -229,6 +229,14 @@ export interface BacktestResult {
   methodology?: string
   strict_backtest?: boolean
   warnings?: string[]
+  run_manifest?: {
+    schema_version: number
+    generated_at: string
+    strategy: { name: string; parameters: Record<string, number | string | boolean> }
+    execution: Record<string, number | string | boolean>
+    data: { symbol: string; start: string; end: string; rows: number; columns: string[]; fingerprint: string }
+    result_fingerprint: string
+  }
   // 新增指标
   annual_return?: number
   annual_volatility?: number
