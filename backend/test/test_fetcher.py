@@ -8,7 +8,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from app.data import news as news_data, polygon_us
+from app.data import hk_us_stock, news as news_data, polygon_us
 from app.data.utils import finalize_ohlcv
 from app.data.fetcher import (
     _norm_symbol,
@@ -57,6 +57,32 @@ def test_polygon_is_disabled_without_api_key(monkeypatch):
     assert polygon_us.polygon_get_history("usAAPL") is None
     assert polygon_us.polygon_get_minute("usAAPL") is None
     assert polygon_us._polygon_prev("AAPL") is None
+
+
+def test_polygon_minute_uses_new_york_market_time(monkeypatch):
+    class Response:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"results": [{
+                "t": 1786109400000,  # 2026-08-07 09:30 America/New_York
+                "c": 220.5, "vw": 220.4, "v": 1000,
+            }]}
+
+    monkeypatch.setenv("POLYGON_API_KEY", "test")
+    monkeypatch.setattr(polygon_us.requests, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(polygon_us, "_polygon_prev", lambda _ticker: {"close": 219.0})
+
+    result = polygon_us.polygon_get_minute("usAAPL")
+
+    assert result["data_date"] == "2026-08-07"
+    assert result["points"][0]["time"] == "0930"
+
+
+def test_eastmoney_beijing_time_converts_to_new_york_market_time():
+    assert hk_us_stock._beijing_to_new_york("2026-08-07 21:30").strftime("%Y-%m-%d %H:%M") == "2026-08-07 09:30"
+    assert hk_us_stock._beijing_to_new_york("2026-12-07 22:30").strftime("%Y-%m-%d %H:%M") == "2026-12-07 09:30"
 
 
 def test_finalize_ohlcv_removes_invalid_and_duplicate_rows():

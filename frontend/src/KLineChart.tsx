@@ -83,7 +83,7 @@ const asLineData = (bars: KlineBar[], values: (number | null)[]): LineData<Time>
 const formatTime = (time: Time | undefined) => {
   if (!time) return ''
   if (typeof time === 'string') return time
-  if (typeof time === 'number') return new Date(time * 1000).toLocaleString('zh-CN', { hour12: false })
+  if (typeof time === 'number') return new Date(time * 1000).toLocaleString('zh-CN', { hour12: false, timeZone: 'UTC' })
   return `${time.year}-${String(time.month).padStart(2, '0')}-${String(time.day).padStart(2, '0')}`
 }
 
@@ -170,13 +170,14 @@ export default function KLineChart({
       })
     } else {
       const baseDate = dataDate || new Date().toISOString().slice(0, 10)
+      const [year, month, day] = baseDate.split('-').map(Number)
+      const base = Date.UTC(year, month - 1, day) / 1000
       let dayOffset = 0, previousMinute = -1
       const points = minute.map(point => {
         const hour = Number(point.time.slice(0, 2)), minuteValue = Number(point.time.slice(2, 4))
         const minuteOfDay = hour * 60 + minuteValue
         if (previousMinute >= 0 && minuteOfDay < previousMinute) dayOffset += 1
         previousMinute = minuteOfDay
-        const base = Date.parse(`${baseDate}T00:00:00+08:00`) / 1000
         return { point, time: (base + dayOffset * 86400 + minuteOfDay * 60) as UTCTimestamp }
       })
       const price = chart.addSeries(LineSeries, { color: up, lineWidth: 2, priceLineVisible: true }, 0)

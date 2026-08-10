@@ -14,14 +14,15 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 import requests
 
 logger = logging.getLogger(__name__)
 
-_BJ_TZ = timezone(timedelta(hours=8))
+_NY_TZ = ZoneInfo("America/New_York")
 
 
 def _polygon_params(**params) -> Optional[dict[str, Any]]:
@@ -90,7 +91,7 @@ def polygon_get_history(symbol: str, days: int = 250) -> Optional[list[dict[str,
         results = r.json().get("results", [])
         bars = []
         for item in results:
-            dt = datetime.fromtimestamp(item["t"] / 1000, tz=_BJ_TZ)
+            dt = datetime.fromtimestamp(item["t"] / 1000, tz=_NY_TZ)
             bars.append({
                 "date": dt.strftime("%Y-%m-%d"),
                 "open": round(item["o"], 2),
@@ -109,7 +110,7 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
     """美股分时数据（Polygon 5分钟K线聚合为分时图）。
 
     返回与 _us_minute_from_em 相同格式: {points, last_close, data_date, is_today}
-    时间已是北京时间（Polygon返回UTC，自动转BJ）。
+    时间使用交易所当地时间（Polygon UTC → America/New_York）。
     """
     ticker = symbol.replace("us", "").upper()
 
@@ -133,7 +134,7 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
         # 找最新交易日的数据
         all_dates = set()
         for item in results:
-            dt = datetime.fromtimestamp(item["t"] / 1000, tz=_BJ_TZ)
+            dt = datetime.fromtimestamp(item["t"] / 1000, tz=_NY_TZ)
             all_dates.add(dt.strftime("%Y-%m-%d"))
 
         if not all_dates:
@@ -143,7 +144,7 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
         latest_date = max(all_dates)
         day_points = []
         for item in results:
-            dt = datetime.fromtimestamp(item["t"] / 1000, tz=_BJ_TZ)
+            dt = datetime.fromtimestamp(item["t"] / 1000, tz=_NY_TZ)
             if dt.strftime("%Y-%m-%d") == latest_date:
                 day_points.append({
                     "time": dt.strftime("%H%M"),
@@ -163,7 +164,7 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
             "points": day_points,
             "last_close": round(last_close, 2) if last_close else None,
             "data_date": latest_date,
-            "is_today": latest_date == datetime.now(_BJ_TZ).strftime("%Y-%m-%d"),
+            "is_today": latest_date == datetime.now(_NY_TZ).strftime("%Y-%m-%d"),
             "source": "polygon",
         }
     except Exception as e:
