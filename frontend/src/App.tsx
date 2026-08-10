@@ -6,7 +6,7 @@ import AlertBell from './AlertBell'
 import { ErrorBoundary } from './ErrorBoundary'
 import './App.css'
 
-// 懒加载页面组件 - 首屏只加载ChatPage，其他按需加载
+// 懒加载页面组件 - 只挂载当前页面，避免隐藏页面消耗行情接口额度
 const ChatPage = lazy(() => import('./ChatPage'))
 const QuotePage = lazy(() => import('./QuotePage'))
 const AnalyzePane = lazy(() => import('./AnalyzePage'))
@@ -21,17 +21,38 @@ const ThesisPage = lazy(() => import('./ThesisPage'))
 
 type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
 
+const NAV_GROUPS: { label: string; items: { tab: Tab; label: string }[] }[] = [
+  { label: '研究', items: [
+    { tab: 'analyze', label: '投研分析' },
+    { tab: 'chat', label: '智能对话' },
+    { tab: 'thesis', label: '投资论文' },
+  ] },
+  { label: '市场与资产', items: [
+    { tab: 'quote', label: '行情' },
+    { tab: 'market', label: '市场数据' },
+    { tab: 'portfolio', label: '投资组合' },
+  ] },
+  { label: '策略', items: [
+    { tab: 'backtest', label: '策略回测' },
+    { tab: 'scheduler', label: '定时分析' },
+  ] },
+  { label: '我的', items: [
+    { tab: 'history', label: '历史记录' },
+    { tab: 'profile', label: '个人中心' },
+  ] },
+]
+
 function useTheme() {
-  const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme') || 'dark')
+  const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme_v3') || 'light')
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('fc_theme', theme)
+    localStorage.setItem('fc_theme_v3', theme)
   }, [theme])
   return { theme, toggle: () => setTheme(t => t === 'dark' ? 'light' : 'dark') }
 }
 
 function App() {
-  const [tab, setTab] = useState<Tab>('chat')
+  const [tab, setTab] = useState<Tab>('analyze')
   const [auth, setAuth] = useState<AuthResponse | null>(null)
   const [booted, setBooted] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -43,7 +64,7 @@ function App() {
     api.me()
       .then((r) => {
         setAuth({ token: getToken()!, user: r.user, profile: r.profile })
-        setTab('chat')
+        setTab('analyze')
         // 检查管理员权限
         api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
       })
@@ -55,7 +76,7 @@ function App() {
 
   if (!auth) {
     return <LoginPage onLogin={(r) => {
-      setAuth(r); setTab('chat')
+      setAuth(r); setTab('analyze')
       // 登录后检查管理员权限
       api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
     }} />
@@ -66,51 +87,66 @@ function App() {
     setAuth(null)
   }
 
+  const visibleGroups = isAdmin
+    ? [...NAV_GROUPS, { label: '系统', items: [{ tab: 'admin' as Tab, label: '管理后台' }] }]
+    : NAV_GROUPS
+  const activeLabel = visibleGroups.flatMap(group => group.items).find(item => item.tab === tab)?.label
+  const activePage = (() => {
+    switch (tab) {
+      case 'chat': return <ChatPage />
+      case 'quote': return <QuotePage />
+      case 'market': return <MarketDataPage />
+      case 'analyze': return <AnalyzePane onBacktest={() => setTab('backtest')} onQuote={() => setTab('quote')} />
+      case 'portfolio': return <PortfolioPage />
+      case 'backtest': return <BacktestPage />
+      case 'scheduler': return <SchedulerPage />
+      case 'thesis': return <ThesisPage />
+      case 'history': return <HistoryPane onPick={() => setTab('analyze')} />
+      case 'profile': return <ProfilePage />
+      case 'admin': return isAdmin ? <AdminPage /> : null
+    }
+  })()
+
   return (
-    <div className="app">
+    <div className="app-shell">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <header className="topbar">
+      <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">FC</div>
-          <h1>FinanceCrew<small>金融智能体投研团队</small></h1>
+          <h1>FinanceCrew<small>个人投研工作台</small></h1>
         </div>
-        <nav aria-label="主导航">
-          <button aria-current={tab === 'chat' ? 'page' : undefined} className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>智能对话</button>
-          <button aria-current={tab === 'quote' ? 'page' : undefined} className={tab === 'quote' ? 'active' : ''} onClick={() => setTab('quote')}>行情</button>
-          <button aria-current={tab === 'market' ? 'page' : undefined} className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')}>市场数据</button>
-          <button aria-current={tab === 'analyze' ? 'page' : undefined} className={tab === 'analyze' ? 'active' : ''} onClick={() => setTab('analyze')}>投研分析</button>
-          <button aria-current={tab === 'portfolio' ? 'page' : undefined} className={tab === 'portfolio' ? 'active' : ''} onClick={() => setTab('portfolio')}>投资组合</button>
-          <button aria-current={tab === 'backtest' ? 'page' : undefined} className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
-          <button aria-current={tab === 'scheduler' ? 'page' : undefined} className={tab === 'scheduler' ? 'active' : ''} onClick={() => setTab('scheduler')}>定时分析</button>
-          <button aria-current={tab === 'thesis' ? 'page' : undefined} className={tab === 'thesis' ? 'active' : ''} onClick={() => setTab('thesis')}>投资论文</button>
-          <button aria-current={tab === 'history' ? 'page' : undefined} className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
-          <button aria-current={tab === 'profile' ? 'page' : undefined} className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>个人中心</button>
-          {isAdmin && <button aria-current={tab === 'admin' ? 'page' : undefined} className={tab === 'admin' ? 'active' : ''} onClick={() => setTab('admin')}>管理后台</button>}
+        <nav aria-label="主导航" className="side-nav">
+          {visibleGroups.map(group => (
+            <div className="nav-group" key={group.label}>
+              <div className="nav-group-label">{group.label}</div>
+              {group.items.map(item => (
+                <button key={item.tab} aria-current={tab === item.tab ? 'page' : undefined} className={tab === item.tab ? 'active' : ''} onClick={() => setTab(item.tab)}>{item.label}</button>
+              ))}
+            </div>
+          ))}
         </nav>
+      </aside>
+      <div className="workspace">
+        <header className="workspace-header">
+          <div>
+            <div className="workspace-eyebrow">FinanceCrew / {activeLabel}</div>
+            <h2>{activeLabel}</h2>
+          </div>
         <div className="user-menu">
           <AlertBell />
           <button className="ghost" onClick={toggle} title="切换主题">{theme === 'dark' ? '亮色' : '暗色'}</button>
           <span className="user-name">{auth.user.username}</span>
           <button className="ghost" onClick={logout}>退出</button>
         </div>
-      </header>
-      <main id="main-content" tabIndex={-1}>
+        </header>
+      <main id="main-content" className="workspace-main" tabIndex={-1}>
         <ErrorBoundary>
         <Suspense fallback={<div style={{padding:'40px',textAlign:'center',color:'var(--text-2)'}}>加载中...</div>}>
-          <div style={{ display: tab === 'chat' ? 'block' : 'none' }}><ChatPage /></div>
-          <div style={{ display: tab === 'quote' ? 'block' : 'none' }}><QuotePage /></div>
-          <div style={{ display: tab === 'market' ? 'block' : 'none' }}><MarketDataPage /></div>
-          <div style={{ display: tab === 'analyze' ? 'block' : 'none' }}><AnalyzePane /></div>
-          <div style={{ display: tab === 'portfolio' ? 'block' : 'none' }}><PortfolioPage /></div>
-          <div style={{ display: tab === 'backtest' ? 'block' : 'none' }}><BacktestPage /></div>
-          <div style={{ display: tab === 'scheduler' ? 'block' : 'none' }}><SchedulerPage /></div>
-          <div style={{ display: tab === 'thesis' ? 'block' : 'none' }}><ThesisPage /></div>
-          <div style={{ display: tab === 'history' ? 'block' : 'none' }}><HistoryPane onPick={() => setTab('analyze')} /></div>
-          <div style={{ display: tab === 'profile' ? 'block' : 'none' }}><ProfilePage /></div>
-          {isAdmin && <div style={{ display: tab === 'admin' ? 'block' : 'none' }}><AdminPage /></div>}
+          {activePage}
         </Suspense>
         </ErrorBoundary>
       </main>
+      </div>
     </div>
   )
 }

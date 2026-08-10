@@ -3,8 +3,9 @@ import { api } from './api'
 import type { AnalysisResult } from './types'
 import Markdown from './Markdown'
 import { useModal } from './Modal'
+import QuoteCard from './QuoteCard'
 
-function AnalyzePane() {
+function AnalyzePane({ onBacktest, onQuote }: { onBacktest: () => void; onQuote: () => void }) {
   const { toast } = useModal()
   const [ticker, setTicker] = useState('600519')
   const [topic, setTopic] = useState('')
@@ -17,6 +18,7 @@ function AnalyzePane() {
   const [riskReview, setRiskReview] = useState<{ approved: boolean; verdict: string; max_position_pct: number; stop_loss_pct: number } | null>(null)
   const [reflections, setReflections] = useState<any[]>([])
   const [reflectionLoading, setReflectionLoading] = useState(false)
+  const quoteCode = /^(?:\d{6}|(?:hk|us)[a-z0-9]{2,8})$/i.test(ticker.trim()) ? ticker.trim() : ''
 
   const loadReflections = async (t: string) => {
     setReflectionLoading(true)
@@ -63,36 +65,34 @@ function AnalyzePane() {
   }
 
   return (
-    <div className="pane">
-      <div className="input-row">
-        <input
-          aria-label="股票代码或名称"
-          className="ticker-input"
-          value={ticker}
-          onChange={(e) => setTicker(e.target.value)}
-          placeholder="股票代码/名称（如 600519 / hk00700 / usAAPL）"
-        />
-        <input
-          aria-label="分析主题（可选）"
-          className="topic-input"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          placeholder="可选：分析主题（如：AI算力涨价对公司影响）"
-        />
-        <button onClick={run} disabled={loading || !ticker.trim()}>
-          {loading ? '分析中...' : '开始分析'}
-        </button>
+    <div className="research-cockpit">
+      <div className="research-cockpit-head">
+        <div>
+          <div className="workspace-eyebrow">研究 Cockpit / {ticker || '选择标的'}</div>
+          <h1>从证据到决策</h1>
+          <p>输入研究对象和关注问题，由多角色分析师完成数据、观点与风控交叉验证。</p>
+        </div>
+        <div className="research-object">
+          <span>当前研究对象</span>
+          <strong>{ticker || '--'}</strong>
+        </div>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
-          <input type="radio" value="standard" checked={mode === 'standard'} onChange={() => setMode('standard')} />
-          标准模式（快速）
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
-          <input type="radio" value="agentic" checked={mode === 'agentic'} onChange={() => setMode('agentic')} />
-          Agent模式（分析师自主调工具）
-        </label>
+      <div className="research-layout">
+      <section className="pane research-main">
+        <div className="research-section-head">
+          <div>
+            <span className="section-kicker">实时市场上下文</span>
+            <h2>{ticker || '选择标的'} 的研究证据</h2>
+          </div>
+          <span className="research-status">数据与结论可追溯</span>
+        </div>
+      <div className="research-market-context">
+        <div>
+          <p>当前页面只加载这一只标的的价格、K 线和新闻，切换到其他功能后自动停止刷新。</p>
+        </div>
+        <button className="ghost" onClick={onQuote}>查看完整行情</button>
       </div>
+      {quoteCode && <div className="research-quote"><QuoteCard code={quoteCode} /></div>}
       {error && <div className="error-box">{error}</div>}
       {loading && (
         <div className="research-live">
@@ -199,6 +199,52 @@ function AnalyzePane() {
           )}
         </div>
       )}
+      </section>
+      <aside className="research-action-panel">
+        <div>
+          <span className="section-kicker">深度投研</span>
+          <h2>生成多角色研究报告</h2>
+          <p>标准模式适合快速判断；Agent 模式会自主调用更多工具，耗时更长。</p>
+        </div>
+        <div className="research-side-inputs">
+          <input
+            aria-label="股票代码或名称"
+            className="ticker-input"
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value)}
+            placeholder="股票代码，如 600519"
+          />
+          <textarea
+            aria-label="分析主题（可选）"
+            className="topic-input"
+            rows={4}
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="研究问题（可选），例如：未来两年增长来自哪里？"
+          />
+        </div>
+        <div className="research-mode-row research-side-modes">
+          <label>
+            <input type="radio" value="standard" checked={mode === 'standard'} onChange={() => setMode('standard')} />
+            标准模式
+          </label>
+          <label>
+            <input type="radio" value="agentic" checked={mode === 'agentic'} onChange={() => setMode('agentic')} />
+            Agent 模式
+          </label>
+        </div>
+        <button className="research-primary" onClick={run} disabled={loading || !ticker.trim()}>
+          {loading ? '分析中...' : '开始深度投研'}
+        </button>
+        <div className="research-action-divider" />
+        <div>
+          <span className="section-kicker">策略验证</span>
+          <h3>把研究假设交给历史数据</h3>
+          <p>前往策略回测，验证收益、回撤与交易成本。</p>
+        </div>
+        <button className="ghost" onClick={onBacktest}>进入策略回测</button>
+      </aside>
+      </div>
     </div>
   )
 }
