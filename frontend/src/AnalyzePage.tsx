@@ -66,12 +66,14 @@ function AnalyzePane() {
     <div className="pane">
       <div className="input-row">
         <input
+          aria-label="股票代码或名称"
           className="ticker-input"
           value={ticker}
           onChange={(e) => setTicker(e.target.value)}
           placeholder="股票代码/名称（如 600519 / hk00700 / usAAPL）"
         />
         <input
+          aria-label="分析主题（可选）"
           className="topic-input"
           value={topic}
           onChange={(e) => setTopic(e.target.value)}

@@ -68,23 +68,24 @@ function App() {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#main-content">跳到主要内容</a>
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark">FC</div>
           <h1>FinanceCrew<small>金融智能体投研团队</small></h1>
         </div>
-        <nav>
-          <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>智能对话</button>
-          <button className={tab === 'quote' ? 'active' : ''} onClick={() => setTab('quote')}>行情</button>
-          <button className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')}>市场数据</button>
-          <button className={tab === 'analyze' ? 'active' : ''} onClick={() => setTab('analyze')}>投研分析</button>
-          <button className={tab === 'portfolio' ? 'active' : ''} onClick={() => setTab('portfolio')}>投资组合</button>
-          <button className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
-          <button className={tab === 'scheduler' ? 'active' : ''} onClick={() => setTab('scheduler')}>定时分析</button>
-          <button className={tab === 'thesis' ? 'active' : ''} onClick={() => setTab('thesis')}>投资论文</button>
-          <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
-          <button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>个人中心</button>
-          {isAdmin && <button className={tab === 'admin' ? 'active' : ''} onClick={() => setTab('admin')}>管理后台</button>}
+        <nav aria-label="主导航">
+          <button aria-current={tab === 'chat' ? 'page' : undefined} className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>智能对话</button>
+          <button aria-current={tab === 'quote' ? 'page' : undefined} className={tab === 'quote' ? 'active' : ''} onClick={() => setTab('quote')}>行情</button>
+          <button aria-current={tab === 'market' ? 'page' : undefined} className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')}>市场数据</button>
+          <button aria-current={tab === 'analyze' ? 'page' : undefined} className={tab === 'analyze' ? 'active' : ''} onClick={() => setTab('analyze')}>投研分析</button>
+          <button aria-current={tab === 'portfolio' ? 'page' : undefined} className={tab === 'portfolio' ? 'active' : ''} onClick={() => setTab('portfolio')}>投资组合</button>
+          <button aria-current={tab === 'backtest' ? 'page' : undefined} className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
+          <button aria-current={tab === 'scheduler' ? 'page' : undefined} className={tab === 'scheduler' ? 'active' : ''} onClick={() => setTab('scheduler')}>定时分析</button>
+          <button aria-current={tab === 'thesis' ? 'page' : undefined} className={tab === 'thesis' ? 'active' : ''} onClick={() => setTab('thesis')}>投资论文</button>
+          <button aria-current={tab === 'history' ? 'page' : undefined} className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
+          <button aria-current={tab === 'profile' ? 'page' : undefined} className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>个人中心</button>
+          {isAdmin && <button aria-current={tab === 'admin' ? 'page' : undefined} className={tab === 'admin' ? 'active' : ''} onClick={() => setTab('admin')}>管理后台</button>}
         </nav>
         <div className="user-menu">
           <AlertBell />
@@ -93,7 +94,7 @@ function App() {
           <button className="ghost" onClick={logout}>退出</button>
         </div>
       </header>
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <ErrorBoundary>
         <Suspense fallback={<div style={{padding:'40px',textAlign:'center',color:'var(--text-2)'}}>加载中...</div>}>
           <div style={{ display: tab === 'chat' ? 'block' : 'none' }}><ChatPage /></div>

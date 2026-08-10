@@ -95,12 +95,12 @@ export default function BacktestPage() {
       ) : (
       <>
       <div className="backtest-controls">
-        <input className="alert-input" placeholder="股票代码（如 600519）"
+        <input aria-label="回测股票代码" className="alert-input" placeholder="股票代码（如 600519）"
           value={symbol} onChange={e => setSymbol(e.target.value)} />
-        <select className="alert-select" value={strategy} onChange={e => { setStrategy(e.target.value); setParams({}) }}>
+        <select aria-label="回测策略" className="alert-select" value={strategy} onChange={e => { setStrategy(e.target.value); setParams({}) }}>
           {STRATEGIES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
-        <select className="alert-select" value={days} onChange={e => setDays(parseInt(e.target.value))}>
+        <select aria-label="回测周期" className="alert-select" value={days} onChange={e => setDays(parseInt(e.target.value))}>
           <option value={60}>60天</option>
           <option value={120}>120天</option>
           <option value={250}>250天</option>

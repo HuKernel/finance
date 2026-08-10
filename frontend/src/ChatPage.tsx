@@ -342,6 +342,7 @@ function WatchList() {
       </div>
       <div className="watchlist-add">
         <input
+          aria-label="添加自选股代码"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && add()}
@@ -532,6 +533,7 @@ export default function ChatPage() {
         )}
         <input
           className="chat-search"
+          aria-label="搜索对话内容"
           placeholder="搜索对话内容..."
           value={searchQ}
           onChange={(e) => { setSearchQ(e.target.value); doSearch(e.target.value) }}
@@ -636,6 +638,7 @@ export default function ChatPage() {
 
         <div className="chat-input">
           <input
+            aria-label="向 FinanceCrew 提问"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send()}

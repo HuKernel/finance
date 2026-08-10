@@ -49,16 +49,16 @@ export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => v
           <button className={`ghost ${mode === 'login' ? 'active' : ''}`} onClick={() => { setMode('login'); setError('') }}>登录</button>
           <button className={`ghost ${mode === 'register' ? 'active' : ''}`} onClick={() => { setMode('register'); setError('') }}>注册</button>
         </div>
-        <input placeholder="用户名" value={username} onChange={(e) => setUsername(e.target.value)} />
-        <input placeholder="密码（至少 6 位）" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        <input aria-label="用户名" autoComplete="username" placeholder="用户名" value={username} onChange={(e) => setUsername(e.target.value)} />
+        <input aria-label="密码" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="密码（至少 6 位）" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
         {mode === 'register' && (
-          <input placeholder="邀请码（如需要）" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+          <input aria-label="邀请码" placeholder="邀请码（如需要）" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
         )}
         <label className="login-remember">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-          <span>记住账号密码</span>
+          <span>记住用户名</span>
         </label>
-        {error && <div className="error-box">{error}</div>}
+        {error && <div className="error-box" role="alert">{error}</div>}
         <button onClick={submit} disabled={busy} className="login-btn">
           {busy ? '处理中...' : mode === 'login' ? '登录' : '注册并登录'}
         </button>
