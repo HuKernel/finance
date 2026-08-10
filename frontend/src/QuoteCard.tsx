@@ -65,7 +65,6 @@ export default function QuoteCard({ code }: { code: string }) {
   const { toast } = useModal()
   const [data, setData] = useState<QuoteResponse | null>(null)
   const [news, setNews] = useState<NewsItem[]>([])
-  const [allBars, setAllBars] = useState<KlineBar[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
   const [live, setLive] = useState(true)
   const [err, setErr] = useState('')
@@ -80,15 +79,6 @@ export default function QuoteCard({ code }: { code: string }) {
     } catch {
       setErr('行情加载失败')
     }
-  }, [code])
-
-  // 预加载全量K线（"全部"选项用；只加载一次）
-  useEffect(() => {
-    let cancelled = false
-    api.getQuote(code, 60, 'day', 0, 1).then((q) => {
-      if (!cancelled && q.kline.length > 60) setAllBars(q.kline as KlineBar[])
-    }).catch(() => {})
-    return () => { cancelled = true }
   }, [code])
 
   useEffect(() => {
@@ -138,6 +128,7 @@ export default function QuoteCard({ code }: { code: string }) {
   const b = data.brief as {
     name?: string; price?: number; change_pct?: number
     pe?: number; pb?: number; turnover?: number; market_cap?: number
+    pre_close?: number
   }
   const name = String(b.name ?? code)
   const price = b.price
@@ -175,9 +166,10 @@ export default function QuoteCard({ code }: { code: string }) {
         {b.market_cap != null && <span>市值 {b.market_cap}亿</span>}
       </div>
       <KLineChart
-        bars={allBars.length > 60 ? allBars : bars}
+        bars={bars}
         minute={minute}
-        lastClose={data.last_close ?? null}
+        lastClose={b.pre_close ?? data.last_close ?? null}
+        currentPrice={b.price ?? null}
         symbol={name}
         mode={mode}
         onMode={switchMode}

@@ -40,15 +40,12 @@ function useHotCodes() {
 // 轮播专用K线：切换股票时只重新加载这部分（行情简报/新闻由外层预加载）
 function HotKLine({ code, name, lastClose }: { code: string; name: string; lastClose: number | null }) {
   const [data, setData] = useState<QuoteResponse | null>(null)
-  const [allBars, setAllBars] = useState<KlineBar[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
 
   useEffect(() => {
     let cancelled = false
     setData(null)
-    setAllBars([])
     api.getQuote(code, 60, 'day', 0).then((q) => { if (!cancelled) setData(q) }).catch(() => {})
-    api.getQuote(code, 60, 'day', 0, 1).then((q) => { if (!cancelled && q.kline.length > 60) setAllBars(q.kline as KlineBar[]) }).catch(() => {})
     return () => { cancelled = true }
   }, [code])
 
@@ -75,7 +72,7 @@ function HotKLine({ code, name, lastClose }: { code: string; name: string; lastC
 
   return (
     <KLineChart
-      bars={allBars.length > 60 ? allBars : bars}
+      bars={bars}
       minute={minute}
       lastClose={lastClose ?? null}
       symbol={name}

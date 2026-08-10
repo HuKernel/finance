@@ -125,6 +125,15 @@ def hot_stocks() -> list[dict[str, Any]]:
     return result or []
 
 
+@router.get("/api/market/top-turnover")
+def top_turnover_stock() -> dict[str, Any]:
+    """A 股全市场当日成交额第一的股票。"""
+    result = datalayer.get_top_turnover_stock()
+    if not result:
+        raise HTTPException(503, "暂时无法取得 A 股成交额排名")
+    return result
+
+
 
 @router.get("/api/industry/{symbol}")
 def industry_compare(symbol: str) -> dict[str, Any]:

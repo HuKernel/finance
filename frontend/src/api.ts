@@ -102,6 +102,8 @@ export const api = {
 
   getHotStocks: () => request<{ code: string; name: string; change_pct: number }[]>('/api/hot'),
 
+  getTopTurnoverStock: () => request<{ code: string; name: string; amount: number; unit: string; scope: string; as_of: string }>('/api/market/top-turnover'),
+
   // 认证
   register: (username: string, password: string, inviteCode?: string) =>
     request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password, invite_code: inviteCode || '' }) }),

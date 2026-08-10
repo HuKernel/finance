@@ -62,6 +62,7 @@ from .market import (  # noqa: F401
     INDUSTRY_PEERS,
     get_hot_stocks,
     get_industry_compare,
+    get_top_turnover_stock,
 )
 from .sentiment import (  # noqa: F401
     get_social_sentiment,
@@ -81,7 +82,7 @@ __all__ = [
     # news
     "get_flash_news", "get_news",
     # market
-    "INDUSTRY_PEERS", "get_hot_stocks", "get_industry_compare",
+    "INDUSTRY_PEERS", "get_hot_stocks", "get_industry_compare", "get_top_turnover_stock",
     # sentiment
     "get_social_sentiment",
 ]

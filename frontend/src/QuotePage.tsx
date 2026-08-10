@@ -55,43 +55,24 @@ export default function QuotePage() {
   const [live, setLive] = useState(true)
   const [err, setErr] = useState('')
   const [searching, setSearching] = useState(false)
-  const [allBars, setAllBars] = useState<KlineBar[]>([])
+  const [dayRange, setDayRange] = useState<30 | 60 | 120 | 250 | 'all'>(120)
+  const [defaultRank, setDefaultRank] = useState<{ code: string; amount: number; scope: string } | null>(null)
   // watchlist 版本号：星标/删除/添加后自增以刷新左栏
   const [wlVersion, setWlVersion] = useState(0)
   const [showIndustry, setShowIndustry] = useState(false)
   const timerRef = useRef<number | null>(null)
   const searchTimer = useRef<number | null>(null)
 
-  // 初始化：优先从自选股取第一只，没有则用热门股第一只
+  // 默认展示 A 股全市场当日成交额第一；数据源失败时回退到稳定示例。
   useEffect(() => {
-    api.getProfile().then(async (p) => {
-      const wl = p.watchlist || []
-      if (wl.length > 0) {
-        // 自选股第一只
-        const code = wl[0]
-        const market = code.startsWith('hk') ? 'hk' : code.startsWith('us') ? 'us' : code.startsWith('sz') ? 'sz' : 'sh'
-        const pureCode = code.replace(/^(sh|sz|hk|us)/, '')
-        try {
-          const q = await api.getQuote(code, 1, 'day', 0)
-          const name = (q.brief as any)?.name ?? pureCode
-          setSelected({ market, code, name, type: 'GP' })
-          setQuery(name)
-        } catch {
-          // 自选股获取失败，用热门股
-          const h = HOT_FALLBACK[0]
-          setSelected({ market: h.code.startsWith('hk') ? 'hk' : h.code.startsWith('us') ? 'us' : 'sh', code: h.code, name: h.name, type: 'GP' })
-          setQuery(h.name)
-        }
-      } else {
-        // 无自选股，用热门股第一只
-        const h = HOT_FALLBACK[0]
-        setSelected({ market: h.code.startsWith('hk') ? 'hk' : h.code.startsWith('us') ? 'us' : 'sh', code: h.code, name: h.name, type: 'GP' })
-        setQuery(h.name)
-      }
+    api.getTopTurnoverStock().then((stock) => {
+      const market = stock.code.startsWith('6') ? 'sh' : /^[48]/.test(stock.code) ? 'bj' : 'sz'
+      setSelected({ market, code: stock.code, name: stock.name, type: 'GP' })
+      setQuery(stock.name)
+      setDefaultRank({ code: stock.code, amount: stock.amount, scope: stock.scope })
     }).catch(() => {
-      // 未登录，用热门股
       const h = HOT_FALLBACK[0]
-      setSelected({ market: h.code.startsWith('hk') ? 'hk' : h.code.startsWith('us') ? 'us' : 'sh', code: h.code, name: h.name, type: 'GP' })
+      setSelected({ market: 'sh', code: h.code, name: h.name, type: 'GP' })
       setQuery(h.name)
     })
   }, [])
@@ -105,9 +86,20 @@ export default function QuotePage() {
     }).catch(() => {})
   }, [])
 
-  const load = useCallback(async (code: string, m: 'day' | 'minute', fresh: number) => {
+  const load = useCallback(async (code: string, m: 'day' | 'minute', fresh: number, range: 30 | 60 | 120 | 250 | 'all' = 120) => {
     try {
-      const q = await api.getQuote(code, 120, m, fresh)
+      let q: QuoteResponse
+      if (m === 'day' && range === 'all') {
+        const [recent, history] = await Promise.all([
+          api.getQuote(code, 120, 'day', fresh),
+          api.getQuote(code, 120, 'day', 0, 1),
+        ])
+        const merged = new Map((history.kline as KlineBar[]).map(bar => [bar.date, bar]))
+        for (const bar of recent.kline as KlineBar[]) merged.set(bar.date, bar)
+        q = { ...history, ...recent, kline: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)) }
+      } else {
+        q = await api.getQuote(code, range === 'all' ? 120 : range, m, fresh)
+      }
       setData(q)
       setErr('')
     } catch {
@@ -118,7 +110,6 @@ export default function QuotePage() {
   // 加载多日分时（2日/3日/4日/5日）：5分钟K线按交易日截取
   const loadMultiDay = useCallback(async (code: string, days: number) => {
     try {
-      setAllBars([])
       const token = localStorage.getItem('financecrew_token')
       // A股用腾讯5分钟，美股用yfinance 5分钟（后端自动选择）
       const count = 48 * (days + 3)
@@ -154,7 +145,6 @@ export default function QuotePage() {
   // 加载多周期K线（周K/月K/分钟级）
   const loadPeriod = useCallback(async (code: string, p: string) => {
     try {
-      setAllBars([]) // 清空旧日K全量数据，避免覆盖周期数据
       const token = localStorage.getItem('financecrew_token')
       const r = await fetch(`/api/kline/${code}?period=${p}&count=250`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -176,16 +166,15 @@ export default function QuotePage() {
     }
   }, [])
 
-  // 选中变化时加载行情 + 新闻 + 全量K线
+  // 选中变化时加载最近 120 个交易日，避免把全部历史压进默认视图。
   useEffect(() => {
+    if (!selected.code) return
     setMode('day')
     setPeriod('day')
     setMultiDay(0)
+    setDayRange(120)
     setLive(false)
-    load(selected.code, 'day', 0)
-    api.getQuote(selected.code, 60, 'day', 0, 1).then((q) => {
-      if (q.kline.length > 60) setAllBars(q.kline as KlineBar[])
-    }).catch(() => setAllBars([]))
+    load(selected.code, 'day', 0, 120)
     api.getNews(selected.code).then((n) => setNews(n.news)).catch(() => setNews([]))
     api.getIndustry(selected.code).then(setIndustry).catch(() => setIndustry(null))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,9 +186,9 @@ export default function QuotePage() {
     // 切到非日K周期时停掉轮询，避免覆盖数据
     const effectiveLive = live && period === 'day'
     if (!effectiveLive) { if (timerRef.current) window.clearInterval(timerRef.current); return }
-    timerRef.current = window.setInterval(() => load(selected.code, mode, 1), 15000)
+    timerRef.current = window.setInterval(() => load(selected.code, mode, 1, dayRange), 15000)
     return () => { if (timerRef.current) window.clearInterval(timerRef.current) }
-  }, [live, mode, period, selected.code, load])
+  }, [dayRange, live, mode, period, selected.code, load])
 
   // 搜索防抖
   const doSearch = useCallback(async (q: string) => {
@@ -244,6 +233,7 @@ export default function QuotePage() {
 
   const pick = (item: SearchItem) => {
     setSelected(item)
+    setDefaultRank(null)
     setQuery(item.name)
     setResults([])
   }
@@ -251,6 +241,7 @@ export default function QuotePage() {
   // 自选股点击切换：尝试用名称（拉取 brief 后再展示真实名称）
   const pickWatchlistCode = (code: string) => {
     setSelected({ market: inferMarket(code), code: stripMarket(code), name: code, type: 'GP' })
+    setDefaultRank(null)
     setQuery('')
     setResults([])
   }
@@ -379,6 +370,9 @@ export default function QuotePage() {
                 <div className="qp-title">
                   <span className="qp-name">{b?.name ?? selected.name}</span>
                   <span className="qp-code">{selected.code}</span>
+                  {defaultRank?.code === selected.code && <span className="qp-rank-badge" title={defaultRank.scope === 'a_share_full_market' ? 'A股全市场实时快照' : '全市场数据不可用，已降级到候选池'}>
+                    {defaultRank.scope === 'a_share_full_market' ? '今日成交额第一' : '候选池成交额第一'} · {(defaultRank.amount / 1e8).toFixed(1)}亿
+                  </span>}
                 </div>
                 <div className={`qp-price ${change >= 0 ? 'up' : 'down'}`}>
                   {b?.price ?? '--'} <small>{change >= 0 ? '+' : ''}{change}%</small>
@@ -420,9 +414,17 @@ export default function QuotePage() {
                   <option value="day5">5日</option>
                 </select>
                 <span className="toolbar-sep" />
-                <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
+                <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); setDayRange(120); load(selected.code, 'day', 0, 120) }}>日K</button>
                 <button className={`mode-btn ${period === 'week' ? 'active' : ''}`} onClick={() => { setPeriod('week'); setMode('day'); loadPeriod(selected.code, 'week') }}>周K</button>
                 <button className={`mode-btn ${period === 'month' ? 'active' : ''}`} onClick={() => { setPeriod('month'); setMode('day'); loadPeriod(selected.code, 'month') }}>月K</button>
+                {mode === 'day' && period === 'day' && <>
+                  <span className="toolbar-sep" />
+                  {([
+                    [30, '1月'], [60, '3月'], [120, '6月'], [250, '1年'], ['all', '全部'],
+                  ] as const).map(([value, label]) => <button key={value} className={`mode-btn ${dayRange === value ? 'active' : ''}`} onClick={() => {
+                    setDayRange(value); setLive(false); load(selected.code, 'day', 0, value)
+                  }}>{label}</button>)}
+                </>}
                 <span className="toolbar-sep" />
                 <button className={`mode-btn ${period === '5min' ? 'active' : ''}`} onClick={() => { setPeriod('5min'); setMode('day'); loadPeriod(selected.code, '5min') }}>5分</button>
                 <button className={`mode-btn ${period === '15min' ? 'active' : ''}`} onClick={() => { setPeriod('15min'); setMode('day'); loadPeriod(selected.code, '15min') }}>15分</button>
@@ -437,9 +439,10 @@ export default function QuotePage() {
 
               <div className="qp-chart">
                 <KLineChart
-                  bars={allBars.length > 60 ? allBars : bars}
+                  bars={bars}
                   minute={minute}
-                  lastClose={data.last_close ?? null}
+                  lastClose={b?.pre_close ?? data.last_close ?? null}
+                  currentPrice={b?.price ?? null}
                   symbol={b?.name ?? selected.name}
                   mode={mode}
                   onMode={(m) => { setMode(m); load(selected.code, m, 0) }}

@@ -5,7 +5,10 @@
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
+
+import requests
 
 from .utils import TTL, _norm_symbol, cached
 
@@ -99,3 +102,37 @@ def get_hot_stocks() -> list[dict[str, Any]]:
         return quotes[:6]
 
     return cached("hot_stocks", 3600, _fetch)  # 缓存1小时
+
+
+def get_top_turnover_stock() -> dict[str, Any] | None:
+    """A 股当日成交额第一；全市场快照失败时明确降级到现有候选池。"""
+    def _fetch() -> dict[str, Any] | None:
+        try:
+            response = requests.get(
+                "https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList",
+                params={"_appver": "11.17.0", "board_code": "aStock", "sort_type": "turnover", "direct": "down", "offset": "0", "count": "1"},
+                timeout=15,
+            )
+            row = response.json()["data"]["rank_list"][0]
+            return {
+                "code": row["code"][2:], "name": row["name"],
+                "amount": float(row["turnover"]) * 10_000, "unit": "CNY",
+                "scope": "a_share_full_market", "as_of": date.today().isoformat(),
+            }
+        except (KeyError, IndexError, TypeError, ValueError, requests.RequestException):
+            pass
+
+        from .a_stock import get_stock_brief
+        candidates = get_hot_stocks()
+        quotes = [get_stock_brief(item["code"]) for item in candidates if item["code"].isdigit()]
+        quotes = [quote for quote in quotes if quote and quote.get("amount")]
+        if not quotes:
+            return None
+        row = max(quotes, key=lambda quote: quote["amount"])
+        return {
+            "code": row["symbol"], "name": row["name"],
+            "amount": float(row["amount"]) * 10_000, "unit": "CNY",
+            "scope": "candidate_fallback", "as_of": date.today().isoformat(),
+        }
+
+    return cached("top_turnover_stock", 300, _fetch)
