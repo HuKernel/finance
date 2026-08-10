@@ -164,6 +164,7 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
             "last_close": round(last_close, 2) if last_close else None,
             "data_date": latest_date,
             "is_today": latest_date == datetime.now(_BJ_TZ).strftime("%Y-%m-%d"),
+            "source": "polygon",
         }
     except Exception as e:
         logger.warning("Polygon 5min %s error: %s", ticker, e)

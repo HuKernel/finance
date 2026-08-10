@@ -18,6 +18,7 @@ from .utils import (
     _to_float,
     ak,
     cached,
+    finalize_ohlcv,
 )
 from .hk_us_stock import (
     _fetch_us_kline,
@@ -147,9 +148,12 @@ def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
     data = cached(f"kline:{sym}:{days}", TTL["kline"], _fetch)
     if data is None or not data.get("bars"):
         return None
-    df = pd.DataFrame(data["bars"])
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date").reset_index(drop=True)
+    source = "sina_us_daily" if sym.startswith("us") else "tencent_fqkline"
+    df = finalize_ohlcv(
+        pd.DataFrame(data["bars"]), source=source, delay="end_of_day", adjustment="qfq"
+    )
+    if df.empty:
+        return None
     df["ma5"] = df["close"].rolling(5).mean()
     df["ma20"] = df["close"].rolling(20).mean()
     df["ma60"] = df["close"].rolling(60).mean()
@@ -266,9 +270,21 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
     data = cached(cache_key, TTL["kline"], _fetch)
     if data is None or not data.get("bars"):
         return None
-    df = pd.DataFrame(data["bars"])
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date").reset_index(drop=True)
+    is_minute = period_info["type"] == "mkline"
+    if sym.startswith("us"):
+        source = "yfinance" if is_minute else "sina_us_daily"
+    elif is_minute:
+        source = "akshare_tencent"
+    else:
+        source = "tencent_fqkline"
+    df = finalize_ohlcv(
+        pd.DataFrame(data["bars"]),
+        source=source,
+        delay="delayed" if is_minute else "end_of_day",
+        adjustment="qfq",
+    )
+    if df.empty:
+        return None
     df["ma5"] = df["close"].rolling(5).mean()
     df["ma20"] = df["close"].rolling(20).mean()
     df["ma60"] = df["close"].rolling(60).mean()
@@ -354,7 +370,13 @@ def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
                         is_today = (raw_date == today_str)
             except Exception:
                 pass
-            return {"points": out, "last_close": last_close, "data_date": data_date, "is_today": is_today}
+            return {
+                "points": out,
+                "last_close": last_close,
+                "data_date": data_date,
+                "is_today": is_today,
+                "source": "tencent",
+            }
         except Exception:
             return None
 
@@ -401,9 +423,12 @@ def get_history_all(symbol: str) -> Optional[pd.DataFrame]:
     data = cached(f"kline_all:{sym}", 6 * 3600, _fetch)
     if data is None or not data.get("bars"):
         return None
-    df = pd.DataFrame(data["bars"])
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date").reset_index(drop=True)
+    source = "akshare_tencent" if sym.startswith("hk") else "akshare_sina"
+    df = finalize_ohlcv(
+        pd.DataFrame(data["bars"]), source=source, delay="end_of_day", adjustment="qfq"
+    )
+    if df.empty:
+        return None
     df["ma5"] = df["close"].rolling(5).mean()
     df["ma20"] = df["close"].rolling(20).mean()
     df["ma60"] = df["close"].rolling(60).mean()

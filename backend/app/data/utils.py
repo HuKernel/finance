@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 from typing import Any, Optional
 
+import pandas as pd
+
 # A股数据源域名绕过代理直连（本机代理对国内数据源转发不稳定，
 # 而直连东方财富/腾讯/新浪/同花顺均可达）。
 _CN_DATA_DOMAINS = (
@@ -102,3 +104,37 @@ def _to_float(v: Any) -> Optional[float]:
         return f if f == f else None  # NaN 过滤
     except (TypeError, ValueError):
         return None
+
+
+def finalize_ohlcv(
+    df: pd.DataFrame,
+    *,
+    source: str,
+    delay: str,
+    adjustment: str,
+    fallback_used: bool = False,
+) -> pd.DataFrame:
+    """清洗统一 OHLCV 字段，并附加可审计的数据元信息。"""
+    required = ["date", "open", "high", "low", "close", "volume"]
+    original_rows = len(df)
+    out = df.copy()
+    out["date"] = pd.to_datetime(out["date"], errors="coerce")
+    for column in required[1:]:
+        out[column] = pd.to_numeric(out[column], errors="coerce")
+    out = out.dropna(subset=required)
+    out = out[
+        (out[["open", "high", "low", "close"]] > 0).all(axis=1)
+        & (out["volume"] >= 0)
+        & (out["high"] >= out[["open", "close"]].max(axis=1))
+        & (out["low"] <= out[["open", "close"]].min(axis=1))
+    ]
+    out = out.drop_duplicates(subset=["date"], keep="last").sort_values("date").reset_index(drop=True)
+    out.attrs["data_meta"] = {
+        "source": source,
+        "as_of": out.iloc[-1]["date"].isoformat() if not out.empty else None,
+        "delay": delay,
+        "adjustment": adjustment,
+        "fallback_used": fallback_used,
+        "rows_dropped": original_rows - len(out),
+    }
+    return out

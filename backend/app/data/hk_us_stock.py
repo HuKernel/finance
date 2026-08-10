@@ -258,6 +258,7 @@ def _us_minute_eastmoney(symbol: str) -> Optional[dict[str, Any]]:
             "last_close": round(pre_close, 2) if pre_close else None,
             "data_date": last_date,
             "is_today": True,
+            "source": "eastmoney",
         }
     except Exception:
         return None
@@ -317,6 +318,7 @@ def _us_minute_tencent(symbol: str) -> Optional[dict[str, Any]]:
             "last_close": last_close,
             "data_date": data_date,
             "is_today": True,
+            "source": "tencent",
         }
     except Exception:
         return None
@@ -352,6 +354,7 @@ def _us_minute_sina(symbol: str) -> Optional[dict[str, Any]]:
             "last_close": None,
             "data_date": data[-1].get("day", "").split(" ")[0],
             "is_today": True,
+            "source": "sina",
         }
     except Exception:
         return None

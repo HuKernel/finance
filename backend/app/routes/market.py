@@ -40,7 +40,12 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
     if not brief:
         raise HTTPException(404, f"未查询到 {symbol} 行情")
 
-    out: dict[str, Any] = {"brief": brief, "kline": [], "tech": {}}
+    out: dict[str, Any] = {
+        "brief": brief,
+        "kline": [],
+        "tech": {},
+        "metadata": {"brief": {"source": "tencent", "delay": "near_realtime"}},
+    }
     if mode == "minute":
         m = datalayer.get_minute_kline(sym)
         if m:
@@ -48,6 +53,14 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
             out["last_close"] = m["last_close"]
             out["data_date"] = m.get("data_date", "")
             out["is_today"] = m.get("is_today", True)
+            source = m.get("source", "unknown")
+            out["metadata"]["kline"] = {
+                "source": source,
+                "as_of": m.get("data_date") or None,
+                "delay": "delayed" if sym.startswith("us") else "near_realtime",
+                "adjustment": "none",
+                "fallback_used": sym.startswith("us") and source != "eastmoney",
+            }
     elif all:
         hist = datalayer.get_history_all(sym)
         bars: list[dict[str, Any]] = []
@@ -62,6 +75,7 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
                     "volume": _num(row["volume"]),
                 })
             out["tech"] = datalayer.compute_tech_signals(hist) or {}
+            out["metadata"]["kline"] = hist.attrs.get("data_meta", {})
         out["kline"] = bars
     else:
         days = min(max(days, 30), 500)
@@ -78,6 +92,7 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
                     "volume": _num(row["volume"]),
                 })
             out["tech"] = datalayer.compute_tech_signals(hist) or {}
+            out["metadata"]["kline"] = hist.attrs.get("data_meta", {})
         out["kline"] = bars
     return out
 
@@ -177,7 +192,13 @@ def kline_multi_period_api(symbol: str, period: str = "day", count: int = 250) -
         })
     # 技术指标
     tech = datalayer.compute_tech_signals(df)
-    return {"symbol": sym, "period": period, "bars": bars, "tech": tech}
+    return {
+        "symbol": sym,
+        "period": period,
+        "bars": bars,
+        "tech": tech,
+        "metadata": df.attrs.get("data_meta", {}),
+    }
 
 
 

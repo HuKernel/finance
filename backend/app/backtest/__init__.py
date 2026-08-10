@@ -200,6 +200,7 @@ def _build_run_manifest(
             "rows": len(df),
             "columns": data_columns,
             "fingerprint": hashlib.sha256(data_json.encode()).hexdigest(),
+            "metadata": df.attrs.get("data_meta", {}),
         },
         "result_fingerprint": hashlib.sha256(
             json.dumps(outcome, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()

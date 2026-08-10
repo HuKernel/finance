@@ -5,9 +5,11 @@
 """
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 
 from app.data import polygon_us
+from app.data.utils import finalize_ohlcv
 from app.data.fetcher import (
     _norm_symbol,
     compute_tech_signals,
@@ -55,6 +57,30 @@ def test_polygon_is_disabled_without_api_key(monkeypatch):
     assert polygon_us.polygon_get_history("usAAPL") is None
     assert polygon_us.polygon_get_minute("usAAPL") is None
     assert polygon_us._polygon_prev("AAPL") is None
+
+
+def test_finalize_ohlcv_removes_invalid_and_duplicate_rows():
+    df = pd.DataFrame([
+        {"date": "2026-01-02", "open": 10, "high": 11, "low": 9, "close": 10.5, "volume": 100},
+        {"date": "2026-01-02", "open": 10, "high": 12, "low": 9, "close": 11, "volume": 120},
+        {"date": "2026-01-03", "open": 10, "high": 9, "low": 8, "close": 10, "volume": 100},
+        {"date": "2026-01-04", "open": 0, "high": 1, "low": 0, "close": 1, "volume": 100},
+    ])
+
+    result = finalize_ohlcv(
+        df, source="test", delay="end_of_day", adjustment="qfq"
+    )
+
+    assert len(result) == 1
+    assert result.iloc[0]["close"] == 11
+    assert result.attrs["data_meta"] == {
+        "source": "test",
+        "as_of": "2026-01-02T00:00:00",
+        "delay": "end_of_day",
+        "adjustment": "qfq",
+        "fallback_used": False,
+        "rows_dropped": 3,
+    }
 
 
 # ==================== get_stock_brief（需网络） ====================
