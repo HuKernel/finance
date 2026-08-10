@@ -303,6 +303,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 
 /* ---------- 对话页 ---------- */
 .chat-layout { display: grid; grid-template-columns: 200px 1fr 200px; gap: 20px; align-items: start; }
+.chat-sessions-toggle { display: none; }
 .chat-side { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 140px); min-height: 200px; overflow: hidden; }
 .watch-side { display: flex; flex-direction: column; max-height: calc(100vh - 140px); min-height: 200px; overflow: hidden; }
 .new-chat-btn { width: 100%; flex-shrink: 0; }
@@ -1599,12 +1600,19 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 
   /* 聊天区 */
   .chat-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .chat-side { max-height: 180px; min-height: 0; }
-  .chat-main { width: 100%; min-width: 0; height: auto; min-height: 520px; }
+  .chat-sessions-toggle { display: block; width: 100%; text-align: left; }
+  .chat-side { display: none; max-height: 240px; min-height: 0; padding: 12px; background: var(--surface); border: 1px solid var(--border); }
+  .chat-side.mobile-open { display: flex; }
+  .chat-side .chat-item-del { opacity: 1; }
+  .chat-main { width: 100%; min-width: 0; height: calc(100dvh - 154px); min-height: 440px; }
+  .chat-messages { min-height: 0; padding-inline: 0; }
   .chat-welcome { padding: 24px 8px; }
   .chat-input input { min-width: 0; }
   .msg-bubble { max-width: 92%; font-size: 13px; padding: 10px 14px; }
-  .chat-input { flex-direction: column; gap: 6px; }
+  .chat-input { flex-direction: row; gap: 6px; padding-top: 10px; }
+  .chat-input button { width: auto; padding-inline: 16px; }
+  .chat-hot-carousel .kline-canvas { height: 300px; min-height: 260px; }
+  .md-body table { display: block; overflow-x: auto; }
 
   /* 搜索/表单单列 */
   .kb-search-bar, .task-form, .thesis-form { flex-direction: column; }
@@ -1703,6 +1711,7 @@ body { min-width: 320px; }
   z-index: 20;
 }
 
+.mobile-menu-btn, .nav-backdrop { display: none; }
 .sidebar .brand { padding: 0 8px 22px; }
 .sidebar .brand-mark { background: var(--accent); color: var(--accent-text); }
 .sidebar h1 { font-size: 15px; line-height: 1.35; }
@@ -1817,14 +1826,18 @@ button.ghost:hover { background: var(--surface-hover); }
 
 @media (max-width: 768px) {
   .app-shell { display: block; }
-  .sidebar { position: sticky; height: auto; padding: 10px 12px 8px; overflow: visible; }
-  .sidebar .brand { padding: 0 2px 9px; }
-  .sidebar h1 small { display: none; }
-  .side-nav { flex-direction: row; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-  .nav-group { display: contents; }
-  .nav-group-label { display: none; }
-  .side-nav button { width: auto; flex: 0 0 auto; padding: 8px 10px; white-space: nowrap; }
-  .workspace-header { position: static; min-height: 58px; padding: 9px 12px; }
+  .sidebar { position: fixed; inset: 0 auto 0 0; width: min(82vw, 300px); height: 100dvh; padding: 20px 16px; overflow-y: auto; visibility: hidden; transform: translateX(-100%); transition: transform 0.2s ease, visibility 0.2s; }
+  .sidebar.open { visibility: visible; transform: translateX(0); }
+  .sidebar .brand { padding: 0 8px 20px; }
+  .side-nav { flex-direction: column; gap: 18px; overflow: visible; }
+  .nav-group { display: flex; }
+  .nav-group-label { display: block; }
+  .side-nav button { width: 100%; padding: 10px 11px; white-space: normal; }
+  .nav-backdrop { position: fixed; inset: 0; z-index: 19; width: 100%; height: 100%; padding: 0; border: 0; background: rgba(15, 23, 42, 0.42); }
+  .nav-backdrop.open { display: block; }
+  .mobile-menu-btn { display: inline-flex; flex: 0 0 auto; padding: 7px 10px; color: var(--text); background: var(--surface); border: 1px solid var(--border); }
+  .workspace-header { min-height: 58px; padding: 9px 12px; }
+  .workspace-title { flex: 1; min-width: 0; }
   .workspace-header h2 { font-size: 16px; }
   .workspace-eyebrow { display: none; }
   .workspace-main { padding: 14px 12px 32px; }

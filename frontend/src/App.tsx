@@ -53,6 +53,7 @@ function useTheme() {
 
 function App() {
   const [tab, setTab] = useState<Tab>('analyze')
+  const [navOpen, setNavOpen] = useState(false)
   const [auth, setAuth] = useState<AuthResponse | null>(null)
   const [booted, setBooted] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -71,6 +72,13 @@ function App() {
       .catch(() => setToken(null))
       .finally(() => setBooted(true))
   }, [])
+
+  useEffect(() => {
+    if (!navOpen) return
+    const close = (event: KeyboardEvent) => event.key === 'Escape' && setNavOpen(false)
+    document.addEventListener('keydown', close)
+    return () => document.removeEventListener('keydown', close)
+  }, [navOpen])
 
   if (!booted) return <div className="boot-screen">加载中...</div>
 
@@ -110,7 +118,7 @@ function App() {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <aside className="sidebar">
+      <aside className={`sidebar${navOpen ? ' open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">FC</div>
           <h1>FinanceCrew<small>个人投研工作台</small></h1>
@@ -120,15 +128,17 @@ function App() {
             <div className="nav-group" key={group.label}>
               <div className="nav-group-label">{group.label}</div>
               {group.items.map(item => (
-                <button key={item.tab} aria-current={tab === item.tab ? 'page' : undefined} className={tab === item.tab ? 'active' : ''} onClick={() => setTab(item.tab)}>{item.label}</button>
+                <button key={item.tab} aria-current={tab === item.tab ? 'page' : undefined} className={tab === item.tab ? 'active' : ''} onClick={() => { setTab(item.tab); setNavOpen(false) }}>{item.label}</button>
               ))}
             </div>
           ))}
         </nav>
       </aside>
+      <button className={`nav-backdrop${navOpen ? ' open' : ''}`} aria-label="关闭导航菜单" onClick={() => setNavOpen(false)} />
       <div className="workspace">
         <header className="workspace-header">
-          <div>
+          <button className="mobile-menu-btn" aria-label="打开导航菜单" aria-expanded={navOpen} onClick={() => setNavOpen(true)}>菜单</button>
+          <div className="workspace-title">
             <div className="workspace-eyebrow">FinanceCrew / {activeLabel}</div>
             <h2>{activeLabel}</h2>
           </div>

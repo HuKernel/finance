@@ -394,6 +394,7 @@ export default function ChatPage() {
   const [error, setError] = useState('')
   const [confirmDel, setConfirmDel] = useState<number | null>(null)
   const [searchQ, setSearchQ] = useState('')
+  const [sessionsOpen, setSessionsOpen] = useState(false)
   const [searchResults, setSearchResults] = useState<{ id: number; session_id: number; role: string; content: string; created_at: string; session_title: string }[]>([])
 
   const doSearch = useCallback(async (q: string) => {
@@ -430,6 +431,7 @@ export default function ChatPage() {
     setSessionId(id)
     setMessages(await api.chatMessages(id))
     setError('')
+    setSessionsOpen(false)
   }
 
   const removeSession = async (id: number) => {
@@ -453,6 +455,7 @@ export default function ChatPage() {
     setMessages([])
     await loadSessions()
     setError('')
+    setSessionsOpen(false)
   }
 
   const send = async (overrideText?: string) => {
@@ -515,7 +518,10 @@ export default function ChatPage() {
 
   return (
     <div className="chat-layout">
-      <aside className="chat-side">
+      <button className="chat-sessions-toggle ghost" aria-expanded={sessionsOpen} onClick={() => setSessionsOpen(v => !v)}>
+        {sessionsOpen ? '收起对话列表' : `对话列表${sessions.length ? ` · ${sessions.length}` : ''}`}
+      </button>
+      <aside className={`chat-side${sessionsOpen ? ' mobile-open' : ''}`}>
         <button className="new-chat-btn" onClick={newSession}>新建对话</button>
         {messages.length > 0 && (
           <button className="ghost chat-export-btn" onClick={() => {
