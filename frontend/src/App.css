@@ -162,7 +162,7 @@ button {
   cursor: pointer; transition: background 0.15s; font-family: var(--sans);
   border-radius: var(--radius);
 }
-button:hover:not(:disabled) { background: var(--accent); }
+button:hover:not(:disabled) { filter: brightness(0.94); }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 button.ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border-strong); }
 button.ghost:hover { color: var(--text); border-color: var(--text-3); background: var(--surface-hover); }
@@ -343,9 +343,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .chat-item-title { font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
 
 .chat-item-meta { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
-.chat-item:hover .chat-item-meta { color: rgba(255,255,255,0.7); }
+.chat-item:hover .chat-item-meta { color: var(--text-2); }
 .chat-item-del { background: none !important; border: none; color: var(--text-3); font-size: 11px; padding: 4px 12px; cursor: pointer; opacity: 0; transition: opacity 0.15s; align-self: center; }
-.chat-item:hover .chat-item-del { opacity: 1; color: var(--bg); }
+.chat-item:hover .chat-item-del { opacity: 1; color: var(--text-3); }
 .chat-item-del:hover { color: var(--down) !important; }
 .chat-item-del.confirming { color: var(--down) !important; opacity: 1; background: var(--down-bg) !important; }
 
@@ -486,7 +486,7 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .qp-hot-item { background: var(--surface); border: 1px solid var(--border); color: var(--text-2); font-size: 12px; padding: 8px 16px; cursor: pointer; }
 .qp-hot-item:hover { border-color: var(--border-strong); color: var(--text); }
 .qp-hot-item.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-.qp-hot-item.active:hover { color: #fff; background: var(--accent); }
+.qp-hot-item.active:hover { color: var(--accent); background: var(--accent-soft); }
 .qp-main { background: var(--surface); border: 1px solid var(--border); padding: 24px; }
 .qp-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .qp-title { display: flex; align-items: baseline; gap: 10px; }
@@ -1245,8 +1245,8 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .qp-watchlist-item.active { background: var(--accent-soft); border-left: 2px solid var(--accent); }
 .qp-watchlist-item.active:hover { background: var(--accent-soft); }
 .qp-watchlist-item.active .qp-watchlist-name { color: var(--text); }
-.qp-watchlist-item.active:hover .qp-watchlist-name,
-.qp-watchlist-item.active:hover .qp-watchlist-code { color: #fff; }
+.qp-watchlist-item.active:hover .qp-watchlist-name { color: var(--text); }
+.qp-watchlist-item.active:hover .qp-watchlist-code { color: var(--text-2); }
 .qp-watchlist-name { flex: 1; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qp-watchlist-code { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
 .qp-watchlist-chg { font-family: var(--mono); font-size: 11px; margin-left: auto; }
@@ -1314,7 +1314,7 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 }
 .bt-tabs button:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface-hover); }
 .bt-tabs button.active {
-  color: #fff; border-color: var(--accent); background: var(--accent);
+  color: var(--accent-text); border-color: var(--accent); background: var(--accent);
 }
 .bt-analysis { padding: 0; }
 .bt-loading { padding: 20px; color: var(--muted); text-align: center; }
@@ -1488,9 +1488,9 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .modal-btn { padding: 8px 20px; font-size: 14px; cursor: pointer; border: 1px solid var(--border-strong); background: transparent; color: var(--text-2); }
 .modal-btn:hover { color: var(--text); border-color: var(--text-3); }
-.modal-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.modal-btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .modal-btn.primary:hover { opacity: 0.9; }
-.modal-btn.danger { background: var(--down); color: #fff; border-color: var(--down); }
+.modal-btn.danger { background: var(--down); color: var(--accent-text); border-color: var(--down); }
 .modal-btn.danger:hover { opacity: 0.9; }
 .modal-btn.cancel:hover { color: var(--down); border-color: var(--down); }
 
@@ -1620,11 +1620,20 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
   --border-strong: #cfd6df;
   --text: #172033;
   --text-2: #566174;
-  --text-3: #7c8799;
-  --accent: #07966b;
-  --accent-hover: #057a58;
-  --accent-soft: rgba(7, 150, 107, 0.09);
+  --text-3: #667085;
+  --accent: #057a58;
+  --accent-hover: #046246;
+  --accent-soft: rgba(5, 122, 88, 0.06);
   --accent-text: #ffffff;
+  --up: #087a4c;
+  --up-bg: rgba(8, 122, 76, 0.08);
+  --down: #c6283d;
+  --down-bg: rgba(198, 40, 61, 0.08);
+  --neutral: #8a6500;
+  --warning: #8a6500;
+  --success: #087a4c;
+  --danger: #c6283d;
+  --info: #2563a6;
   --radius: 7px;
 }
 
@@ -1638,11 +1647,20 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
   --border-strong: #364152;
   --text: #e6edf3;
   --text-2: #9ba8bd;
-  --text-3: #6b7889;
+  --text-3: #7d8ca0;
   --accent: #10b981;
   --accent-hover: #0e9f70;
   --accent-soft: rgba(16, 185, 129, 0.1);
   --accent-text: #04130d;
+  --up: #26d07c;
+  --up-bg: rgba(38, 208, 124, 0.08);
+  --down: #f6465d;
+  --down-bg: rgba(246, 70, 93, 0.08);
+  --neutral: #f0b90b;
+  --warning: #f0b90b;
+  --success: #26d07c;
+  --danger: #f6465d;
+  --info: #58a6ff;
   --radius: 7px;
 }
 
@@ -1670,7 +1688,7 @@ body { min-width: 320px; }
 }
 
 .sidebar .brand { padding: 0 8px 22px; }
-.sidebar .brand-mark { background: var(--accent); color: #fff; }
+.sidebar .brand-mark { background: var(--accent); color: var(--accent-text); }
 .sidebar h1 { font-size: 15px; line-height: 1.35; }
 .sidebar h1 small { display: block; margin-top: 2px; color: var(--text-3); font-size: 11px; font-weight: 400; }
 
@@ -1773,7 +1791,6 @@ body { min-width: 320px; }
 .view-card,
 .consensus,
 .plan-box { box-shadow: none; }
-button:hover:not(:disabled) { background: var(--accent-hover); }
 button.ghost:hover { background: var(--surface-hover); }
 
 @media (max-width: 1100px) {
