@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.data import polygon_us
 from app.data.fetcher import (
     _norm_symbol,
     compute_tech_signals,
@@ -45,6 +46,15 @@ def test_norm_symbol():
     assert _norm_symbol("  600519  ") == "600519"
     # 公司名等非代码原样返回（小写化），交给 resolve_symbol 处理
     assert _norm_symbol("茅台") == "茅台"
+
+
+def test_polygon_is_disabled_without_api_key(monkeypatch):
+    monkeypatch.delenv("POLYGON_API_KEY", raising=False)
+    monkeypatch.setattr(polygon_us.requests, "get", lambda *_args, **_kwargs: pytest.fail("不应发起请求"))
+
+    assert polygon_us.polygon_get_history("usAAPL") is None
+    assert polygon_us.polygon_get_minute("usAAPL") is None
+    assert polygon_us._polygon_prev("AAPL") is None
 
 
 # ==================== get_stock_brief（需网络） ====================

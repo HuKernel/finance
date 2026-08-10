@@ -10,6 +10,7 @@ services:
       - financecrew-data:/app/data
     environment:
       - DB_PATH=/app/data/financecrew.db
+      - POLYGON_API_KEY=${POLYGON_API_KEY:-}
     restart: unless-stopped
 
 volumes:

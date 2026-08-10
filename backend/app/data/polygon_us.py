@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -20,8 +21,13 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-_POLYGON_KEY = "5hRpdcu0rHVp42h6iMks1qQwqmnF4kNW"
 _BJ_TZ = timezone(timedelta(hours=8))
+
+
+def _polygon_params(**params) -> Optional[dict[str, Any]]:
+    """仅在环境变量配置凭证时启用 Polygon。"""
+    key = os.getenv("POLYGON_API_KEY", "").strip()
+    return {**params, "apiKey": key} if key else None
 
 # 纳斯达克常见股票（secid参考，Polygon不需要但保留映射）
 NASDAQ_TICKERS = {
@@ -72,7 +78,9 @@ def polygon_get_history(symbol: str, days: int = 250) -> Optional[list[dict[str,
     end = datetime.now().strftime("%Y-%m-%d")
     start = (datetime.now() - timedelta(days=days * 2)).strftime("%Y-%m-%d")  # *2排除非交易日
     url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start}/{end}"
-    params = {"apiKey": _POLYGON_KEY, "limit": days, "sort": "asc"}
+    params = _polygon_params(limit=days, sort="asc")
+    if params is None:
+        return None
 
     try:
         r = requests.get(url, params=params, timeout=15)
@@ -109,7 +117,9 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
     end = datetime.now().strftime("%Y-%m-%d")
     start = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
     url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/5/minute/{start}/{end}"
-    params = {"apiKey": _POLYGON_KEY, "limit": 500, "sort": "asc"}
+    params = _polygon_params(limit=500, sort="asc")
+    if params is None:
+        return None
 
     try:
         r = requests.get(url, params=params, timeout=15)
@@ -162,9 +172,12 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
 
 def _polygon_prev(ticker: str) -> Optional[dict[str, Any]]:
     """Polygon prev 接口获取前一交易日数据。"""
+    params = _polygon_params()
+    if params is None:
+        return None
     try:
         url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev"
-        r = requests.get(url, params={"apiKey": _POLYGON_KEY}, timeout=10)
+        r = requests.get(url, params=params, timeout=10)
         if r.status_code != 200:
             return None
         results = r.json().get("results", [])
