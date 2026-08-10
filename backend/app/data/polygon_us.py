@@ -23,6 +23,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 _NY_TZ = ZoneInfo("America/New_York")
+_BJ_TZ = ZoneInfo("Asia/Shanghai")
 
 
 def _polygon_params(**params) -> Optional[dict[str, Any]]:
@@ -110,7 +111,7 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
     """美股分时数据（Polygon 5分钟K线聚合为分时图）。
 
     返回与 _us_minute_from_em 相同格式: {points, last_close, data_date, is_today}
-    时间使用交易所当地时间（Polygon UTC → America/New_York）。
+    时间转换为北京时间，并按纽约交易日分组。
     """
     ticker = symbol.replace("us", "").upper()
 
@@ -144,10 +145,11 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
         latest_date = max(all_dates)
         day_points = []
         for item in results:
-            dt = datetime.fromtimestamp(item["t"] / 1000, tz=_NY_TZ)
-            if dt.strftime("%Y-%m-%d") == latest_date:
+            market_dt = datetime.fromtimestamp(item["t"] / 1000, tz=_NY_TZ)
+            if market_dt.strftime("%Y-%m-%d") == latest_date:
+                display_dt = market_dt.astimezone(_BJ_TZ)
                 day_points.append({
-                    "time": dt.strftime("%H%M"),
+                    "time": display_dt.strftime("%H%M"),
                     "price": round(item["c"], 2),
                     "avg": round(item.get("vw", item["c"]), 2),
                     "vol": int(item["v"]),

@@ -59,7 +59,7 @@ def test_polygon_is_disabled_without_api_key(monkeypatch):
     assert polygon_us._polygon_prev("AAPL") is None
 
 
-def test_polygon_minute_uses_new_york_market_time(monkeypatch):
+def test_polygon_minute_uses_beijing_display_time(monkeypatch):
     class Response:
         status_code = 200
 
@@ -77,12 +77,19 @@ def test_polygon_minute_uses_new_york_market_time(monkeypatch):
     result = polygon_us.polygon_get_minute("usAAPL")
 
     assert result["data_date"] == "2026-08-07"
-    assert result["points"][0]["time"] == "0930"
+    assert result["points"][0]["time"] == "2130"
 
 
 def test_eastmoney_beijing_time_converts_to_new_york_market_time():
     assert hk_us_stock._beijing_to_new_york("2026-08-07 21:30").strftime("%Y-%m-%d %H:%M") == "2026-08-07 09:30"
     assert hk_us_stock._beijing_to_new_york("2026-12-07 22:30").strftime("%Y-%m-%d %H:%M") == "2026-12-07 09:30"
+
+
+def test_new_york_market_time_converts_to_beijing_with_dst():
+    assert hk_us_stock._new_york_time_to_beijing("0930", "2026-08-07") == "2130"
+    assert hk_us_stock._new_york_time_to_beijing("1600", "2026-08-07") == "0400"
+    assert hk_us_stock._new_york_time_to_beijing("0930", "2026-12-07") == "2230"
+    assert hk_us_stock._new_york_time_to_beijing("1600", "2026-12-07") == "0500"
 
 
 def test_finalize_ohlcv_removes_invalid_and_duplicate_rows():

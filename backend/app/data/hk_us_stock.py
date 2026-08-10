@@ -17,6 +17,11 @@ def _beijing_to_new_york(value: str) -> datetime:
     return datetime.fromisoformat(value).replace(tzinfo=ZoneInfo("Asia/Shanghai")).astimezone(ZoneInfo("America/New_York"))
 
 
+def _new_york_time_to_beijing(value: str, session_date: str) -> str:
+    market_time = datetime.fromisoformat(f"{session_date} {value[:2]}:{value[2:4]}").replace(tzinfo=ZoneInfo("America/New_York"))
+    return market_time.astimezone(ZoneInfo("Asia/Shanghai")).strftime("%H%M")
+
+
 def _fetch_us_kline(sym: str, days: int) -> Optional[dict[str, Any]]:
     """美股日K线（新浪接口，1984年至今完整历史，国内直连）。
 
@@ -100,7 +105,7 @@ def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[di
     """美股分钟级K线（yfinance，国内直连）。
 
     m_param: m5/m15/m30/m60
-    时间使用交易所当地时间（America/New_York）。
+    时间转换为北京时间，并自动处理美股夏令时。
     """
     try:
         import yfinance as yf
@@ -115,7 +120,7 @@ def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[di
             df.columns = df.columns.get_level_values(0)
         if df.index.tz is None:
             df.index = df.index.tz_localize("America/New_York")
-        df.index = df.index.tz_convert("America/New_York")
+        df.index = df.index.tz_convert("Asia/Shanghai")
         bars = []
         for idx, row in df.tail(count).iterrows():
             dt_str = idx.strftime("%Y-%m-%d %H:%M")
@@ -139,14 +144,14 @@ def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
     """美股分时数据。多接口fallback：东财 → Polygon → 腾讯 → 新浪。
 
     返回与A股分时相同格式: {points, last_close, data_date, is_today}
-    时间统一使用交易所当地时间（America/New_York）。
+    时间统一转换为北京时间，并自动处理美股夏令时。
     """
-    # 接口1：东财trends2（curl_cffi）— 返回北京时间，抓取时转换为美东市场时间
+    # 接口1：东财trends2（curl_cffi）— 原始时间已是北京时间
     result = _us_minute_eastmoney(symbol)
     if result and result.get("points") and len(result["points"]) > 5:
         return result
 
-    # 接口2：Polygon.io（5分钟K线聚合，稳定但延迟15分钟）
+    # 接口2：Polygon.io（5分钟K线聚合，稳定但延迟15分钟，转换为北京时间）
     try:
         from .polygon_us import polygon_get_minute
         result = polygon_get_minute(symbol)
@@ -155,14 +160,20 @@ def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
     except Exception:
         pass
 
-    # 接口3：腾讯分时（requests直连）— 原始数据是美东时间
+    # 接口3：腾讯分时（requests直连）— 美东时间转换为北京时间
     result = _us_minute_tencent(symbol)
     if result and result.get("points"):
+        session_date = result.get("data_date") or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+        for point in result["points"]:
+            point["time"] = _new_york_time_to_beijing(point["time"], session_date)
         return result
 
-    # 接口4：新浪5分钟K线聚合（requests）— 原始数据是美东时间
+    # 接口4：新浪5分钟K线聚合（requests）— 美东时间转换为北京时间
     result = _us_minute_sina(symbol)
     if result and result.get("points"):
+        session_date = result.get("data_date") or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+        for point in result["points"]:
+            point["time"] = _new_york_time_to_beijing(point["time"], session_date)
         return result
 
     return None
@@ -218,7 +229,7 @@ def _us_minute_eastmoney(symbol: str) -> Optional[dict[str, Any]]:
             total_vol += vol
             total_amount += amount
             market_dt = _beijing_to_new_york(dt_str)
-            time_part = market_dt.strftime("%H%M")
+            time_part = dt_str.split(" ")[1].replace(":", "")[:4]
             market_dates.append(market_dt.strftime("%Y-%m-%d"))
             avg_price = total_amount / total_vol if total_vol > 0 else price
             points.append({"time": time_part, "price": round(price, 2), "avg": round(avg_price, 2), "vol": vol})
