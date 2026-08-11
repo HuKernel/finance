@@ -211,5 +211,20 @@ test('管理员可以查看用户反馈记录', async ({ page }) => {
   await expect(page.getByText('visitor')).toBeVisible()
   await expect(page.getByText('数据问题')).toBeVisible()
   await expect(page.getByText('港股行情时间显示不正确')).toBeVisible()
-  await expect(page.getByText('待处理')).toBeVisible()
+  const row = page.getByRole('row').filter({ hasText: 'visitor' })
+  await expect(row.getByRole('combobox')).toHaveValue('new')
+
+  const statusRequest = page.waitForRequest(request => request.url().endsWith('/api/admin/feedback/3') && request.method() === 'PATCH')
+  await row.getByRole('combobox').selectOption('processing')
+  await expect((await statusRequest).postDataJSON()).toEqual({ status: 'processing' })
+
+  await row.getByPlaceholder('回复用户').fill('已修复，请刷新后重试')
+  const replyRequest = page.waitForRequest(request => request.url().endsWith('/api/admin/feedback/3') && request.method() === 'PATCH')
+  await row.getByRole('button', { name: '回复' }).click()
+  await expect((await replyRequest).postDataJSON()).toEqual({ reply: '已修复，请刷新后重试' })
+
+  const deleteRequest = page.waitForRequest(request => request.url().endsWith('/api/admin/feedback/3') && request.method() === 'DELETE')
+  await row.getByRole('button', { name: '删除' }).click()
+  await page.getByRole('button', { name: '确定' }).click()
+  await deleteRequest
 })

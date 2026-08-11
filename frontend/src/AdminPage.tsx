@@ -50,14 +50,37 @@ const FEEDBACK_CATEGORY: Record<string, string> = {
 }
 
 function FeedbackSection() {
+  const { toast, confirm } = useModal()
   const [items, setItems] = useState<any[]>([])
-  useEffect(() => { api.adminFeedback().then(setItems).catch(() => {}) }, [])
+  const [replies, setReplies] = useState<Record<number, string>>({})
+  const load = () => { api.adminFeedback().then(setItems).catch(() => {}) }
+  useEffect(() => { load() }, [])
+
+  const updateStatus = async (id: number, status: string) => {
+    try { await api.updateFeedback(id, { status }); load() }
+    catch { toast('状态更新失败', 'error') }
+  }
+  const reply = async (id: number) => {
+    const text = replies[id]?.trim()
+    if (!text) return toast('请输入回复内容', 'warning')
+    try {
+      await api.updateFeedback(id, { reply: text })
+      setReplies(current => ({ ...current, [id]: '' }))
+      load()
+      toast('回复已保存', 'success')
+    } catch { toast('回复失败', 'error') }
+  }
+  const remove = async (id: number) => {
+    if (!await confirm('确定删除这条反馈吗？', { danger: true })) return
+    try { await api.deleteFeedback(id); load() }
+    catch { toast('删除失败', 'error') }
+  }
 
   return (
     <table className="portfolio-table">
-      <thead><tr><th>时间</th><th>用户</th><th>类型</th><th>页面</th><th>反馈内容</th><th>状态</th></tr></thead>
+      <thead><tr><th>时间</th><th>用户</th><th>类型</th><th>页面</th><th>反馈内容</th><th>状态</th><th>回复</th><th>操作</th></tr></thead>
       <tbody>
-        {items.length === 0 && <tr><td colSpan={6} className="empty-row">暂无用户反馈</td></tr>}
+        {items.length === 0 && <tr><td colSpan={8} className="empty-row">暂无用户反馈</td></tr>}
         {items.map(item => (
           <tr key={item.id}>
             <td>{(item.created_at || '').slice(0, 19)}</td>
@@ -65,7 +88,25 @@ function FeedbackSection() {
             <td>{FEEDBACK_CATEGORY[item.category] || item.category}</td>
             <td>{item.page || '-'}</td>
             <td className="admin-feedback-content">{item.content}</td>
-            <td>{item.status === 'new' ? '待处理' : item.status}</td>
+            <td>
+              <select value={item.status} onChange={event => updateStatus(item.id, event.target.value)}>
+                <option value="new">待处理</option>
+                <option value="processing">处理中</option>
+                <option value="resolved">已解决</option>
+              </select>
+            </td>
+            <td>
+              {item.admin_reply && <div className="admin-feedback-reply">{item.admin_reply}</div>}
+              <textarea
+                rows={2}
+                maxLength={1000}
+                placeholder="回复用户"
+                value={replies[item.id] ?? ''}
+                onChange={event => setReplies(current => ({ ...current, [item.id]: event.target.value }))}
+              />
+              <button className="admin-action-btn" onClick={() => reply(item.id)}>回复</button>
+            </td>
+            <td><button className="admin-action-btn danger" onClick={() => remove(item.id)}>删除</button></td>
           </tr>
         ))}
       </tbody>

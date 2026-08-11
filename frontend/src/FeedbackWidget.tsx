@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
 
@@ -16,7 +16,11 @@ export default function FeedbackWidget({
   const [category, setCategory] = useState('suggestion')
   const [content, setContent] = useState('')
   const [busy, setBusy] = useState(false)
+  const [items, setItems] = useState<any[]>([])
   const { toast } = useModal()
+
+  const load = () => { api.listFeedback().then(setItems).catch(() => {}) }
+  useEffect(() => { if (open) load() }, [open])
 
   const submit = async () => {
     const text = content.trim()
@@ -28,6 +32,7 @@ export default function FeedbackWidget({
     try {
       await api.submitFeedback({ category, content: text, page })
       setContent('')
+      load()
       onClose()
       toast('反馈已提交，感谢你的建议', 'success')
     } catch (error) {
@@ -68,6 +73,19 @@ export default function FeedbackWidget({
           <button className="feedback-submit" disabled={busy} onClick={submit}>
             {busy ? '提交中...' : '提交反馈'}
           </button>
+          {items.length > 0 && (
+            <details className="feedback-history">
+              <summary>我的反馈 <span>{items.length}</span></summary>
+              <div className="feedback-history-list">
+                {items.map(item => (
+                  <div className="feedback-history-item" key={item.id}>
+                    <div><span>{item.content}</span><em>{item.status === 'new' ? '待处理' : item.status === 'processing' ? '处理中' : '已解决'}</em></div>
+                    {item.admin_reply && <p>管理员回复：{item.admin_reply}</p>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </>

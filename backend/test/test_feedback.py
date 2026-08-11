@@ -48,6 +48,7 @@ def test_feedback_is_saved_for_current_user(isolated_db):
         "page": "行情",
         "status": "new",
         "created_at": "ignored",
+        "admin_reply": "",
     }
 
     with config._connect() as conn:
@@ -60,6 +61,25 @@ def test_feedback_is_saved_for_current_user(isolated_db):
     items = feedback.list_feedback(_admin={"id": 1}, limit=100)
     assert items[0]["username"] == "tester"
     assert items[0]["content"] == "港股行情时间显示不正确"
+
+
+def test_admin_can_reply_update_status_and_delete_feedback(isolated_db):
+    created = feedback.create_feedback(
+        feedback.FeedbackRequest(category="bug", content="A valid feedback message"),
+        user={"id": 7},
+    )
+
+    feedback.update_feedback(
+        created["id"],
+        feedback.FeedbackUpdate(reply=" Fixed in the latest version ", status="resolved"),
+        _admin={"id": 1},
+    )
+    own_items = feedback.list_own_feedback(user={"id": 7})
+    assert own_items[0]["admin_reply"] == "Fixed in the latest version"
+    assert own_items[0]["status"] == "resolved"
+
+    feedback.delete_feedback(created["id"], _admin={"id": 1})
+    assert feedback.list_own_feedback(user={"id": 7}) == []
 
 
 def test_feedback_rejects_blank_content():

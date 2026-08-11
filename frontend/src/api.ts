@@ -114,6 +114,7 @@ export const api = {
     request<{ id: number; status: string }>('/api/feedback', {
       method: 'POST', body: JSON.stringify(body),
     }),
+  listFeedback: () => request<any[]>('/api/feedback'),
 
   // 认证
   register: (username: string, password: string, inviteCode?: string) =>
@@ -267,6 +268,10 @@ export const api = {
   adminInvites: () => request<any[]>('/api/admin/invite-codes'),
   adminAuditLogs: () => request<any[]>('/api/admin/audit-logs'),
   adminFeedback: () => request<any[]>('/api/admin/feedback'),
+  updateFeedback: (id: number, body: { status?: string; reply?: string }) =>
+    request<{ status: string }>(`/api/admin/feedback/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteFeedback: (id: number) =>
+    request<{ status: string }>(`/api/admin/feedback/${id}`, { method: 'DELETE' }),
   adminStats: () => request<Record<string, any>>('/api/admin/stats'),
 
   // 定时/自动化分析
