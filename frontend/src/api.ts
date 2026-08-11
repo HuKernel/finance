@@ -266,6 +266,7 @@ export const api = {
   createInvite: (note: string) => request<{ code: string }>('/api/admin/invite-codes', { method: 'POST', body: JSON.stringify({ note }) }),
   adminInvites: () => request<any[]>('/api/admin/invite-codes'),
   adminAuditLogs: () => request<any[]>('/api/admin/audit-logs'),
+  adminFeedback: () => request<any[]>('/api/admin/feedback'),
   adminStats: () => request<Record<string, any>>('/api/admin/stats'),
 
   // 定时/自动化分析

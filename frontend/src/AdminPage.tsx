@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
 
-type AdminTab = 'stats' | 'users' | 'invites' | 'audit'
+type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'audit'
 
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false)
@@ -20,6 +20,7 @@ export default function AdminPage() {
     { key: 'stats', label: '系统概览' },
     { key: 'users', label: '用户管理' },
     { key: 'invites', label: '邀请码' },
+    { key: 'feedback', label: '用户反馈' },
     { key: 'audit', label: '审计日志' },
   ]
 
@@ -37,9 +38,38 @@ export default function AdminPage() {
         {tab === 'stats' && <StatsSection />}
         {tab === 'users' && <UsersSection />}
         {tab === 'invites' && <InviteSection />}
+        {tab === 'feedback' && <FeedbackSection />}
         {tab === 'audit' && <AuditSection />}
       </div>
     </div>
+  )
+}
+
+const FEEDBACK_CATEGORY: Record<string, string> = {
+  suggestion: '功能建议', bug: '问题反馈', data: '数据问题', other: '其他',
+}
+
+function FeedbackSection() {
+  const [items, setItems] = useState<any[]>([])
+  useEffect(() => { api.adminFeedback().then(setItems).catch(() => {}) }, [])
+
+  return (
+    <table className="portfolio-table">
+      <thead><tr><th>时间</th><th>用户</th><th>类型</th><th>页面</th><th>反馈内容</th><th>状态</th></tr></thead>
+      <tbody>
+        {items.length === 0 && <tr><td colSpan={6} className="empty-row">暂无用户反馈</td></tr>}
+        {items.map(item => (
+          <tr key={item.id}>
+            <td>{(item.created_at || '').slice(0, 19)}</td>
+            <td className="pf-name">{item.username}</td>
+            <td>{FEEDBACK_CATEGORY[item.category] || item.category}</td>
+            <td>{item.page || '-'}</td>
+            <td className="admin-feedback-content">{item.content}</td>
+            <td>{item.status === 'new' ? '待处理' : item.status}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 

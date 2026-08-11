@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field, field_validator
 
 from ..config import _connect
-from ..deps import get_current_user
+from ..deps import get_current_user, require_admin
 
 router = APIRouter()
 
@@ -65,3 +65,20 @@ def create_feedback(
             ),
         ).lastrowid
     return {"id": int(feedback_id), "status": "received"}
+
+
+@router.get("/api/admin/feedback")
+def list_feedback(
+    _admin: dict = Depends(require_admin),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict[str, Any]]:
+    _ensure_table()
+    with _connect() as conn:
+        rows = conn.execute(
+            """SELECT f.*, COALESCE(u.username, '已删除用户') AS username
+               FROM user_feedback f
+               LEFT JOIN users u ON u.id = f.user_id
+               ORDER BY f.id DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(row) for row in rows]

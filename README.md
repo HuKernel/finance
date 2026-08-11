@@ -226,7 +226,7 @@ frontend/
 | 模块 | 接口 | 说明 |
 |------|------|------|
 | 认证 | /api/auth/register, /login, /me, /profile, /change-password | 注册/登录/用户画像/密码 |
-| 反馈 | /api/feedback | 登录用户提交全局反馈 |
+| 反馈 | /api/feedback, /api/admin/feedback | 登录用户提交反馈、管理员查看记录 |
 | LLM配置 | /api/auth/llm-config | per-user LLM Key（加密） |
 | 对话 | /api/chat, /api/chat/stream, /api/chat/session(s) | ReAct 智能体 + SSE + 会话管理 |
 | 投研 | /api/analysis, /api/analysis/stream | 多智能体分析（SSE流式 + 持久化运行追踪） |

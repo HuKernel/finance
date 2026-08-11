@@ -20,9 +20,13 @@ async function mockApi(page: Page) {
     let body: unknown = {}
 
     if (path === '/api/auth/me') body = { user: { id: 1, username: 'e2e' }, profile: { watchlist: [] } }
-    else if (path === '/api/auth/is-admin') body = { is_admin: false }
+    else if (path === '/api/auth/is-admin') body = { is_admin: true }
     else if (path === '/api/auth/profile') body = { watchlist: [] }
     else if (path === '/api/alerts') body = []
+    else if (path === '/api/admin/feedback') body = [{
+      id: 3, user_id: 8, username: 'visitor', category: 'data', page: '行情',
+      content: '港股行情时间显示不正确', status: 'new', created_at: '2026-08-11T17:20:00',
+    }]
     else if (path === '/api/market/top-turnover') body = { code: '600519', name: '贵州茅台', amount: 1000000000, unit: '元', scope: 'a_share_full_market', as_of: '2026-08-11' }
     else if (path === '/api/hot') body = []
     else if (path === '/api/news/600519') body = { symbol: '600519', news: [] }
@@ -198,4 +202,14 @@ test('投资论文可追溯分析、回测数据指纹和 Reflection', async ({ 
   const request = page.waitForRequest(req => req.url().includes('/api/theses/7/experiments') && req.method() === 'POST')
   await page.getByRole('button', { name: '运行并保存' }).click()
   await request
+})
+
+test('管理员可以查看用户反馈记录', async ({ page }) => {
+  await page.getByRole('button', { name: '管理后台' }).click()
+  await page.getByRole('button', { name: '用户反馈' }).click()
+
+  await expect(page.getByText('visitor')).toBeVisible()
+  await expect(page.getByText('数据问题')).toBeVisible()
+  await expect(page.getByText('港股行情时间显示不正确')).toBeVisible()
+  await expect(page.getByText('待处理')).toBeVisible()
 })
