@@ -3,7 +3,7 @@
 //   中栏 1fr ：标题+价格+操作 / 周期工具栏 / K线 / 对比表
 //   右栏 300px：盘口数据表 / 资金流向卡 / K线形态卡
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from './api'
+import { api, requireLogin } from './api'
 import type { DataMetadata, KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 import { StarButton } from './QuoteCard'
@@ -349,6 +349,7 @@ export default function QuotePage() {
               wlVersion={wlVersion}
               onPick={pickWatchlistCode}
               onAdd={async (codeToAdd) => {
+                if (!requireLogin()) return
                 try {
                   const p = await api.getProfile()
                   const list = p.watchlist || []
@@ -358,6 +359,7 @@ export default function QuotePage() {
                 } catch { /* ignore */ }
               }}
               onRemove={async (codeToRemove) => {
+                if (!requireLogin()) return
                 try {
                   const p = await api.getProfile()
                   const list = p.watchlist || []

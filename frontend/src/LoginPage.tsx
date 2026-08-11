@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api, setToken } from './api'
 import type { AuthResponse } from './types'
 
-export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => void }) {
+export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResponse) => void; onCancel?: () => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState(localStorage.getItem('fc_remember_user') || '')
   const [password, setPassword] = useState('')
@@ -62,6 +62,7 @@ export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => v
         <button onClick={submit} disabled={busy} className="login-btn">
           {busy ? '处理中...' : mode === 'login' ? '登录' : '注册并登录'}
         </button>
+        {onCancel && <button className="ghost login-cancel" onClick={onCancel}>暂不登录，继续浏览</button>}
       </div>
     </div>
   )

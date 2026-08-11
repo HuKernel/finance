@@ -42,6 +42,7 @@
 ### 安全
 - **per-user LLM Key**：每个用户独立 API Key，使用 Fernet 认证加密存储，前端永远脱敏
 - **登录安全**：频率限制（5次失败锁定15分钟）、密码 PBKDF2-SHA256 哈希
+- **游客访问**：行情和市场数据无需登录；分析、诊断、回测、对话及反馈提交按需登录
 - **反爬限流**：全局请求频率限制（200次/分钟），CORS 白名单
 - **数据隔离**：所有用户数据（对话/组合/预警/分析/记忆）按 user_id 隔离
 
@@ -177,7 +178,7 @@ backend/
   test/                  # pytest 单元测试
 frontend/
   src/
-    App.tsx              # 主界面（12个标签页 + 登录守卫 + ErrorBoundary）
+    App.tsx              # 主界面（12个标签页 + 按需登录守卫 + ErrorBoundary）
     ChatPage.tsx         # 智能对话（流式 + 热门轮播 + 行情卡片）
     QuotePage.tsx        # 行情页（K线 + 对比 + 分时实时刷新）
     QuoteCard.tsx        # 行情卡片（K线/分时切换 + 星标）
@@ -198,6 +199,7 @@ frontend/
     HistoryPage.tsx      # 投研历史
     AlertBell.tsx        # 全局预警
     LoginPage.tsx        # 登录/注册
+    FeedbackWidget.tsx   # 全局用户反馈（登录后提交）
 .github/workflows/
   ci.yml                 # CI（后端 pytest + 前端 lint/build/Playwright + Docker build）
 ```
@@ -224,6 +226,7 @@ frontend/
 | 模块 | 接口 | 说明 |
 |------|------|------|
 | 认证 | /api/auth/register, /login, /me, /profile, /change-password | 注册/登录/用户画像/密码 |
+| 反馈 | /api/feedback | 登录用户提交全局反馈 |
 | LLM配置 | /api/auth/llm-config | per-user LLM Key（加密） |
 | 对话 | /api/chat, /api/chat/stream, /api/chat/session(s) | ReAct 智能体 + SSE + 会话管理 |
 | 投研 | /api/analysis, /api/analysis/stream | 多智能体分析（SSE流式 + 持久化运行追踪） |

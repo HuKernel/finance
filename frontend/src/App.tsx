@@ -3,6 +3,7 @@ import { api, getToken, setToken } from './api'
 import type { AuthResponse } from './types'
 import LoginPage from './LoginPage'
 import AlertBell from './AlertBell'
+import FeedbackWidget from './FeedbackWidget'
 import { ErrorBoundary } from './ErrorBoundary'
 import './App.css'
 
@@ -21,6 +22,8 @@ const SchedulerPage = lazy(() => import('./SchedulerPage'))
 const ThesisPage = lazy(() => import('./ThesisPage'))
 
 type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'signal' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
+
+const PUBLIC_TABS = new Set<Tab>(['quote', 'market'])
 
 const NAV_GROUPS: { label: string; items: { tab: Tab; label: string }[] }[] = [
   { label: '研究', items: [
@@ -54,11 +57,14 @@ function useTheme() {
 }
 
 function App() {
-  const [tab, setTab] = useState<Tab>('analyze')
+  const [tab, setTab] = useState<Tab>('quote')
   const [navOpen, setNavOpen] = useState(false)
   const [auth, setAuth] = useState<AuthResponse | null>(null)
   const [booted, setBooted] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [loginTarget, setLoginTarget] = useState<Tab | null>(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackAfterLogin, setFeedbackAfterLogin] = useState(false)
   const { theme, toggle } = useTheme()
 
   // 启动时校验 token
@@ -82,19 +88,39 @@ function App() {
     return () => document.removeEventListener('keydown', close)
   }, [navOpen])
 
+  useEffect(() => {
+    const requireAuth = () => setLoginTarget(tab)
+    window.addEventListener('financecrew:auth-required', requireAuth)
+    return () => window.removeEventListener('financecrew:auth-required', requireAuth)
+  }, [tab])
+
   if (!booted) return <div className="boot-screen">加载中...</div>
 
-  if (!auth) {
-    return <LoginPage onLogin={(r) => {
-      setAuth(r); setTab('analyze')
-      // 登录后检查管理员权限
-      api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
-    }} />
+  const navigate = (next: Tab) => {
+    setNavOpen(false)
+    if (!auth && !PUBLIC_TABS.has(next)) {
+      setLoginTarget(next)
+      return
+    }
+    setTab(next)
+  }
+
+  const handleLogin = (result: AuthResponse) => {
+    setAuth(result)
+    if (loginTarget) setTab(loginTarget)
+    setLoginTarget(null)
+    if (feedbackAfterLogin) {
+      setFeedbackAfterLogin(false)
+      setFeedbackOpen(true)
+    }
+    api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
   }
 
   const logout = () => {
     setToken(null)
     setAuth(null)
+    setIsAdmin(false)
+    setTab('quote')
   }
 
   const visibleGroups = isAdmin
@@ -106,13 +132,13 @@ function App() {
       case 'chat': return <ChatPage />
       case 'quote': return <QuotePage />
       case 'market': return <MarketDataPage />
-      case 'analyze': return <AnalyzePane onBacktest={() => setTab('backtest')} onQuote={() => setTab('quote')} />
+      case 'analyze': return <AnalyzePane onBacktest={() => navigate('backtest')} onQuote={() => navigate('quote')} />
       case 'portfolio': return <PortfolioPage />
       case 'backtest': return <BacktestPage />
       case 'signal': return <MLSignalPage />
       case 'scheduler': return <SchedulerPage />
       case 'thesis': return <ThesisPage />
-      case 'history': return <HistoryPane onPick={() => setTab('analyze')} />
+      case 'history': return <HistoryPane onPick={() => navigate('analyze')} />
       case 'profile': return <ProfilePage />
       case 'admin': return isAdmin ? <AdminPage /> : null
     }
@@ -131,7 +157,7 @@ function App() {
             <div className="nav-group" key={group.label}>
               <div className="nav-group-label">{group.label}</div>
               {group.items.map(item => (
-                <button key={item.tab} aria-current={tab === item.tab ? 'page' : undefined} className={tab === item.tab ? 'active' : ''} onClick={() => { setTab(item.tab); setNavOpen(false) }}>{item.label}</button>
+                <button key={item.tab} aria-current={tab === item.tab ? 'page' : undefined} className={tab === item.tab ? 'active' : ''} onClick={() => navigate(item.tab)}>{item.label}</button>
               ))}
             </div>
           ))}
@@ -146,10 +172,14 @@ function App() {
             <h2>{activeLabel}</h2>
           </div>
         <div className="user-menu">
-          <AlertBell />
+          {auth && <AlertBell />}
           <button className="ghost" onClick={toggle} title="切换主题">{theme === 'dark' ? '亮色' : '暗色'}</button>
-          <span className="user-name">{auth.user.username}</span>
-          <button className="ghost" onClick={logout}>退出</button>
+          {auth ? (
+            <>
+              <span className="user-name">{auth.user.username}</span>
+              <button className="ghost" onClick={logout}>退出</button>
+            </>
+          ) : <button className="ghost" onClick={() => setLoginTarget(tab)}>登录</button>}
         </div>
         </header>
       <main id="main-content" className="workspace-main" tabIndex={-1}>
@@ -160,6 +190,29 @@ function App() {
         </ErrorBoundary>
       </main>
       </div>
+      <FeedbackWidget
+        open={feedbackOpen}
+        page={activeLabel || tab}
+        onOpen={() => {
+          if (auth) setFeedbackOpen(true)
+          else {
+            setFeedbackAfterLogin(true)
+            setLoginTarget(tab)
+          }
+        }}
+        onClose={() => setFeedbackOpen(false)}
+      />
+      {loginTarget && (
+        <div className="login-overlay" role="dialog" aria-modal="true" aria-label="登录">
+          <LoginPage
+            onLogin={handleLogin}
+            onCancel={() => {
+              setLoginTarget(null)
+              setFeedbackAfterLogin(false)
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }

@@ -16,6 +16,12 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
+export function requireLogin(): boolean {
+  if (getToken()) return true
+  window.dispatchEvent(new Event('financecrew:auth-required'))
+  return false
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const token = getToken()
@@ -103,6 +109,11 @@ export const api = {
   getHotStocks: () => request<{ code: string; name: string; change_pct: number }[]>('/api/hot'),
 
   getTopTurnoverStock: () => request<{ code: string; name: string; amount: number; unit: string; scope: string; as_of: string }>('/api/market/top-turnover'),
+
+  submitFeedback: (body: { category: string; content: string; page: string }) =>
+    request<{ id: number; status: string }>('/api/feedback', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
 
   // 认证
   register: (username: string, password: string, inviteCode?: string) =>

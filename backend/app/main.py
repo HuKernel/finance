@@ -98,7 +98,7 @@ from .deps import get_current_user, require_admin
 from .routes import (
     system, auth as auth_routes, analysis, market, portfolio,
     backtest, alerts, chat, scheduler, thesis, knowledge,
-    reflection, market_data,
+    reflection, market_data, feedback,
 )
 
 app.include_router(system.router)
@@ -114,6 +114,7 @@ app.include_router(thesis.router)
 app.include_router(knowledge.router)
 app.include_router(reflection.router)
 app.include_router(market_data.router)
+app.include_router(feedback.router)
 
 
 # ---------- 前端静态托管 ----------

@@ -1,6 +1,6 @@
 // 行情卡片：K线/分时切换 + 15秒实时轮询 + 新闻，跟随对话消息内嵌展示
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from './api'
+import { api, requireLogin } from './api'
 import { useModal } from './Modal'
 import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
@@ -13,6 +13,7 @@ export function StarButton({ code }: { code: string }) {
     api.getProfile().then((p) => setStarred((p.watchlist || []).includes(code))).catch(() => {})
   }, [code])
   const toggle = async () => {
+    if (!requireLogin()) return
     try {
       const p = await api.getProfile()
       const list = p.watchlist || []
