@@ -116,10 +116,20 @@ export interface MinutePoint {
   volume: number | null
 }
 
+export interface DataMetadata {
+  source?: string
+  as_of?: string | null
+  delay?: string
+  adjustment?: string
+  fallback_used?: boolean
+  rows_dropped?: number
+}
+
 export interface QuoteResponse {
   brief: Record<string, unknown>
   kline: KlineBar[] | MinutePoint[]
   tech: Record<string, unknown>
+  metadata?: { brief?: DataMetadata; kline?: DataMetadata }
   last_close?: number | null
   data_date?: string
   is_today?: boolean

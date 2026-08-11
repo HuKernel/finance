@@ -4,7 +4,7 @@
 //   右栏 300px：盘口数据表 / 资金流向卡 / K线形态卡
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
-import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
+import type { DataMetadata, KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 import { StarButton } from './QuoteCard'
 
@@ -35,6 +35,33 @@ function inferMarket(code: string): string {
 // 把任意 code 归一化为 "纯代码"（去掉市场前缀），后端 quote 接口接受带前缀或不带前缀
 function stripMarket(code: string): string {
   return code.replace(/^(sh|sz|bj|hk|us)/i, '')
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  tencent: '腾讯',
+  tencent_fqkline: '腾讯',
+  akshare_tencent: 'AKShare/腾讯',
+  akshare_sina: 'AKShare/新浪',
+  eastmoney: '东方财富',
+  sina: '新浪',
+  sina_us_daily: '新浪美股',
+  yfinance: 'Yahoo Finance',
+}
+
+function sourceLabel(source?: string) {
+  if (!source) return '未知'
+  return source.split(' + ').map((item) => SOURCE_LABELS[item] ?? item).join(' + ')
+}
+
+function mergeKlineMetadata(history?: DataMetadata, recent?: DataMetadata): DataMetadata {
+  const sources = [...new Set([history?.source, recent?.source].filter(Boolean))]
+  return {
+    ...history,
+    ...recent,
+    source: sources.join(' + ') || undefined,
+    fallback_used: Boolean(history?.fallback_used || recent?.fallback_used),
+    rows_dropped: (history?.rows_dropped ?? 0) + (recent?.rows_dropped ?? 0),
+  }
 }
 
 export default function QuotePage() {
@@ -100,7 +127,15 @@ export default function QuotePage() {
         ])
         const merged = new Map((history.kline as KlineBar[]).map(bar => [bar.date, bar]))
         for (const bar of recent.kline as KlineBar[]) merged.set(bar.date, bar)
-        q = { ...history, ...recent, kline: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)) }
+        q = {
+          ...history,
+          ...recent,
+          kline: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)),
+          metadata: {
+            brief: recent.metadata?.brief,
+            kline: mergeKlineMetadata(history.metadata?.kline, recent.metadata?.kline),
+          },
+        }
       } else {
         q = await api.getQuote(code, range === 'all' ? 120 : range, m, fresh)
       }
@@ -143,6 +178,7 @@ export default function QuotePage() {
           brief: prev?.brief ?? {},
           kline: filtered.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
           tech: {},
+          metadata: { brief: prev?.metadata?.brief, kline: d.metadata },
           last_close: filtered[filtered.length - 1]?.close ?? null,
         }))
       }
@@ -169,6 +205,7 @@ export default function QuotePage() {
           brief: prev?.brief ?? {},
           kline: d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
           tech: d.tech ?? {},
+          metadata: { brief: prev?.metadata?.brief, kline: d.metadata },
           last_close: d.tech?.price ?? null,
         }))
         setErr('')
@@ -272,6 +309,10 @@ export default function QuotePage() {
   const change = b?.change_pct ?? 0
   const bars = (data?.kline as KlineBar[])?.filter((k) => k.date && typeof k.close === 'number') ?? []
   const minute = (data?.kline as MinutePoint[])?.filter((k) => k.time && typeof k.price === 'number') ?? []
+  const briefMeta = data?.metadata?.brief
+  const klineMeta = data?.metadata?.kline
+  const delayLabel = ({ near_realtime: '近实时', delayed: '延迟', end_of_day: '日终' } as Record<string, string>)[klineMeta?.delay ?? ''] ?? klineMeta?.delay
+  const adjustmentLabel = ({ qfq: '前复权', hfq: '后复权', none: '不复权' } as Record<string, string>)[klineMeta?.adjustment ?? ''] ?? klineMeta?.adjustment
 
   return (
     <div className="quote-page">
@@ -413,6 +454,16 @@ export default function QuotePage() {
                     {live ? '● 实时' : '○ 实时'}
                   </button>
                 </div>
+              </div>
+
+              <div className={`data-status ${klineMeta?.fallback_used ? 'warning' : ''}`} role="status" aria-label="行情数据状态">
+                <span>行情源 {sourceLabel(briefMeta?.source)}</span>
+                <span>图表源 {sourceLabel(klineMeta?.source)}</span>
+                {(klineMeta?.as_of || data.data_date) && <span>截至 {klineMeta?.as_of || data.data_date}</span>}
+                {delayLabel && <span>时效 {delayLabel}</span>}
+                {adjustmentLabel && <span>复权 {adjustmentLabel}</span>}
+                {Boolean(klineMeta?.rows_dropped) && <span>清洗 {klineMeta?.rows_dropped} 行</span>}
+                {klineMeta?.fallback_used && <strong>已启用备用数据源</strong>}
               </div>
 
               {/* 周期切换工具栏 - 单独一行 */}

@@ -502,6 +502,9 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .qp-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .qp-title { display: flex; align-items: baseline; gap: 10px; }
 .qp-rank-badge { padding: 3px 8px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 600; }
+.data-status { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0; color: var(--text-3); font: 10px var(--mono); }
+.data-status span, .data-status strong { padding: 3px 7px; border: 1px solid var(--border); background: var(--muted); font-weight: 500; }
+.data-status.warning strong { color: var(--warning); border-color: var(--warning); }
 .qp-name { font-size: 18px; font-weight: 700; }
 .qp-code { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
 .qp-price { font-family: var(--mono); font-size: 22px; font-weight: 700; }
