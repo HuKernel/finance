@@ -17,6 +17,64 @@ from ..ic_evaluator import evaluate_signal_ic
 from ..data import fetcher as datalayer
 
 
+@router.get("/api/ml-signal/{symbol}")
+def ml_signal_api(
+    symbol: str,
+    days: int = 500,
+    model: str = "auto",
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """单标的 ML 信号样本外诊断；只开放固定模型和时间切分。"""
+    if model not in {"auto", "rf", "gb", "logit", "numpy"}:
+        raise HTTPException(status_code=400, detail="model 仅支持 auto/rf/gb/logit/numpy")
+    days = min(max(days, 200), 500)
+    sym = datalayer._norm_symbol(symbol)
+    hist = datalayer.get_history(sym, days=days)
+    if hist is None or len(hist) < 100:
+        raise HTTPException(status_code=422, detail="历史数据不足，至少需要100个有效交易日")
+
+    from dataclasses import asdict
+    from ..ml_signal import PipelineConfig, run_ml_pipeline
+
+    result = run_ml_pipeline(hist, PipelineConfig(model=model))
+    if result is None:
+        raise HTTPException(status_code=422, detail="有效样本不足，无法完成时间序列切分")
+
+    buy_precision = float(result.classification.get("buy_precision") or 0)
+    excess_return = float(result.strategy.get("excess_return_pct") or 0)
+    trades = int(result.strategy.get("n_trades") or 0)
+    flags = []
+    if result.split_sizes.get("test", 0) < 50:
+        flags.append({"level": "warning", "code": "small_test", "message": "测试集少于50条，结论稳定性有限"})
+    if buy_precision <= 0.36:
+        flags.append({"level": "warning", "code": "weak_precision", "message": "买入精度接近三分类随机基线"})
+    if excess_return <= 0:
+        flags.append({"level": "warning", "code": "no_excess", "message": "样本外策略未跑赢买入持有"})
+    if trades < 5:
+        flags.append({"level": "warning", "code": "few_trades", "message": "样本外交易少于5次，统计意义不足"})
+
+    promising = buy_precision > 0.4 and excess_return > 0 and trades >= 5
+    return {
+        "symbol": sym,
+        "backend": result.backend,
+        "n_raw_rows": len(hist),
+        "n_samples": result.n_samples,
+        "split_sizes": result.split_sizes,
+        "split_ranges": result.split_ranges,
+        "classification": result.classification,
+        "strategy": result.strategy,
+        "feature_importance": [
+            {"name": name, "value": value}
+            for name, value in sorted(result.feature_importance.items(), key=lambda item: -item[1])[:10]
+        ],
+        "config": asdict(result.config),
+        "data_metadata": hist.attrs.get("data_meta", {}),
+        "flags": flags,
+        "verdict": "样本外结果初步有效，仍需跨标的和滚动验证" if promising else "当前样本未证明存在稳定 Alpha",
+        "disclaimer": "该诊断是固定时间切分下的启发式结果，不代表统计显著性或未来收益。",
+    }
+
+
 @router.get("/api/ic-evaluate/{symbol}")
 def ic_evaluate_api(symbol: str, forward_days: int = 5) -> dict[str, Any]:
     """IC/Rank IC信号评估：评估技术指标对未来收益的预测力。"""

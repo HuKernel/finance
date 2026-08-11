@@ -264,6 +264,31 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .trace-step { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; border-top: 1px solid var(--border); }
 .trace-step span:last-child { flex-shrink: 0; color: var(--text-3); font-family: var(--mono); }
 .trace-tools { margin-top: 8px; color: var(--text-3); }
+.ml-signal-page { max-width: 1180px; margin: 0 auto; }
+.ml-controls { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+.ml-controls input { min-width: 180px; }
+.ml-verdict { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--border); background: var(--surface); }
+.ml-verdict.warning strong, .ml-flag { color: var(--warning); }
+.ml-verdict.ok strong, .ml-ok { color: var(--accent); }
+.ml-verdict span { color: var(--text-3); font: 11px var(--mono); }
+.ml-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.ml-panel { padding: 16px; border: 1px solid var(--border); background: var(--surface); }
+.ml-panel h3 { margin-bottom: 12px; font-size: 13px; }
+.ml-split { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font: 11px var(--mono); }
+.ml-split span { color: var(--text-3); }
+.ml-flag, .ml-ok { padding: 7px 0; border-top: 1px solid var(--border); font-size: 12px; }
+.feature-row { display: grid; grid-template-columns: 150px 1fr 70px; align-items: center; gap: 12px; padding: 5px 0; font: 11px var(--mono); }
+.feature-row i { height: 6px; background: var(--muted); }
+.feature-row b { display: block; height: 100%; background: var(--accent); }
+.feature-row strong { text-align: right; color: var(--text-3); }
+@media (max-width: 768px) {
+  .ml-grid { grid-template-columns: 1fr; }
+  .ml-controls > * { width: 100%; }
+  .ml-verdict { flex-direction: column; }
+  .ml-split { grid-template-columns: 56px 1fr; }
+  .ml-split span:last-child { grid-column: 2; }
+  .feature-row { grid-template-columns: 100px 1fr 58px; gap: 8px; }
+}
 
 /* ---------- 配置页 ---------- */
 .config-pane { max-width: 640px; }

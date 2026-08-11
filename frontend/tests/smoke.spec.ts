@@ -67,6 +67,16 @@ async function mockApi(page: Page) {
       metadata: { source: 'akshare_tencent', as_of: '2026-08-11 15:00', delay: 'delayed', adjustment: 'none', fallback_used: false },
     }
     else if (path.startsWith('/api/backtest/')) body = { error: 'e2e mock' }
+    else if (path.startsWith('/api/ml-signal/')) body = {
+      symbol: '600519', backend: 'numpy_logit', n_raw_rows: 500, n_samples: 440,
+      split_sizes: { train: 280, val: 66, test: 88 },
+      split_ranges: { train: { start: '2024-02-01', end: '2025-03-01' }, val: { start: '2025-03-17', end: '2025-06-18' }, test: { start: '2025-07-03', end: '2025-11-05' } },
+      classification: { buy_precision: 0.42, buy_recall: 0.38 },
+      strategy: { excess_return_pct: 3.2, max_drawdown_pct: 8.4 },
+      feature_importance: [{ name: 'momentum_20', value: 0.2 }, { name: 'volatility_20', value: 0.1 }],
+      data_metadata: { source: 'tencent_fqkline', as_of: '2025-11-05', delay: 'end_of_day' },
+      flags: [], verdict: '样本外结果初步有效，仍需跨标的和滚动验证', disclaimer: '测试免责声明',
+    }
 
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
   })
@@ -136,4 +146,14 @@ test('历史报告可以查看持久化运行追踪', async ({ page }) => {
   await page.getByText(/运行追踪 · deepseek\/deepseek-chat/).click()
   await expect(page.getByText('Run ID: run-e2e-42')).toBeVisible()
   await expect(page.getByText('数据收集')).toBeVisible()
+})
+
+test('ML 信号诊断展示样本外区间和质量结论', async ({ page }) => {
+  await page.getByRole('button', { name: '信号诊断' }).click()
+  const request = page.waitForRequest(req => req.url().includes('/api/ml-signal/600519') && new URL(req.url()).searchParams.get('model') === 'auto')
+  await page.getByRole('button', { name: '开始诊断' }).click()
+  await request
+  await expect(page.getByText('样本外结果初步有效，仍需跨标的和滚动验证')).toBeVisible()
+  await expect(page.getByText('2025-07-03 → 2025-11-05')).toBeVisible()
+  await expect(page.getByText('momentum_20')).toBeVisible()
 })

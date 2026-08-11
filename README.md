@@ -28,6 +28,7 @@
 - **投资组合**：持仓追踪（买入加权成本/卖出减仓）、实时盈亏、交易历史
 - **策略回测**：9种策略（MA均线交叉/双均线/MACD/KDJ/BOLL/RSI/网格/买入持有/AI情景模拟），含超额收益/最大回撤/胜率/权益曲线；规则策略按前收盘信号、次日开盘成交，计入滑点、佣金最低收费、印花税和过户费；每次运行可导出执行假设与数据/结果指纹
 - **回测深度分析**：蒙特卡洛模拟、分层测试、参数敏感度热力图、Walk-Forward验证、CPCV/PBO稳健性检验
+- **ML 信号诊断**：复用 18 维特征和三重壁垒标签，展示固定时间切分下的样本外买入精度、超额收益、特征重要性和质量警告
 - **投资论文追踪**：记录投资逻辑（thesis），定期检查偏离度（drift detection），支持手动结算
 
 ### 预警与定时
@@ -173,7 +174,7 @@ backend/
   test/                  # pytest 单元测试
 frontend/
   src/
-    App.tsx              # 主界面（11个标签页 + 登录守卫 + ErrorBoundary）
+    App.tsx              # 主界面（12个标签页 + 登录守卫 + ErrorBoundary）
     ChatPage.tsx         # 智能对话（流式 + 热门轮播 + 行情卡片）
     QuotePage.tsx        # 行情页（K线 + 对比 + 分时实时刷新）
     QuoteCard.tsx        # 行情卡片（K线/分时切换 + 星标）
@@ -182,6 +183,7 @@ frontend/
     Markdown.tsx         # Markdown 渲染（katex懒加载）
     BacktestPage.tsx     # 策略回测（图表懒加载）
     BacktestAnalysis.tsx # 回测深度分析
+    MLSignalPage.tsx     # ML信号样本外诊断
     MarketDataPage.tsx   # 市场数据（4Tab：板块/选股/融资/北向）
     PortfolioPage.tsx    # 投资组合
     ThesisPage.tsx       # 投资论文
@@ -229,6 +231,7 @@ frontend/
 | 估值 | /api/dcf/{symbol} | DCF估值 |
 | 组合 | /api/portfolio, /buy, /sell, /transactions | 持仓/买卖/交易历史 |
 | 回测 | /api/backtest/{symbol}, /api/backtest-analysis/* | 回测/蒙特卡洛/分层/敏感度 |
+| 信号诊断 | /api/ml-signal/{symbol} | ML样本外分类/策略/特征重要性诊断 |
 | 预警 | /api/alerts, /check, /{id}/reactivate | 预警CRUD/检查/重新激活 |
 | 知识库 | /api/knowledge/search, /stats | 历史投研检索/统计 |
 | 论文 | /api/theses, /api/thesis-drift/{ticker} | 投资论文/偏离检测 |

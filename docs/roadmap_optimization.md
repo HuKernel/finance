@@ -27,7 +27,7 @@
 
 ## P1：投研闭环
 
-- [ ] **P1-1 ML Signal Lab 产品化**
+- [x] **P1-1 ML Signal Lab 产品化**
   - 为现有 `backend/app/ml_signal` 增加受控 API 和诊断页面。
   - 展示样本外指标、Buy precision、特征重要性、训练/测试区间和过拟合警告。
   - 验收：用户可以完成一次单标的信号诊断，不新增第二套 ML 实现。

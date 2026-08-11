@@ -43,6 +43,7 @@ class PipelineResult:
     """管线运行结果。"""
     config: PipelineConfig
     split_sizes: dict[str, int]
+    split_ranges: dict[str, dict[str, str] | None]
     classification: dict[str, Any]
     strategy: dict[str, Any]
     feature_importance: dict[str, float]
@@ -158,6 +159,10 @@ def run_ml_pipeline(
     return PipelineResult(
         config=cfg,
         split_sizes=split.sizes(),
+        split_ranges={
+            name: _date_range(dates, indices)
+            for name, indices in (("train", split.train_idx), ("val", split.val_idx), ("test", split.test_idx))
+        },
         classification=classification,
         strategy=strategy,
         feature_importance=trainer.feature_importance(),
@@ -165,6 +170,15 @@ def run_ml_pipeline(
         n_samples=n,
         trainer=trainer,
     )
+
+
+def _date_range(dates: Optional[np.ndarray], indices: np.ndarray) -> dict[str, str] | None:
+    if dates is None or len(indices) == 0:
+        return None
+    return {
+        "start": pd.Timestamp(dates[indices[0]]).strftime("%Y-%m-%d"),
+        "end": pd.Timestamp(dates[indices[-1]]).strftime("%Y-%m-%d"),
+    }
 
 
 # ============================================================

@@ -13,13 +13,14 @@ const AnalyzePane = lazy(() => import('./AnalyzePage'))
 const HistoryPane = lazy(() => import('./HistoryPage'))
 const PortfolioPage = lazy(() => import('./PortfolioPage'))
 const BacktestPage = lazy(() => import('./BacktestPage'))
+const MLSignalPage = lazy(() => import('./MLSignalPage'))
 const MarketDataPage = lazy(() => import('./MarketDataPage'))
 const ProfilePage = lazy(() => import('./ProfilePage'))
 const AdminPage = lazy(() => import('./AdminPage'))
 const SchedulerPage = lazy(() => import('./SchedulerPage'))
 const ThesisPage = lazy(() => import('./ThesisPage'))
 
-type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
+type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'signal' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
 
 const NAV_GROUPS: { label: string; items: { tab: Tab; label: string }[] }[] = [
   { label: '研究', items: [
@@ -34,6 +35,7 @@ const NAV_GROUPS: { label: string; items: { tab: Tab; label: string }[] }[] = [
   ] },
   { label: '策略', items: [
     { tab: 'backtest', label: '策略回测' },
+    { tab: 'signal', label: '信号诊断' },
     { tab: 'scheduler', label: '定时分析' },
   ] },
   { label: '我的', items: [
@@ -107,6 +109,7 @@ function App() {
       case 'analyze': return <AnalyzePane onBacktest={() => setTab('backtest')} onQuote={() => setTab('quote')} />
       case 'portfolio': return <PortfolioPage />
       case 'backtest': return <BacktestPage />
+      case 'signal': return <MLSignalPage />
       case 'scheduler': return <SchedulerPage />
       case 'thesis': return <ThesisPage />
       case 'history': return <HistoryPane onPick={() => setTab('analyze')} />

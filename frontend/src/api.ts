@@ -223,6 +223,9 @@ export const api = {
     return request<BacktestResult>(url)
   },
 
+  getMLSignal: <T = any>(symbol: string, days: number, model: string) =>
+    request<T>(`/api/ml-signal/${encodeURIComponent(symbol)}?days=${days}&model=${model}`),
+
   // 多LLM对比
   compareLLM: (prompt: string, models: { name: string; base_url: string; api_key: string; model: string }[]) =>
     request<{ results: { name: string; model: string; response: string; latency_ms: number; error: string }[] }>(
