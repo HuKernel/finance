@@ -18,6 +18,15 @@ interface MLSignalResult {
 }
 
 const pct = (value?: number) => value == null ? '--' : `${(value * 100).toFixed(1)}%`
+const FEATURE_LABELS: Record<string, string> = {
+  ret_1d: '1日收益率', ret_5d: '5日收益率', ret_10d: '10日收益率', ret_20d: '20日收益率',
+  rsi_14: 'RSI（14日）', macd_hist: 'MACD柱',
+  ma_bias_5: '距5日均线偏离', ma_bias_20: '距20日均线偏离', ma_bias_60: '距60日均线偏离',
+  vol_5d: '5日波动率', vol_20d: '20日波动率', bb_width: '布林带宽度',
+  volume_ratio_5: '5日量比', volume_ratio_20: '20日量比', obv_diff: 'OBV变化',
+  dist_high_20: '距20日高点', dist_low_20: '距20日低点', price_quantile_20: '20日价格分位',
+  momentum_20: '20日动量', volatility_20: '20日波动率',
+}
 
 export default function MLSignalPage() {
   const [symbol, setSymbol] = useState('600519')
@@ -57,7 +66,7 @@ export default function MLSignalPage() {
           <option value={250}>250天</option><option value={400}>400天</option><option value={500}>500天</option>
         </select>
         <select aria-label="信号诊断模型" value={model} onChange={e => setModel(e.target.value)}>
-          <option value="auto">自动选择</option><option value="rf">Random Forest</option><option value="gb">Gradient Boosting</option><option value="logit">Logistic</option><option value="numpy">Numpy Logistic</option>
+          <option value="auto">自动选择</option><option value="rf">随机森林</option><option value="gb">梯度提升树</option><option value="logit">逻辑回归</option><option value="numpy">NumPy 逻辑回归</option>
         </select>
         <button className="btn-primary" onClick={run} disabled={loading || !symbol.trim()}>{loading ? '诊断中...' : '开始诊断'}</button>
       </div>
@@ -94,7 +103,7 @@ export default function MLSignalPage() {
         <section className="ml-panel">
           <h3>特征重要性</h3>
           {result.feature_importance.length ? result.feature_importance.map(item => <div className="feature-row" key={item.name}>
-            <span>{item.name}</span><i><b style={{ width: `${item.value / maxImportance * 100}%` }} /></i><strong>{item.value.toFixed(4)}</strong>
+            <span title={item.name}>{FEATURE_LABELS[item.name] ?? item.name}</span><i><b style={{ width: `${item.value / maxImportance * 100}%` }} /></i><strong>{item.value.toFixed(4)}</strong>
           </div>) : <div className="empty">当前模型没有可用的特征重要性</div>}
         </section>
 

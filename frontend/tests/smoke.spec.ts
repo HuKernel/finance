@@ -178,12 +178,13 @@ test('历史报告可以查看持久化运行追踪', async ({ page }) => {
 
 test('ML 信号诊断展示样本外区间和质量结论', async ({ page }) => {
   await page.getByRole('button', { name: '信号诊断' }).click()
+  await expect(page.getByRole('option', { name: '随机森林' })).toHaveAttribute('value', 'rf')
   const request = page.waitForRequest(req => req.url().includes('/api/ml-signal/600519') && new URL(req.url()).searchParams.get('model') === 'auto')
   await page.getByRole('button', { name: '开始诊断' }).click()
   await request
   await expect(page.getByText('样本外结果初步有效，仍需跨标的和滚动验证')).toBeVisible()
   await expect(page.getByText('2025-07-03 → 2025-11-05')).toBeVisible()
-  await expect(page.getByText('momentum_20')).toBeVisible()
+  await expect(page.getByText('20日动量')).toBeVisible()
 })
 
 test('投资论文可追溯分析、回测数据指纹和 Reflection', async ({ page }) => {
