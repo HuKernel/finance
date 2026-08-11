@@ -5,6 +5,7 @@ import {
   type LineData, type MouseEventParams, type Time, type UTCTimestamp,
 } from 'lightweight-charts'
 import type { KlineBar, MinutePoint } from './types'
+import { chartTime, formatChartTime } from './marketTime'
 
 interface Props {
   bars: KlineBar[]
@@ -77,21 +78,8 @@ function indicators(bars: KlineBar[]) {
   return { ma5, ma20, dif, dea, macd, k, d, j }
 }
 
-const barTime = (value: string): Time => {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/)
-  if (!match) return value.slice(0, 10) as Time
-  return (Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5]) / 1000) as UTCTimestamp
-}
-
 const asLineData = (bars: KlineBar[], values: (number | null)[]): LineData<Time>[] =>
-  values.flatMap((value, index) => value == null ? [] : [{ time: barTime(bars[index].date), value }])
-
-const formatTime = (time: Time | undefined) => {
-  if (!time) return ''
-  if (typeof time === 'string') return time
-  if (typeof time === 'number') return new Date(time * 1000).toLocaleString('zh-CN', { hour12: false, timeZone: 'UTC' })
-  return `${time.year}-${String(time.month).padStart(2, '0')}-${String(time.day).padStart(2, '0')}`
-}
+  values.flatMap((value, index) => value == null ? [] : [{ time: chartTime(bars[index].date), value }])
 
 export default function KLineChart({
   bars, minute = [], lastClose, currentPrice, symbol, mode, dataDate,
@@ -139,7 +127,7 @@ export default function KLineChart({
         borderUpColor: up, borderDownColor: down,
       }, 0)
       candleSeries.setData(bars.map(bar => ({
-        time: barTime(bar.date), open: bar.open, high: bar.high, low: bar.low, close: bar.close,
+        time: chartTime(bar.date), open: bar.open, high: bar.high, low: bar.low, close: bar.close,
       })) as CandlestickData<Time>[])
       const ma5 = chart.addSeries(LineSeries, { color: '#d69e00', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
       const ma20 = chart.addSeries(LineSeries, { color: '#0891b2', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
@@ -148,13 +136,13 @@ export default function KLineChart({
 
       const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false }, 1)
       volume.setData(bars.map(bar => ({
-        time: barTime(bar.date), value: bar.volume, color: bar.close >= bar.open ? up : down,
+        time: chartTime(bar.date), value: bar.volume, color: bar.close >= bar.open ? up : down,
       })) as HistogramData<Time>[])
 
       if (subIndicator === 'macd') {
         const histogram = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, 2)
         histogram.setData(calculated.macd.flatMap((value, index) => value == null ? [] : [{
-          time: barTime(bars[index].date), value, color: value >= 0 ? up : down,
+          time: chartTime(bars[index].date), value, color: value >= 0 ? up : down,
         }]) as HistogramData<Time>[])
         const dif = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
         const dea = chart.addSeries(LineSeries, { color: '#10b981', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
@@ -173,7 +161,7 @@ export default function KLineChart({
       chart.subscribeCrosshairMove((event: MouseEventParams<Time>) => {
         const item = event.seriesData.get(candleSeries) as CandlestickData<Time> | undefined
         if (!item || !('open' in item)) { setHover(null); return }
-        setHover({ date: formatTime(event.time), open: item.open, high: item.high, low: item.low, close: item.close, volume: 0 })
+        setHover({ date: formatChartTime(event.time), open: item.open, high: item.high, low: item.low, close: item.close, volume: 0 })
       })
     } else {
       const baseDate = dataDate || new Date().toISOString().slice(0, 10)

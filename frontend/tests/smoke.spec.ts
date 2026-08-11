@@ -1,0 +1,108 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const bars = Array.from({ length: 30 }, (_, index) => ({
+  date: `2026-07-${String(index + 1).padStart(2, '0')}`,
+  open: 100 + index,
+  close: 101 + index,
+  high: 102 + index,
+  low: 99 + index,
+  volume: 100000 + index,
+}))
+
+async function mockApi(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('financecrew_token', 'e2e-token')
+    localStorage.setItem('fc_theme_v3', 'light')
+  })
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url())
+    const path = url.pathname
+    let body: unknown = {}
+
+    if (path === '/api/auth/me') body = { user: { id: 1, username: 'e2e' }, profile: { watchlist: [] } }
+    else if (path === '/api/auth/is-admin') body = { is_admin: false }
+    else if (path === '/api/auth/profile') body = { watchlist: [] }
+    else if (path === '/api/alerts') body = []
+    else if (path === '/api/market/top-turnover') body = { code: '600519', name: '贵州茅台', amount: 1000000000, unit: '元', scope: 'a_share_full_market', as_of: '2026-08-11' }
+    else if (path === '/api/hot') body = []
+    else if (path === '/api/news/600519') body = { symbol: '600519', news: [] }
+    else if (path === '/api/industry/600519') body = { peers: [], avg_pe: null, avg_pb: null }
+    else if (path === '/api/fund-flow/600519') body = {}
+    else if (path === '/api/patterns/600519') body = {}
+    else if (path === '/api/chat/sessions') body = []
+    else if (path.startsWith('/api/quote/')) body = {
+      brief: { name: '贵州茅台', price: 1500, change_pct: 1.2, pre_close: 1482 },
+      kline: bars,
+      tech: {},
+      metadata: {
+        brief: { source: 'tencent', delay: 'near_realtime' },
+        kline: { source: 'tencent_fqkline', as_of: '2026-08-11', delay: 'end_of_day', adjustment: 'qfq', fallback_used: false },
+      },
+    }
+    else if (path.startsWith('/api/kline/')) body = {
+      bars: bars.map((bar, index) => ({ ...bar, date: `2026-08-11 ${String(9 + Math.floor(index / 12)).padStart(2, '0')}:${String((index * 5) % 60).padStart(2, '0')}` })),
+      tech: {},
+      metadata: { source: 'akshare_tencent', as_of: '2026-08-11 15:00', delay: 'delayed', adjustment: 'none', fallback_used: false },
+    }
+    else if (path.startsWith('/api/backtest/')) body = { error: 'e2e mock' }
+
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+  })
+}
+
+test.beforeEach(async ({ page }) => {
+  await mockApi(page)
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: '投研分析' })).toBeVisible()
+})
+
+test('移动端导航和智能对话输入区可用', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  const menu = page.getByRole('button', { name: '打开导航菜单' })
+  await expect(menu).toBeVisible()
+  await menu.click()
+  await expect(menu).toHaveAttribute('aria-expanded', 'true')
+  await page.getByRole('button', { name: '智能对话' }).click()
+
+  const input = page.getByRole('textbox', { name: '向 FinanceCrew 提问' })
+  await expect(input).toBeVisible()
+  const box = await input.boundingBox()
+  expect(box).not.toBeNull()
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390)
+})
+
+test('K线分钟周期发送正确请求并更新数据状态', async ({ page }) => {
+  await page.getByRole('button', { name: '行情' }).click()
+  await expect(page.getByLabel('行情数据状态')).toContainText('图表源 腾讯')
+
+  for (const period of ['5min', '15min', '30min', '60min']) {
+    const label = period.replace('min', '分')
+    const request = page.waitForRequest(req => new URL(req.url()).pathname === '/api/kline/600519' && new URL(req.url()).searchParams.get('period') === period)
+    await page.getByRole('button', { name: label, exact: true }).click()
+    await request
+    await expect(page.getByLabel('行情数据状态')).toContainText('图表源 AKShare/腾讯')
+    await expect(page.getByLabel('行情数据状态')).toContainText('复权 不复权')
+  }
+})
+
+test('A股、港股和美股交易所时间不会被浏览器时区偏移', async ({ page }) => {
+  const values = await page.evaluate(async () => {
+    const { chartTime, formatChartTime } = await import('/src/marketTime.ts')
+    return ['2026-08-11 09:30', '2026-08-11 16:00', '2026-08-11 21:30', '2026-08-12 04:00']
+      .map(value => formatChartTime(chartTime(value)))
+  })
+  expect(values[0]).toContain('09:30')
+  expect(values[1]).toContain('16:00')
+  expect(values[2]).toContain('21:30')
+  expect(values[3]).toContain('04:00')
+})
+
+test('策略回测入口提交用户选择的参数', async ({ page }) => {
+  await page.getByRole('button', { name: '策略回测' }).click()
+  await page.getByRole('textbox', { name: '回测股票代码' }).fill('600519')
+  await page.getByRole('combobox', { name: '回测周期' }).selectOption('250')
+  const request = page.waitForRequest(req => req.url().includes('/api/backtest/600519') && new URL(req.url()).searchParams.get('days') === '250')
+  await page.getByRole('button', { name: '开始回测' }).click()
+  await request
+})
