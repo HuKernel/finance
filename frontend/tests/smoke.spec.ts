@@ -30,6 +30,28 @@ async function mockApi(page: Page) {
     else if (path === '/api/fund-flow/600519') body = {}
     else if (path === '/api/patterns/600519') body = {}
     else if (path === '/api/chat/sessions') body = []
+    else if (path === '/api/history') body = [{ id: 42, ticker: '600519', created_at: '2026-08-11T13:00:00', status: 'completed' }]
+    else if (path === '/api/analysis/42') body = { result: {
+      id: 42,
+      run_id: 'run-e2e-42',
+      ticker: '600519',
+      name: '贵州茅台',
+      price: 1500,
+      change_pct: 1.2,
+      created_at: '2026-08-11T13:00:00',
+      status: 'completed',
+      consensus_score: 2,
+      consensus_verdict: '测试结论',
+      analyst_views: [],
+      debate: [],
+      risk_review: null,
+      trade_plan: null,
+      disclaimer: '测试数据',
+      raw: { trace: {
+        run_id: 'run-e2e-42', mode: 'standard', provider: 'deepseek', model: 'deepseek-chat', status: 'completed', duration_ms: 1234,
+        steps: [{ name: 'collect_data', label: '数据收集', status: 'done', at_ms: 120 }], tools: [],
+      } },
+    } }
     else if (path.startsWith('/api/quote/')) body = {
       brief: { name: '贵州茅台', price: 1500, change_pct: 1.2, pre_close: 1482 },
       kline: bars,
@@ -105,4 +127,13 @@ test('策略回测入口提交用户选择的参数', async ({ page }) => {
   const request = page.waitForRequest(req => req.url().includes('/api/backtest/600519') && new URL(req.url()).searchParams.get('days') === '250')
   await page.getByRole('button', { name: '开始回测' }).click()
   await request
+})
+
+test('历史报告可以查看持久化运行追踪', async ({ page }) => {
+  await page.getByRole('button', { name: '历史记录' }).click()
+  await page.getByRole('button', { name: '查看' }).click()
+  await expect(page.getByText(/运行追踪 · deepseek\/deepseek-chat/)).toBeVisible()
+  await page.getByText(/运行追踪 · deepseek\/deepseek-chat/).click()
+  await expect(page.getByText('Run ID: run-e2e-42')).toBeVisible()
+  await expect(page.getByText('数据收集')).toBeVisible()
 })

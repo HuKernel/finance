@@ -47,8 +47,21 @@ export interface TradePlan {
   risk_warnings: string[]
 }
 
+export interface AnalysisTrace {
+  run_id: string
+  mode: string
+  provider: string
+  model: string
+  status: string
+  duration_ms: number
+  steps: { name: string; label: string; status: string; at_ms: number; detail?: string }[]
+  tools: { name: string; status: string; at_ms: number; role?: string; preview?: string }[]
+  error?: string
+}
+
 export interface AnalysisResult {
   id: number | null
+  run_id?: string
   ticker: string
   name: string
   price: number | null
@@ -62,6 +75,7 @@ export interface AnalysisResult {
   risk_review: RiskReview | null
   trade_plan: TradePlan | null
   disclaimer: string
+  raw?: { topic?: string; trace?: AnalysisTrace }
 }
 
 export interface LLMConfig {

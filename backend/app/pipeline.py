@@ -11,8 +11,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from .analysis_trace import AnalysisTrace, attach_trace
 from .graph.builder import build_graph
 from .llm import LLMClient
+from . import memory
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +38,34 @@ def run_analysis(
     此处捕获的是整个流水线的未预期异常（如 LLM 无 key、数据源全挂、序列化错误等），
     返回一个 error 状态的结果而不是让调用方崩溃。
     """
-    if llm is None and user_id is not None:
-        llm = LLMClient(user_id=user_id)
-    config: dict[str, Any] = {"configurable": {"llm": llm}} if llm else {}
-    state: dict[str, Any] = {"ticker": ticker, "topic": topic, "user_id": user_id, "mode": mode}
+    if llm is None:
+        llm = LLMClient(user_id=user_id) if user_id is not None else LLMClient()
+    trace = AnalysisTrace(ticker, mode, llm)
+    analysis_id: int | None = None
     try:
+        initial = attach_trace({"ticker": ticker, "status": "running", "raw": {"topic": topic or ""}}, trace)
+        analysis_id = memory.save_analysis(ticker, initial, status="running", user_id=user_id)
+        config: dict[str, Any] = {"configurable": {"llm": llm}}
+        state: dict[str, Any] = {
+            "ticker": ticker,
+            "topic": topic,
+            "user_id": user_id,
+            "mode": mode,
+            "analysis_id": analysis_id,
+            "run_id": trace.run_id,
+            "trace": trace,
+        }
         state = _GRAPH.invoke(state, config=config)
-        return state["result"]
+        trace.step("pipeline", "完整投研流水线")
+        trace.finish()
+        result = attach_trace(state["result"], trace)
+        memory.update_analysis(analysis_id, result)
+        return result
     except Exception as e:
         logger.exception("投研流水线异常 ticker=%s: %s", ticker, e)
-        return {
+        trace.finish("error", str(e))
+        result = {
+            "id": analysis_id,
             "ticker": ticker,
             "name": ticker,
             "status": "error",
@@ -58,3 +78,7 @@ def run_analysis(
             "disclaimer": "分析过程中出现错误，请稍后重试或检查 LLM 配置。",
             "error": str(e),
         }
+        attach_trace(result, trace)
+        if analysis_id is not None:
+            memory.update_analysis(analysis_id, result, status="error")
+        return result

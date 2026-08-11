@@ -16,6 +16,7 @@ from ..models import AnalysisRequest
 from ..data import fetcher as datalayer
 from ..config import get_config, save_config
 from ..llm import LLMClient
+from ..analysis_trace import AnalysisTrace, attach_trace
 from .. import memory
 import json, time
 
@@ -65,19 +66,33 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
         return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
     def _generate():
+        llm = LLMClient(user_id=user["id"])
+        trace = AnalysisTrace(ticker, req.mode, llm)
+        analysis_id: int | None = None
+        final_result: dict[str, Any] | None = None
         try:
+            initial = attach_trace({"ticker": ticker, "status": "running", "raw": {"topic": req.topic or ""}}, trace)
+            analysis_id = memory.save_analysis(ticker, initial, status="running", user_id=user["id"])
+            yield _sse({"type": "run", "run_id": trace.run_id, "analysis_id": analysis_id})
             yield _sse({"type": "step", "node": "collect_data", "label": "数据收集", "status": "running"})
-            config: dict[str, Any] = {"configurable": {"llm": LLMClient(user_id=user["id"])}}
+            config: dict[str, Any] = {"configurable": {"llm": llm}}
             state: dict[str, Any] = {
                 "ticker": ticker,
                 "topic": req.topic,
                 "user_id": user["id"],
                 "mode": req.mode,
+                "analysis_id": analysis_id,
+                "run_id": trace.run_id,
+                "trace": trace,
             }
 
             for chunk in _GRAPH.stream(state, config=config, stream_mode="updates"):
                 for node_name, node_output in chunk.items():
                     label = _NODE_LABELS.get(node_name, node_name)
+                    detail = None
+                    if node_name == "run_analyst" and isinstance(node_output, dict):
+                        detail = ", ".join(node_output.get("view_map", {}).keys()) or None
+                    trace.step(node_name, label, detail)
                     # 推送步骤进展
                     yield _sse({"type": "step", "node": node_name, "label": label, "status": "done"})
 
@@ -109,11 +124,45 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
                     if node_name == "finalize" and isinstance(node_output, dict):
                         result = node_output.get("result")
                         if result:
-                            yield _sse({"type": "result", "data": result})
+                            trace.finish()
+                            final_result = attach_trace(result, trace)
+                            memory.update_analysis(analysis_id, final_result)
+                            yield _sse({"type": "result", "data": final_result})
 
             yield _sse({"type": "done"})
         except Exception as e:
-            yield _sse({"type": "error", "message": str(e)})
+            trace.finish("error", str(e))
+            final_result = attach_trace({
+                "id": analysis_id,
+                "ticker": ticker,
+                "name": ticker,
+                "status": "error",
+                "consensus_score": 0,
+                "consensus_verdict": f"分析流程异常: {e}",
+                "analyst_views": [],
+                "debate": [],
+                "risk_review": None,
+                "trade_plan": None,
+                "disclaimer": "分析过程中出现错误，请稍后重试或检查 LLM 配置。",
+                "error": str(e),
+            }, trace)
+            if analysis_id is not None:
+                memory.update_analysis(analysis_id, final_result, status="error")
+            yield _sse({"type": "error", "message": str(e), "run_id": trace.run_id})
+        finally:
+            if not trace.finished and analysis_id is not None:
+                trace.finish("interrupted", "客户端连接中断")
+                interrupted = attach_trace(final_result or {
+                    "id": analysis_id,
+                    "ticker": ticker,
+                    "name": ticker,
+                    "status": "interrupted",
+                    "analyst_views": [],
+                    "debate": [],
+                    "risk_review": None,
+                    "trade_plan": None,
+                }, trace)
+                memory.update_analysis(analysis_id, interrupted, status="interrupted")
 
     return StreamingResponse(_generate(), media_type="text/event-stream")
 

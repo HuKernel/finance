@@ -259,6 +259,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
   const price = result.price
   const changePct = result.change_pct
+  const trace = result.raw?.trace
 
   return (
     <div className="report">
@@ -370,6 +371,29 @@ function ReportView({ result }: { result: AnalysisResult }) {
             )}
           </div>
         </>
+      )}
+
+      {trace && (
+        <details className="analysis-trace">
+          <summary>
+            运行追踪 · {trace.provider}/{trace.model} · {(trace.duration_ms / 1000).toFixed(1)}s
+          </summary>
+          <div className="trace-run-id">Run ID: {trace.run_id}</div>
+          <div className="trace-steps">
+            {trace.steps.map((step, index) => (
+              <div className="trace-step" key={`${step.name}-${index}`}>
+                <span>{step.label}{step.detail ? ` · ${step.detail}` : ''}</span>
+                <span>T+{step.at_ms}ms</span>
+              </div>
+            ))}
+          </div>
+          {trace.tools.length > 0 && (
+            <div className="trace-tools">
+              工具：{trace.tools.map(tool => `${tool.role ? `${tool.role}/` : ''}${tool.name}`).join('、')}
+            </div>
+          )}
+          {trace.error && <div className="error-box">{trace.error}</div>}
+        </details>
       )}
 
       <div className="disclaimer">{result.disclaimer}</div>

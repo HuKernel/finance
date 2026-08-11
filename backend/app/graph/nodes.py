@@ -143,7 +143,7 @@ def fan_out_analysts(state: AgentState) -> list[Send]:
     else:
         roles = ANALYST_ORDER
     return [
-        Send("run_analyst", {"context": ctx, "role": role, "mode": mode})
+        Send("run_analyst", {"context": ctx, "role": role, "mode": mode, "trace": state.get("trace")})
         for role in roles
     ]
 
@@ -169,8 +169,12 @@ def run_analyst(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     if agent_cls is None:
         agent_cls = ROLE_REGISTRY[role]
     agent = agent_cls(_get_llm(config))
+    context = dict(state["context"])
+    trace = state.get("trace")
+    if trace:
+        context["_on_tool_call"] = lambda name, result: trace.tool(name, result, role)
     try:
-        view = agent.analyze(state["context"])
+        view = agent.analyze(context)
     except Exception as e:
         view = AnalystView(role=role, title=agent_cls.title, summary=f"分析异常: {e}", score=0)
     return {"view_map": {role: view}}
@@ -393,5 +397,11 @@ def finalize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         "disclaimer": DISCLAIMER,
         "raw": {"topic": state.get("topic") or ""},
     }
-    result["id"] = save_analysis(result["ticker"], result, user_id=state.get("user_id"))
+    analysis_id = state.get("analysis_id")
+    if analysis_id:
+        from ..memory import update_analysis
+        result["id"] = analysis_id
+        update_analysis(analysis_id, result)
+    else:
+        result["id"] = save_analysis(result["ticker"], result, user_id=state.get("user_id"))
     return {"result": result}

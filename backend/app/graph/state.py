@@ -19,6 +19,9 @@ class AgentState(TypedDict, total=False):
     topic: Optional[str]
     user_id: Optional[int]
     mode: str  # "standard" | "agentic" 分析师执行模式
+    analysis_id: int
+    run_id: str
+    trace: Any
 
     # 数据层收集结果
     context: dict[str, Any]

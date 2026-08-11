@@ -133,6 +133,7 @@ class AgenticAnalyst(Agent):
 
     def _fallback_analyze(self, ticker: str, context: dict[str, Any]) -> AnalystView:
         """无API key或模型不支持bind_tools时的手写文本循环回退。"""
+        on_tool = context.get("_on_tool_call")
         tool_desc = build_tool_descriptions(self.role)
         from .agent_tools import ANALYST_TOOLS as _AT
         allowed = _AT.get(self.role, ["get_quote"])
@@ -168,6 +169,8 @@ class AgenticAnalyst(Agent):
                             else:
                                 r = fn(ticker)
                             tool_results.append(f"[{tn}]\n{r}")
+                            if on_tool:
+                                on_tool(tn, str(r)[:100])
                         except Exception as e:
                             tool_results.append(f"[{tn}] 失败: {e}")
                 continue
