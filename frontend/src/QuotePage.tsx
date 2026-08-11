@@ -55,6 +55,7 @@ export default function QuotePage() {
   const [live, setLive] = useState(true)
   const [err, setErr] = useState('')
   const [searching, setSearching] = useState(false)
+  const [chartLoading, setChartLoading] = useState(false)
   const [dayRange, setDayRange] = useState<30 | 60 | 120 | 250 | 'all'>(120)
   const [defaultRank, setDefaultRank] = useState<{ code: string; amount: number; scope: string } | null>(null)
   // watchlist 版本号：星标/删除/添加后自增以刷新左栏
@@ -62,6 +63,7 @@ export default function QuotePage() {
   const [showIndustry, setShowIndustry] = useState(false)
   const timerRef = useRef<number | null>(null)
   const searchTimer = useRef<number | null>(null)
+  const chartRequestRef = useRef(0)
 
   // 默认展示 A 股全市场当日成交额第一；数据源失败时回退到稳定示例。
   useEffect(() => {
@@ -87,6 +89,8 @@ export default function QuotePage() {
   }, [])
 
   const load = useCallback(async (code: string, m: 'day' | 'minute', fresh: number, range: 30 | 60 | 120 | 250 | 'all' = 120) => {
+    const requestId = ++chartRequestRef.current
+    if (!fresh) setChartLoading(true)
     try {
       let q: QuoteResponse
       if (m === 'day' && range === 'all') {
@@ -100,15 +104,21 @@ export default function QuotePage() {
       } else {
         q = await api.getQuote(code, range === 'all' ? 120 : range, m, fresh)
       }
-      setData(q)
-      setErr('')
+      if (requestId === chartRequestRef.current) {
+        setData(q)
+        setErr('')
+      }
     } catch {
-      setErr('行情加载失败')
+      if (requestId === chartRequestRef.current) setErr('行情加载失败')
+    } finally {
+      if (requestId === chartRequestRef.current) setChartLoading(false)
     }
   }, [])
 
   // 加载多日分时（2日/3日/4日/5日）：5分钟K线按交易日截取
   const loadMultiDay = useCallback(async (code: string, days: number) => {
+    const requestId = ++chartRequestRef.current
+    setChartLoading(true)
     try {
       const token = localStorage.getItem('financecrew_token')
       // A股用腾讯5分钟，美股用yfinance 5分钟（后端自动选择）
@@ -117,7 +127,7 @@ export default function QuotePage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const d = await r.json()
-      if (d.bars) {
+      if (d.bars && requestId === chartRequestRef.current) {
         // 按交易日分组，只保留最近N个交易日
         const dayMap = new Map<string, any[]>()
         for (const b of d.bars) {
@@ -136,33 +146,39 @@ export default function QuotePage() {
           last_close: filtered[filtered.length - 1]?.close ?? null,
         }))
       }
-      setErr('')
+      if (requestId === chartRequestRef.current) setErr('')
     } catch {
-      setErr('多日分时加载失败')
+      if (requestId === chartRequestRef.current) setErr('多日分时加载失败')
+    } finally {
+      if (requestId === chartRequestRef.current) setChartLoading(false)
     }
   }, [])
 
   // 加载多周期K线（周K/月K/分钟级）
   const loadPeriod = useCallback(async (code: string, p: string) => {
+    const requestId = ++chartRequestRef.current
+    setChartLoading(true)
     try {
       const token = localStorage.getItem('financecrew_token')
       const r = await fetch(`/api/kline/${code}?period=${p}&count=250`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const d = await r.json()
-      if (d.bars) {
+      if (d.bars && requestId === chartRequestRef.current) {
         setData(prev => ({
           brief: prev?.brief ?? {},
           kline: d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
           tech: d.tech ?? {},
           last_close: d.tech?.price ?? null,
         }))
-      } else if (d.detail) {
+        setErr('')
+      } else if (d.detail && requestId === chartRequestRef.current) {
         setErr(d.detail)
       }
-      setErr('')
     } catch {
-      setErr('周期数据加载失败')
+      if (requestId === chartRequestRef.current) setErr('周期数据加载失败')
+    } finally {
+      if (requestId === chartRequestRef.current) setChartLoading(false)
     }
   }, [])
 
@@ -438,7 +454,7 @@ export default function QuotePage() {
               </div>
 
               <div className="qp-chart">
-                <KLineChart
+                {chartLoading ? <div className="kline-loading">正在加载图表数据...</div> : <KLineChart
                   bars={bars}
                   minute={minute}
                   lastClose={b?.pre_close ?? data.last_close ?? null}
@@ -452,7 +468,7 @@ export default function QuotePage() {
                   onSubIndicator={setSubIndicator}
                   fullscreen={klineFullscreen}
                   onFullscreen={setKlineFullscreen}
-                />
+                />}
               </div>
 
               {/* 对比表格（K线下方） */}

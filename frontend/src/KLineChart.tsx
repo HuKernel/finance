@@ -77,8 +77,14 @@ function indicators(bars: KlineBar[]) {
   return { ma5, ma20, dif, dea, macd, k, d, j }
 }
 
+const barTime = (value: string): Time => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/)
+  if (!match) return value.slice(0, 10) as Time
+  return (Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5]) / 1000) as UTCTimestamp
+}
+
 const asLineData = (bars: KlineBar[], values: (number | null)[]): LineData<Time>[] =>
-  values.flatMap((value, index) => value == null ? [] : [{ time: bars[index].date.slice(0, 10) as Time, value }])
+  values.flatMap((value, index) => value == null ? [] : [{ time: barTime(bars[index].date), value }])
 
 const formatTime = (time: Time | undefined) => {
   if (!time) return ''
@@ -96,6 +102,7 @@ export default function KLineChart({
   const [hover, setHover] = useState<KlineBar | null>(null)
   const [themeVersion, setThemeVersion] = useState(0)
   const calculated = useMemo(() => indicators(bars), [bars])
+  const intradayBars = mode === 'day' && bars.some(bar => bar.date.length > 10)
 
   useEffect(() => {
     const observer = new MutationObserver(() => setThemeVersion(value => value + 1))
@@ -120,7 +127,7 @@ export default function KLineChart({
       grid: { vertLines: { color: border }, horzLines: { color: border } },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderColor: border },
-      timeScale: { borderColor: border, timeVisible: mode === 'minute', secondsVisible: false, rightOffset: 3, barSpacing: 7, minBarSpacing: 2 },
+      timeScale: { borderColor: border, timeVisible: mode === 'minute' || intradayBars, secondsVisible: false, rightOffset: 3, barSpacing: 7, minBarSpacing: 2 },
       handleScroll: true,
       handleScale: true,
     })
@@ -132,7 +139,7 @@ export default function KLineChart({
         borderUpColor: up, borderDownColor: down,
       }, 0)
       candleSeries.setData(bars.map(bar => ({
-        time: bar.date.slice(0, 10) as Time, open: bar.open, high: bar.high, low: bar.low, close: bar.close,
+        time: barTime(bar.date), open: bar.open, high: bar.high, low: bar.low, close: bar.close,
       })) as CandlestickData<Time>[])
       const ma5 = chart.addSeries(LineSeries, { color: '#d69e00', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
       const ma20 = chart.addSeries(LineSeries, { color: '#0891b2', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
@@ -141,13 +148,13 @@ export default function KLineChart({
 
       const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false }, 1)
       volume.setData(bars.map(bar => ({
-        time: bar.date.slice(0, 10) as Time, value: bar.volume, color: bar.close >= bar.open ? up : down,
+        time: barTime(bar.date), value: bar.volume, color: bar.close >= bar.open ? up : down,
       })) as HistogramData<Time>[])
 
       if (subIndicator === 'macd') {
         const histogram = chart.addSeries(HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, 2)
         histogram.setData(calculated.macd.flatMap((value, index) => value == null ? [] : [{
-          time: bars[index].date.slice(0, 10) as Time, value, color: value >= 0 ? up : down,
+          time: barTime(bars[index].date), value, color: value >= 0 ? up : down,
         }]) as HistogramData<Time>[])
         const dif = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
         const dea = chart.addSeries(LineSeries, { color: '#10b981', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
@@ -193,7 +200,7 @@ export default function KLineChart({
     }
     chart.timeScale().fitContent()
     return () => { chartRef.current = null; chart.remove() }
-  }, [bars, calculated, dataDate, fullscreen, lastClose, minute, mode, subIndicator, themeVersion])
+  }, [bars, calculated, dataDate, fullscreen, intradayBars, lastClose, minute, mode, subIndicator, themeVersion])
 
   const zoom = (factor: number) => {
     const range = chartRef.current?.timeScale().getVisibleLogicalRange()
