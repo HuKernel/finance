@@ -15,6 +15,7 @@ from ..cache import cached, TTL
 from .. import valuation
 from ..config import get_config
 import json
+from ..data.provider_contract import PROVIDER_CAPABILITIES, build_metadata, news_metadata
 
 
 def _num(v) -> float:
@@ -44,7 +45,7 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
         "brief": brief,
         "kline": [],
         "tech": {},
-        "metadata": {"brief": {"source": "tencent", "delay": "near_realtime"}},
+        "metadata": {"brief": build_metadata("quote", "tencent", delay="near_realtime")},
     }
     if mode == "minute":
         m = datalayer.get_minute_kline(sym)
@@ -54,13 +55,14 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
             out["data_date"] = m.get("data_date", "")
             out["is_today"] = m.get("is_today", True)
             source = m.get("source", "unknown")
-            out["metadata"]["kline"] = {
-                "source": source,
-                "as_of": m.get("data_date") or None,
-                "delay": "delayed" if sym.startswith("us") else "near_realtime",
-                "adjustment": "none",
-                "fallback_used": sym.startswith("us") and source != "eastmoney",
-            }
+            fallback_used = sym.startswith("us") and source != "eastmoney"
+            out["metadata"]["kline"] = build_metadata(
+                "minute", source,
+                as_of=m.get("data_date") or None,
+                delay="delayed" if sym.startswith("us") else "near_realtime",
+                fallback_used=fallback_used,
+                fallback_reason="主数据源不可用" if fallback_used else None,
+            )
     elif all:
         hist = datalayer.get_history_all(sym)
         bars: list[dict[str, Any]] = []
@@ -111,9 +113,33 @@ def search(q: str) -> dict[str, Any]:
 def news(symbol: str) -> dict[str, Any]:
     """个股新闻（实时快讯过滤 + 东财兜底）。"""
     sym = datalayer._norm_symbol(symbol)
-    cache_key = f"news:response:v2:{sym}"
-    result = cached(cache_key, TTL["news"], lambda: {"symbol": sym, "news": datalayer.get_news(sym) or []})
+    cache_key = f"news:response:v3:{sym}"
+    def _load_news() -> dict[str, Any]:
+        items = datalayer.get_news(sym) or []
+        return {"symbol": sym, "news": items, "metadata": news_metadata(items)}
+    result = cached(cache_key, TTL["news"], _load_news)
     return result
+
+
+@router.get("/api/fundamentals/{symbol}")
+def fundamentals(symbol: str) -> dict[str, Any]:
+    """统一财务数据与来源元数据。"""
+    sym = datalayer._norm_symbol(symbol)
+    data = datalayer.get_financials(sym) or {}
+    source = "yfinance" if sym.startswith(("hk", "us")) else "akshare_ths"
+    return {
+        "symbol": sym,
+        "data": data,
+        "metadata": build_metadata(
+            "fundamental", source, as_of=data.get("period"), delay="filing",
+        ),
+    }
+
+
+@router.get("/api/data/providers")
+def data_providers() -> dict[str, Any]:
+    """返回当前已接入 provider 的能力与访问方式。"""
+    return {"schema_version": 1, "providers": PROVIDER_CAPABILITIES}
 
 
 

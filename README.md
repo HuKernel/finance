@@ -19,6 +19,7 @@
 - **美股数据源**：日K使用新浪，分钟K使用 yfinance；当日分时按东财 → Polygon.io（可选 API Key）→ 腾讯 → 新浪顺序 fallback
 - **分时图**：A股/港股/美股分时，美股时间自动转北京时间，跨午夜时间轴正确映射
 - **数据可信层**：行情页展示行情源/图表源、数据截止时间、近实时/延迟/日终、复权方式、清洗行数和备用源状态
+- **Provider 契约**：Quote、Bar、Fundamental、News 使用统一元数据字段；`/api/data/providers` 可查询免费/增值访问方式、API Key 和数据能力
 - **自选股**：侧栏 watchlist + 行情卡片星标按钮，三处同步
 - **热门股票**：每日动态排序（涨幅前6），不固定列表
 - **情绪面分析**：A股用东财人气榜+雪球+量价资金；港股/美股用联网搜索获取舆情
@@ -226,6 +227,7 @@ frontend/
 | 对话 | /api/chat, /api/chat/stream, /api/chat/session(s) | ReAct 智能体 + SSE + 会话管理 |
 | 投研 | /api/analysis, /api/analysis/stream | 多智能体分析（SSE流式 + 持久化运行追踪） |
 | 行情 | /api/quote/{symbol}, /api/search/{q}, /api/hot | 行情/K线/搜索/热门 |
+| 数据源 | /api/data/providers, /api/fundamentals/{symbol} | Provider 能力与统一财务元数据 |
 | 新闻 | /api/news/{symbol}, /api/flash | 个股新闻/快讯 |
 | 行业 | /api/industry/{symbol}, /api/industry/peers | 行业对比/同行管理 |
 | 情绪 | /api/sentiment/{symbol} | 社交情绪面 |

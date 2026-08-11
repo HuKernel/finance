@@ -113,6 +113,7 @@ def finalize_ohlcv(
     delay: str,
     adjustment: str,
     fallback_used: bool = False,
+    fallback_reason: str | None = None,
 ) -> pd.DataFrame:
     """清洗统一 OHLCV 字段，并附加可审计的数据元信息。"""
     required = ["date", "open", "high", "low", "close", "volume"]
@@ -129,12 +130,14 @@ def finalize_ohlcv(
         & (out["low"] <= out[["open", "close"]].min(axis=1))
     ]
     out = out.drop_duplicates(subset=["date"], keep="last").sort_values("date").reset_index(drop=True)
-    out.attrs["data_meta"] = {
-        "source": source,
-        "as_of": out.iloc[-1]["date"].isoformat() if not out.empty else None,
-        "delay": delay,
-        "adjustment": adjustment,
-        "fallback_used": fallback_used,
-        "rows_dropped": original_rows - len(out),
-    }
+    from .provider_contract import build_metadata
+    out.attrs["data_meta"] = build_metadata(
+        "bar", source,
+        as_of=out.iloc[-1]["date"].isoformat() if not out.empty else None,
+        delay=delay,
+        adjustment=adjustment,
+        fallback_used=fallback_used,
+        fallback_reason=fallback_reason,
+        rows_dropped=original_rows - len(out),
+    )
     return out

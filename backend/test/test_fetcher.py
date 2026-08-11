@@ -107,11 +107,15 @@ def test_finalize_ohlcv_removes_invalid_and_duplicate_rows():
     assert len(result) == 1
     assert result.iloc[0]["close"] == 11
     assert result.attrs["data_meta"] == {
+        "kind": "bar",
         "source": "test",
+        "provider": "test",
+        "provider_name": "test",
         "as_of": "2026-01-02T00:00:00",
         "delay": "end_of_day",
         "adjustment": "qfq",
         "fallback_used": False,
+        "fallback_reason": None,
         "rows_dropped": 3,
     }
 

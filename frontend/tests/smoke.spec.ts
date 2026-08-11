@@ -83,14 +83,14 @@ async function mockApi(page: Page) {
       kline: bars,
       tech: {},
       metadata: {
-        brief: { source: 'tencent', delay: 'near_realtime' },
-        kline: { source: 'tencent_fqkline', as_of: '2026-08-11', delay: 'end_of_day', adjustment: 'qfq', fallback_used: false },
+        brief: { source: 'tencent', provider_name: '腾讯', delay: 'near_realtime' },
+        kline: { source: 'tencent_fqkline', provider_name: '腾讯', as_of: '2026-08-11', delay: 'end_of_day', adjustment: 'qfq', fallback_used: false },
       },
     }
     else if (path.startsWith('/api/kline/')) body = {
       bars: bars.map((bar, index) => ({ ...bar, date: `2026-08-11 ${String(9 + Math.floor(index / 12)).padStart(2, '0')}:${String((index * 5) % 60).padStart(2, '0')}` })),
       tech: {},
-      metadata: { source: 'akshare_tencent', as_of: '2026-08-11 15:00', delay: 'delayed', adjustment: 'none', fallback_used: false },
+      metadata: { source: 'akshare_tencent', provider_name: 'AKShare/腾讯', as_of: '2026-08-11 15:00', delay: 'delayed', adjustment: 'none', fallback_used: false },
     }
     else if (path.startsWith('/api/backtest/')) body = { error: 'e2e mock' }
     else if (path.startsWith('/api/ml-signal/')) body = {

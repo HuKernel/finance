@@ -148,11 +148,15 @@ export interface MinutePoint {
 }
 
 export interface DataMetadata {
+  kind?: string
   source?: string
+  provider?: string
+  provider_name?: string
   as_of?: string | null
   delay?: string
   adjustment?: string
   fallback_used?: boolean
+  fallback_reason?: string | null
   rows_dropped?: number
 }
 

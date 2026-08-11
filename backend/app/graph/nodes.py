@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.types import Send
 
 from .. import data as datalayer
+from ..data.provider_contract import build_metadata
 from ..agents.analysts import ALL_ANALYSTS
 from ..agents.risk import RiskManager
 from ..agents.trader import Trader
@@ -53,9 +54,8 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     ctx["brief"] = datalayer.get_stock_brief(ticker) or {}
     ctx["source_meta"] = {
         "quote": {
-            "source": "tencent_quote",
+            **build_metadata("quote", "tencent_quote", delay="near_realtime"),
             "fetched_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-            "delay": "near_realtime",
         },
     }
     history = None

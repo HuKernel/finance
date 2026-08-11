@@ -3,7 +3,7 @@ import type {
   AnalysisResult, AuthResponse, ChatMessage, ChatReply, ChatSession,
   HistoryItem, LLMConfig, NewsItem, QuoteResponse, SearchItem, UserProfile,
   AlertItem, SentimentData, DCFResult, PortfolioPosition, PortfolioSummary,
-  TransactionItem, BacktestResult,
+  TransactionItem, BacktestResult, DataMetadata,
 } from './types'
 
 const TOKEN_KEY = 'financecrew_token'
@@ -92,7 +92,7 @@ export const api = {
   getQuote: (symbol: string, days = 60, mode = 'day', fresh = 0, all = 0) =>
     request<QuoteResponse>(`/api/quote/${symbol}?days=${days}&mode=${mode}&fresh=${fresh}&all=${all}`),
 
-  getNews: (symbol: string) => request<{ symbol: string; news: NewsItem[] }>(`/api/news/${symbol}`),
+  getNews: (symbol: string) => request<{ symbol: string; news: NewsItem[]; metadata?: DataMetadata }>(`/api/news/${symbol}`),
 
   getIndustry: (symbol: string) => request<{ peers: { code: string; name: string; pe: number; pb: number; change_pct: number; market_cap: number; is_target: boolean }[]; avg_pe: number | null; avg_pb: number | null }>(`/api/industry/${symbol}`),
 

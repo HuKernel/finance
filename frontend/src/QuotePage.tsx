@@ -37,29 +37,16 @@ function stripMarket(code: string): string {
   return code.replace(/^(sh|sz|bj|hk|us)/i, '')
 }
 
-const SOURCE_LABELS: Record<string, string> = {
-  tencent: '腾讯',
-  tencent_fqkline: '腾讯',
-  akshare_tencent: 'AKShare/腾讯',
-  akshare_sina: 'AKShare/新浪',
-  eastmoney: '东方财富',
-  sina: '新浪',
-  sina_us_daily: '新浪美股',
-  yfinance: 'Yahoo Finance',
-}
-
-function sourceLabel(source?: string) {
-  if (!source) return '未知'
-  return source.split(' + ').map((item) => SOURCE_LABELS[item] ?? item).join(' + ')
-}
-
 function mergeKlineMetadata(history?: DataMetadata, recent?: DataMetadata): DataMetadata {
   const sources = [...new Set([history?.source, recent?.source].filter(Boolean))]
+  const providerNames = [...new Set([history?.provider_name, recent?.provider_name].filter(Boolean))]
   return {
     ...history,
     ...recent,
     source: sources.join(' + ') || undefined,
+    provider_name: providerNames.join(' + ') || undefined,
     fallback_used: Boolean(history?.fallback_used || recent?.fallback_used),
+    fallback_reason: recent?.fallback_reason || history?.fallback_reason,
     rows_dropped: (history?.rows_dropped ?? 0) + (recent?.rows_dropped ?? 0),
   }
 }
@@ -457,13 +444,13 @@ export default function QuotePage() {
               </div>
 
               <div className={`data-status ${klineMeta?.fallback_used ? 'warning' : ''}`} role="status" aria-label="行情数据状态">
-                <span>行情源 {sourceLabel(briefMeta?.source)}</span>
-                <span>图表源 {sourceLabel(klineMeta?.source)}</span>
+                <span>行情源 {briefMeta?.provider_name || '未知'}</span>
+                <span>图表源 {klineMeta?.provider_name || '未知'}</span>
                 {(klineMeta?.as_of || data.data_date) && <span>截至 {klineMeta?.as_of || data.data_date}</span>}
                 {delayLabel && <span>时效 {delayLabel}</span>}
                 {adjustmentLabel && <span>复权 {adjustmentLabel}</span>}
                 {Boolean(klineMeta?.rows_dropped) && <span>清洗 {klineMeta?.rows_dropped} 行</span>}
-                {klineMeta?.fallback_used && <strong>已启用备用数据源</strong>}
+                {klineMeta?.fallback_used && <strong>已启用备用数据源{klineMeta.fallback_reason ? `（${klineMeta.fallback_reason}）` : ''}</strong>}
               </div>
 
               {/* 周期切换工具栏 - 单独一行 */}
