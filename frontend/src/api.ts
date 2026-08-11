@@ -284,6 +284,11 @@ export const api = {
   checkAllTheses: () =>
     request<any[]>('/api/theses/check-all', { method: 'POST' }),
   getThesisChecks: (id: number) => request<any[]>(`/api/theses/${id}/checks`),
+  getThesisExperiments: (id: number) => request<any[]>(`/api/theses/${id}/experiments`),
+  createThesisExperiment: (id: number, strategy: string, days: number) =>
+    request<any>(`/api/theses/${id}/experiments`, {
+      method: 'POST', body: JSON.stringify({ strategy, days }),
+    }),
   getThesisDrift: (ticker: string) => request<any>(`/api/thesis-drift/${ticker}`),
 
   // 投研知识库

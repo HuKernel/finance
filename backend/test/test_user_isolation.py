@@ -78,6 +78,40 @@ def test_thesis_and_check_history_are_scoped_to_user(isolated_db):
     assert thesis_tracker.list_thesis_checks(thesis["id"], 2) == []
 
 
+def test_thesis_experiment_links_analysis_backtest_and_reflection(isolated_db, monkeypatch):
+    thesis = thesis_tracker.create_thesis(1, "600519", "茅台", "长期竞争力")
+    analysis_id = memory.save_analysis(
+        "600519", {"run_id": "run-1", "status": "completed", "consensus_score": 5}, user_id=1,
+    )
+    from app import reflection_engine
+    reflection_engine.record_decision(
+        "600519", "consensus", 5, "看多", user_id=1, analysis_id=analysis_id,
+    )
+    monkeypatch.setattr(
+        "app.backtest.run_backtest",
+        lambda *args, **kwargs: {
+            "period": "2025-01-01 ~ 2025-12-31",
+            "total_return": 12.3,
+            "benchmark_return": 10.0,
+            "excess_return": 2.3,
+            "max_drawdown": 8.0,
+            "trades": 1,
+            "run_manifest": {"data": {"fingerprint": "abc123"}},
+        },
+    )
+
+    experiment = thesis_tracker.create_thesis_experiment(thesis["id"], 1, "hold", 250)
+
+    assert experiment["analysis_id"] == analysis_id
+    assert experiment["result"]["analysis"]["run_id"] == "run-1"
+    assert experiment["result"]["run_manifest"]["data"]["fingerprint"] == "abc123"
+    assert experiment["reflection"] == {
+        "total": 1, "pending": 1, "settled": 0, "verdicts": {},
+    }
+    assert len(thesis_tracker.list_thesis_experiments(thesis["id"], 1)) == 1
+    assert thesis_tracker.list_thesis_experiments(thesis["id"], 2) == []
+
+
 def test_thesis_drift_only_reads_current_users_analyses(isolated_db):
     result = {"consensus_score": 1, "trade_plan": {}, "analyst_views": []}
     memory.save_analysis("600519", result, user_id=1)

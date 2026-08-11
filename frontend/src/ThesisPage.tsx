@@ -10,6 +10,10 @@ export default function ThesisPage() {
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [checks, setChecks] = useState<any[]>([])
+  const [experiments, setExperiments] = useState<any[]>([])
+  const [experimentStrategy, setExperimentStrategy] = useState('hold')
+  const [experimentDays, setExperimentDays] = useState(250)
+  const [experimentingId, setExperimentingId] = useState<number | null>(null)
   const [drift, setDrift] = useState<any>(null)
   const [checkingAll, setCheckingAll] = useState(false)
   const [checkingIds, setCheckingIds] = useState<Set<number>>(new Set())
@@ -25,9 +29,23 @@ export default function ThesisPage() {
 
   const loadChecks = async (id: number) => {
     try {
-      const c = await api.getThesisChecks(id)
+      const [c, e] = await Promise.all([api.getThesisChecks(id), api.getThesisExperiments(id)])
       setChecks(c)
+      setExperiments(e)
     } catch { /* ignore */ }
+  }
+
+  const handleExperiment = async (id: number) => {
+    setExperimentingId(id)
+    try {
+      await api.createThesisExperiment(id, experimentStrategy, experimentDays)
+      toast('回测实验已保存', 'success')
+      await loadChecks(id)
+    } catch (e: any) {
+      toast(e.message || '回测实验失败', 'error')
+    } finally {
+      setExperimentingId(null)
+    }
   }
 
   const handleDelete = async (id: number) => {
@@ -204,6 +222,53 @@ export default function ThesisPage() {
 
                 {expandedId === t.id && (
                   <div className="thesis-checks">
+                    <div className="thesis-experiment-form">
+                      <div>
+                        <h4>回测实验</h4>
+                        <p className="hint">关联最近一次投研分析；历史回测仅作证据记录，不代表未来验证。</p>
+                      </div>
+                      <label>
+                        策略
+                        <select aria-label="论文回测策略" value={experimentStrategy} onChange={e => setExperimentStrategy(e.target.value)}>
+                          <option value="hold">买入持有</option>
+                          <option value="ma_cross">均线交叉</option>
+                          <option value="macd">MACD</option>
+                          <option value="boll">布林带</option>
+                          <option value="rsi">RSI</option>
+                        </select>
+                      </label>
+                      <label>
+                        周期
+                        <select aria-label="论文回测周期" value={experimentDays} onChange={e => setExperimentDays(Number(e.target.value))}>
+                          <option value={120}>120日</option>
+                          <option value={250}>250日</option>
+                          <option value={500}>500日</option>
+                        </select>
+                      </label>
+                      <button className="ghost-btn" disabled={experimentingId === t.id} onClick={() => handleExperiment(t.id)}>
+                        {experimentingId === t.id ? '运行中...' : '运行并保存'}
+                      </button>
+                    </div>
+                    {experiments.map((experiment: any) => {
+                      const result = experiment.result || {}
+                      const fingerprint = result.run_manifest?.data?.fingerprint || ''
+                      return (
+                        <div key={experiment.id} className="thesis-experiment-item">
+                          <div>
+                            <strong>{experiment.strategy}</strong> · {experiment.days}日 · 分析 #{experiment.analysis_id}
+                            <span className="check-time">{experiment.created_at}</span>
+                          </div>
+                          {result.analysis?.run_id && <div className="hint">Run ID {result.analysis.run_id}</div>}
+                          <div className="thesis-experiment-metrics">
+                            <span>收益 {Number(result.total_return || 0).toFixed(2)}%</span>
+                            <span>超额 {Number(result.excess_return || 0).toFixed(2)}%</span>
+                            <span>回撤 {Number(result.max_drawdown || 0).toFixed(2)}%</span>
+                            <span>Reflection {experiment.reflection?.settled || 0}/{experiment.reflection?.total || 0}</span>
+                          </div>
+                          <div className="hint">数据 {result.run_manifest?.data?.start} → {result.run_manifest?.data?.end} · 指纹 {fingerprint.slice(0, 12) || '无'}</div>
+                        </div>
+                      )
+                    })}
                     <h4>检查历史</h4>
                     {checks.length === 0 ? (
                       <p className="hint">暂无检查记录</p>

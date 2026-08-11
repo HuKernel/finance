@@ -10,7 +10,7 @@ from ..deps import get_current_user, require_admin
 
 router = APIRouter()
 
-from ..thesis_tracker import list_theses, create_thesis, update_thesis, delete_thesis, check_thesis, check_all_active_theses, list_thesis_checks, detect_thesis_drift
+from ..thesis_tracker import list_theses, create_thesis, update_thesis, delete_thesis, check_thesis, check_all_active_theses, list_thesis_checks, detect_thesis_drift, create_thesis_experiment, list_thesis_experiments
 from ..llm import LLMClient
 
 
@@ -101,6 +101,38 @@ def list_thesis_checks_api(
 ) -> list[dict[str, Any]]:
     """查看论文的检查历史。"""
     return list_thesis_checks(thesis_id, user["id"], limit)
+
+
+@router.post("/api/theses/{thesis_id}/experiments")
+def create_thesis_experiment_api(
+    thesis_id: int,
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    strategy = body.get("strategy", "hold")
+    if strategy not in {"ma_cross", "dual_ma", "macd", "kdj", "boll", "rsi", "grid", "hold"}:
+        raise HTTPException(400, "不支持的回测策略")
+    try:
+        days = min(max(int(body.get("days", 250)), 30), 500)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(400, "days 必须是整数") from e
+    try:
+        return create_thesis_experiment(thesis_id, user["id"], strategy, days)
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from e
+    except LookupError as e:
+        raise HTTPException(409, str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(422, str(e)) from e
+
+
+@router.get("/api/theses/{thesis_id}/experiments")
+def list_thesis_experiments_api(
+    thesis_id: int,
+    limit: int = 10,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    return list_thesis_experiments(thesis_id, user["id"], min(max(limit, 1), 50))
 
 
 

@@ -199,6 +199,7 @@ def aggregate_views(state: AgentState) -> dict[str, Any]:
                 record_decision(
                     ticker, view.role, view.score, view.summary, today,
                     user_id=state.get("user_id"),
+                    analysis_id=state.get("analysis_id"),
                 )
             except Exception:
                 pass
@@ -322,6 +323,7 @@ def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
             verdict[:500] if verdict else "",
             datetime.now().strftime("%Y-%m-%d"),
             user_id=state.get("user_id"),
+            analysis_id=state.get("analysis_id"),
         )
     except Exception:
         pass

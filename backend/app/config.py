@@ -93,6 +93,8 @@ def _init_db() -> None:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(reflection_memos)").fetchall()]
         if "user_id" not in cols:
             conn.execute("ALTER TABLE reflection_memos ADD COLUMN user_id INTEGER")
+        if "analysis_id" not in cols:
+            conn.execute("ALTER TABLE reflection_memos ADD COLUMN analysis_id INTEGER")
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_reflection_ticker ON reflection_memos(ticker, status)"
         )

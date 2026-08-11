@@ -30,6 +30,19 @@ async function mockApi(page: Page) {
     else if (path === '/api/fund-flow/600519') body = {}
     else if (path === '/api/patterns/600519') body = {}
     else if (path === '/api/chat/sessions') body = []
+    else if (path === '/api/theses') body = [{
+      id: 7, ticker: '600519', name: '贵州茅台', thesis_text: '高端白酒竞争力持续',
+      key_assumptions: ['品牌力稳定'], invalidation_conditions: ['毛利率显著下降'],
+      score: 5, horizon: '长期', status: 'active',
+    }]
+    else if (path === '/api/theses/7/checks') body = []
+    else if (path === '/api/theses/7/experiments' && route.request().method() === 'GET') body = [{
+      id: 9, analysis_id: 42, strategy: 'hold', days: 250, created_at: '2026-08-11T14:00:00',
+      result: { total_return: 12.3, excess_return: 2.3, max_drawdown: 8, analysis: { run_id: 'run-e2e-42' },
+        run_manifest: { data: { start: '2025-01-01', end: '2025-12-31', fingerprint: 'abc123def456789' } } },
+      reflection: { total: 6, pending: 6, settled: 0, verdicts: {} },
+    }]
+    else if (path === '/api/theses/7/experiments') body = { id: 10 }
     else if (path === '/api/history') body = [{ id: 42, ticker: '600519', created_at: '2026-08-11T13:00:00', status: 'completed' }]
     else if (path === '/api/analysis/42') body = { result: {
       id: 42,
@@ -156,4 +169,17 @@ test('ML 信号诊断展示样本外区间和质量结论', async ({ page }) => 
   await expect(page.getByText('样本外结果初步有效，仍需跨标的和滚动验证')).toBeVisible()
   await expect(page.getByText('2025-07-03 → 2025-11-05')).toBeVisible()
   await expect(page.getByText('momentum_20')).toBeVisible()
+})
+
+test('投资论文可追溯分析、回测数据指纹和 Reflection', async ({ page }) => {
+  await page.getByRole('button', { name: '投资论文' }).click()
+  await page.getByText('贵州茅台').click()
+  await expect(page.getByText(/分析 #42/)).toBeVisible()
+  await expect(page.getByText('Run ID run-e2e-42')).toBeVisible()
+  await expect(page.getByText(/指纹 abc123def456/)).toBeVisible()
+  await expect(page.getByText('Reflection 0/6')).toBeVisible()
+
+  const request = page.waitForRequest(req => req.url().includes('/api/theses/7/experiments') && req.method() === 'POST')
+  await page.getByRole('button', { name: '运行并保存' }).click()
+  await request
 })

@@ -60,11 +60,27 @@ def _ensure_tables() -> None:
                 price_at_check REAL
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS thesis_experiments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                thesis_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                analysis_id INTEGER NOT NULL,
+                ticker TEXT NOT NULL,
+                strategy TEXT NOT NULL,
+                days INTEGER NOT NULL,
+                result TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_thesis_user ON investment_theses(user_id, status)"
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_thesis_check ON thesis_checks(thesis_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_thesis_experiment ON thesis_experiments(thesis_id, user_id)"
         )
 
 
@@ -197,7 +213,96 @@ def delete_thesis(thesis_id: int, user_id: int) -> bool:
         )
         if cur.rowcount:
             conn.execute("DELETE FROM thesis_checks WHERE thesis_id=?", (thesis_id,))
+            conn.execute("DELETE FROM thesis_experiments WHERE thesis_id=?", (thesis_id,))
         return cur.rowcount > 0
+
+
+def create_thesis_experiment(
+    thesis_id: int,
+    user_id: int,
+    strategy: str = "hold",
+    days: int = 250,
+) -> dict[str, Any]:
+    """关联最新分析并保存一次可复现的回测实验。"""
+    _ensure_tables()
+    thesis = get_thesis(thesis_id, user_id)
+    if thesis is None:
+        raise ValueError("投资论文不存在")
+
+    from . import backtest, memory
+
+    analysis = memory.get_latest_analysis(thesis["ticker"], user_id)
+    if analysis is None:
+        raise LookupError("请先完成该标的的投研分析")
+    backtest_result = backtest.run_backtest(
+        thesis["ticker"], strategy=strategy, days=days, enable_cost=True,
+    )
+    if backtest_result is None:
+        raise RuntimeError("回测数据不足")
+
+    summary = {
+        key: backtest_result.get(key)
+        for key in (
+            "period", "initial_capital", "final_value", "total_return",
+            "benchmark_return", "excess_return", "max_drawdown", "trades",
+            "win_rate", "sharpe_ratio", "sortino_ratio", "calmar_ratio",
+        )
+    }
+    summary["run_manifest"] = backtest_result.get("run_manifest", {})
+    analysis_result = analysis.get("result") or {}
+    summary["analysis"] = {
+        "run_id": analysis_result.get("run_id"),
+        "created_at": analysis.get("created_at"),
+        "consensus_score": analysis_result.get("consensus_score"),
+        "consensus_verdict": analysis_result.get("consensus_verdict"),
+    }
+    now = datetime.now().isoformat(timespec="seconds")
+    with _connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO thesis_experiments
+               (thesis_id, user_id, analysis_id, ticker, strategy, days, result, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                thesis_id, user_id, analysis["id"], thesis["ticker"], strategy, days,
+                json.dumps(summary, ensure_ascii=False), now,
+            ),
+        )
+        experiment_id = int(cur.lastrowid)
+    return get_thesis_experiment(experiment_id, user_id)
+
+
+def get_thesis_experiment(experiment_id: int, user_id: int) -> dict[str, Any] | None:
+    _ensure_tables()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM thesis_experiments WHERE id=? AND user_id=?",
+            (experiment_id, user_id),
+        ).fetchone()
+    return _row_to_experiment(row, user_id) if row else None
+
+
+def list_thesis_experiments(
+    thesis_id: int, user_id: int, limit: int = 10,
+) -> list[dict[str, Any]]:
+    _ensure_tables()
+    if get_thesis(thesis_id, user_id) is None:
+        return []
+    with _connect() as conn:
+        rows = conn.execute(
+            """SELECT * FROM thesis_experiments
+               WHERE thesis_id=? AND user_id=? ORDER BY id DESC LIMIT ?""",
+            (thesis_id, user_id, limit),
+        ).fetchall()
+    return [_row_to_experiment(row, user_id) for row in rows]
+
+
+def _row_to_experiment(row, user_id: int) -> dict[str, Any]:
+    from .reflection_engine import summarize_analysis_memos
+
+    item = dict(row)
+    item["result"] = json.loads(item.get("result") or "{}")
+    item["reflection"] = summarize_analysis_memos(item["analysis_id"], user_id)
+    return item
 
 
 # ---------- 证伪检查 ----------

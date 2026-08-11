@@ -33,6 +33,7 @@ def record_decision(
     summary: str,
     decision_date: str | None = None,
     user_id: int | None = None,
+    analysis_id: int | None = None,
 ) -> int:
     """记录一条决策到 reflection_memos（status=pending）。
 
@@ -55,16 +56,47 @@ def record_decision(
     summary = (summary or "")[:2000]
     try:
         with _connect() as conn:
+            columns = [r[1] for r in conn.execute("PRAGMA table_info(reflection_memos)").fetchall()]
+            if "analysis_id" not in columns:
+                conn.execute("ALTER TABLE reflection_memos ADD COLUMN analysis_id INTEGER")
             cur = conn.execute(
                 """INSERT INTO reflection_memos
-                   (user_id, ticker, role, decision_date, decision_score, decision_summary, status)
-                   VALUES (?, ?, ?, ?, ?, ?, 'pending')""",
-                (user_id, ticker, role, decision_date, score, summary),
+                   (user_id, analysis_id, ticker, role, decision_date, decision_score, decision_summary, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')""",
+                (user_id, analysis_id, ticker, role, decision_date, score, summary),
             )
             return int(cur.lastrowid)
     except Exception as e:
         logger.warning("record_decision 失败 ticker=%s role=%s: %s", ticker, role, e)
         return -1
+
+
+def summarize_analysis_memos(analysis_id: int, user_id: int) -> dict[str, Any]:
+    """汇总一次分析对应的事后反思状态。"""
+    try:
+        with _connect() as conn:
+            columns = [r[1] for r in conn.execute("PRAGMA table_info(reflection_memos)").fetchall()]
+            if "analysis_id" not in columns:
+                return {"total": 0, "pending": 0, "settled": 0, "verdicts": {}}
+            rows = conn.execute(
+                """SELECT status, verdict FROM reflection_memos
+                   WHERE analysis_id=? AND user_id=?""",
+                (analysis_id, user_id),
+            ).fetchall()
+    except Exception as e:
+        logger.warning("summarize_analysis_memos 失败 analysis_id=%s: %s", analysis_id, e)
+        rows = []
+    verdicts: dict[str, int] = {}
+    for row in rows:
+        verdict = row["verdict"]
+        if verdict:
+            verdicts[verdict] = verdicts.get(verdict, 0) + 1
+    return {
+        "total": len(rows),
+        "pending": sum(row["status"] == "pending" for row in rows),
+        "settled": sum(row["status"] == "settled" for row in rows),
+        "verdicts": verdicts,
+    }
 
 
 # ---------- 2. 结算 pending 决策 ----------

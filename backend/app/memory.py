@@ -78,6 +78,26 @@ def list_analyses(limit: int = 20, user_id: int | None = None) -> list[dict[str,
     return [dict(r) for r in rows]
 
 
+def get_latest_analysis(ticker: str, user_id: int) -> Optional[dict[str, Any]]:
+    """读取用户某标的最近一次已完成分析。"""
+    _ensure_user_id_column()
+    with _connect() as conn:
+        row = conn.execute(
+            """SELECT * FROM analyses
+               WHERE ticker=? AND user_id=? AND status='completed'
+               ORDER BY id DESC LIMIT 1""",
+            (ticker, user_id),
+        ).fetchone()
+    if row is None:
+        return None
+    out = dict(row)
+    try:
+        out["result"] = json.loads(out["result"]) if out["result"] else None
+    except json.JSONDecodeError:
+        out["result"] = None
+    return out
+
+
 def delete_analysis(analysis_id: int, user_id: int | None = None) -> bool:
     """删除投研分析记录。"""
     _ensure_user_id_column()

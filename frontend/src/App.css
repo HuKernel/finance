@@ -1503,6 +1503,14 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .thesis-invalidated-reason { margin-top: 8px; padding: 8px 12px; border: 1px solid var(--down); color: var(--down); font-size: 13px; }
 .thesis-checks { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .thesis-checks h4 { font-size: 13px; margin-bottom: 8px; color: var(--text-2); }
+.thesis-experiment-form { display: flex; gap: 10px; align-items: end; padding: 12px; margin-bottom: 10px; background: var(--surface-2); }
+.thesis-experiment-form > div { flex: 1; }
+.thesis-experiment-form .hint { margin: 0; }
+.thesis-experiment-form label { display: grid; gap: 4px; font-size: 11px; color: var(--text-3); }
+.thesis-experiment-form select { min-width: 100px; padding: 6px 8px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+.thesis-experiment-item { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); font-size: 12px; }
+.thesis-experiment-item .check-time { margin-left: 10px; }
+.thesis-experiment-metrics { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0; }
 .check-item { display: flex; gap: 12px; align-items: baseline; padding: 3px 0; font-size: 12px; }
 .check-time { color: var(--text-3); font-family: var(--mono); }
 .check-status.valid { color: var(--up); }
@@ -1524,6 +1532,11 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .drift-risks { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
 .risk-tag { font-size: 11px; padding: 2px 8px; border: 1px solid var(--down); color: var(--down); }
 .drift-summary { font-size: 13px; line-height: 1.5; color: var(--text-2); margin-top: 4px; }
+
+@media (max-width: 640px) {
+  .thesis-experiment-form { align-items: stretch; flex-direction: column; }
+  .thesis-experiment-form select { width: 100%; }
+}
 
 /* ==================== 全局弹窗 Modal ==================== */
 .toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }

@@ -29,7 +29,7 @@
 - **策略回测**：9种策略（MA均线交叉/双均线/MACD/KDJ/BOLL/RSI/网格/买入持有/AI情景模拟），含超额收益/最大回撤/胜率/权益曲线；规则策略按前收盘信号、次日开盘成交，计入滑点、佣金最低收费、印花税和过户费；每次运行可导出执行假设与数据/结果指纹
 - **回测深度分析**：蒙特卡洛模拟、分层测试、参数敏感度热力图、Walk-Forward验证、CPCV/PBO稳健性检验
 - **ML 信号诊断**：复用 18 维特征和三重壁垒标签，展示固定时间切分下的样本外买入精度、超额收益、特征重要性和质量警告
-- **投资论文追踪**：记录投资逻辑（thesis），定期检查偏离度（drift detection），支持手动结算
+- **投资论文追踪**：记录投资逻辑（thesis）和偏离度（drift detection）；可关联最近一次 AI 分析、可复现回测数据指纹及后续 Reflection 状态
 
 ### 预警与定时
 - **价格预警**：4种类型（价格突破/跌破、涨跌幅超限），30秒轮询 + 弹窗通知
@@ -234,7 +234,7 @@ frontend/
 | 信号诊断 | /api/ml-signal/{symbol} | ML样本外分类/策略/特征重要性诊断 |
 | 预警 | /api/alerts, /check, /{id}/reactivate | 预警CRUD/检查/重新激活 |
 | 知识库 | /api/knowledge/search, /stats | 历史投研检索/统计 |
-| 论文 | /api/theses, /api/thesis-drift/{ticker} | 投资论文/偏离检测 |
+| 论文 | /api/theses, /api/theses/{id}/experiments, /api/thesis-drift/{ticker} | 投资论文/回测实验/偏离检测 |
 | 反思 | /api/reflection/settle/{ticker} | 手动结算pending决策 |
 | 定时 | /api/scheduled-tasks | 定时分析任务管理 |
 | 市场数据 | /api/market/sectors, /screener, /margin, /north-flow | 板块/选股/融资/北向 |
