@@ -1,21 +1,23 @@
 # FinanceCrew - 多智能体金融投研平台
 
-多智能体驱动的 A股/港股/美股 投研平台：**对话式智能体 + 多智能体深度研报 + 实时行情可视化 + 投资组合管理 + 策略回测 + 投资论文追踪**。
+多智能体驱动的 A股/港股/美股 投研平台：**对话式智能体 + 多智能体深度研报 + 多市场行情可视化 + 投资组合管理 + 策略回测 + 投资论文追踪**。
 
 ## 核心功能
 
 ### 智能体
-- **智能对话**：LangGraph ReAct 智能体，自主调用 13 种工具（行情/K线/财务/龙虎榜/新闻/搜索/行业对比/情绪面/估值/投研流水线/历史投研搜索/网页搜索），基于真实数据回答
+- **智能对话**：LangGraph ReAct 智能体，自主调用 12 种工具（行情/K线/财务/龙虎榜/新闻/搜索/行业对比/情绪面/估值/投研流水线/历史投研搜索/网页搜索），基于真实数据回答
 - **意图识别**：自动检测用户消息中的分析意图（"分析茅台""调研苹果短线"），直接触发完整投研流水线
 - **长期记忆**：跨会话记住用户关注的标的和偏好（只从用户消息提取，不污染AI回复）
 - **多智能体投研**：5 位分析师（宏观/基本面/技术面/情绪面/资金面）独立研判 → 多空辩论 → 共识评分 → 风控审查 → 交易计划
 - **Agentic 模式**：分析师可自主调用工具（联网搜索、行情查询），不限于预设数据
 - **投研知识库**：搜索用户历史投研分析记录，AI 可引用过去的研究结论
+- **运行追踪**：每次投研保存 run ID、模型、节点时间线、Agentic 工具调用和最终状态；历史报告可展开查看，失败记录同样保留
 
 ### 行情与数据
-- **三市场覆盖**：A股/港股/美股实时行情、K线（日K/周K/月K/5分/15分/30分/60分 + 当日分时）、技术指标（MA/MACD/KDJ/BOLL/RSI/ATR/ADX）
-- **美股数据源**：Polygon.io（日K + 5分钟K线）+ 东财push2delay + 腾讯 + 新浪多接口fallback
+- **三市场覆盖**：A股/港股/美股行情、K线（日K/周K/月K/5分/15分/30分/60分 + 当日分时）、技术指标（MA/MACD/KDJ/BOLL/RSI/ATR/ADX）；实时性以页面元数据为准
+- **美股数据源**：日K使用新浪，分钟K使用 yfinance；当日分时按东财 → Polygon.io（可选 API Key）→ 腾讯 → 新浪顺序 fallback
 - **分时图**：A股/港股/美股分时，美股时间自动转北京时间，跨午夜时间轴正确映射
+- **数据可信层**：行情页展示行情源/图表源、数据截止时间、近实时/延迟/日终、复权方式、清洗行数和备用源状态
 - **自选股**：侧栏 watchlist + 行情卡片星标按钮，三处同步
 - **热门股票**：每日动态排序（涨幅前6），不固定列表
 - **情绪面分析**：A股用东财人气榜+雪球+量价资金；港股/美股用联网搜索获取舆情
@@ -24,7 +26,7 @@
 
 ### 投资管理
 - **投资组合**：持仓追踪（买入加权成本/卖出减仓）、实时盈亏、交易历史
-- **策略回测**：9种策略（MA均线交叉/双均线/MACD/KDJ/BOLL/RSI/网格/买入持有/AI情景模拟），含超额收益/最大回撤/胜率/权益曲线；每次运行可导出参数、执行假设与数据/结果指纹
+- **策略回测**：9种策略（MA均线交叉/双均线/MACD/KDJ/BOLL/RSI/网格/买入持有/AI情景模拟），含超额收益/最大回撤/胜率/权益曲线；规则策略按前收盘信号、次日开盘成交，计入滑点、佣金最低收费、印花税和过户费；每次运行可导出执行假设与数据/结果指纹
 - **回测深度分析**：蒙特卡洛模拟、分层测试、参数敏感度热力图、Walk-Forward验证、CPCV/PBO稳健性检验
 - **投资论文追踪**：记录投资逻辑（thesis），定期检查偏离度（drift detection），支持手动结算
 
@@ -44,8 +46,8 @@
 - **暗色/亮色主题**：一键切换
 - **自定义弹窗系统**：全局 toast（成功/失败/警告）+ confirm 确认框，不使用原生 alert/confirm
 - **ErrorBoundary**：组件级错误边界，单页崩溃不白屏
-- **移动端适配**：@media 断点（平板1024px/手机768px），导航横滑、表格滚动、表单单列
-- **K线图**：自绘SVG（日K蜡烛图+分时折线+多周期+多日分时），nice-number动态刻度，低对比度网格，十字光标跟随
+- **移动端适配**：@media 断点（平板1024px/手机768px），导航抽屉、对话列表折叠、表格滚动、表单单列
+- **K线图**：基于 lightweight-charts（日K蜡烛图+分时折线+成交量+MACD/KDJ+多周期+多日分时），支持十字光标、缩放和全屏
 - **懒加载**：katex/backtest图表按需加载，减小首屏体积
 - **PDF导出**：投研报告打印优化
 - **Docker部署**：多阶段构建，一行启动
@@ -60,7 +62,7 @@
 cd backend
 uv venv .venv
 uv pip install -r requirements.txt
-# 可选：启用 Polygon 美股数据 fallback
+# 可选：启用 Polygon 美股分时 fallback
 # 在项目根目录 .env 中填写：POLYGON_API_KEY=你的新API Key
 .venv/Scripts/python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
@@ -101,6 +103,7 @@ backend/
     portfolio.py         # 投资组合管理
     alert.py             # 价格预警系统
     tools.py             # 智能体工具集（12种工具）
+    analysis_trace.py    # 投研运行追踪（run ID/节点/工具/耗时）
     scheduler.py         # 定时分析调度器
     reflection_engine.py # 反思引擎（决策记录 + N天结算）
     thesis_tracker.py    # 投资论文追踪 + 偏离检测
@@ -166,6 +169,7 @@ backend/
       cpcv.py            # 组合交叉验证
       pbo.py             # 过拟合概率
       full_analysis.py   # 完整分析流水线
+    ml_signal/           # ML信号诊断（特征/标签/时序切分/训练/评估）
   test/                  # pytest 单元测试
 frontend/
   src/
@@ -173,7 +177,8 @@ frontend/
     ChatPage.tsx         # 智能对话（流式 + 热门轮播 + 行情卡片）
     QuotePage.tsx        # 行情页（K线 + 对比 + 分时实时刷新）
     QuoteCard.tsx        # 行情卡片（K线/分时切换 + 星标）
-    KLineChart.tsx       # SVG 蜡烛图（日K/分时/MACD/KDJ/多周期/跨午夜/十字光标）
+    KLineChart.tsx       # lightweight-charts（日K/分时/MACD/KDJ/多周期/跨午夜）
+    marketTime.ts        # 交易所时间到图表时间的无偏移映射
     Markdown.tsx         # Markdown 渲染（katex懒加载）
     BacktestPage.tsx     # 策略回测（图表懒加载）
     BacktestAnalysis.tsx # 回测深度分析
@@ -189,18 +194,17 @@ frontend/
     AlertBell.tsx        # 全局预警
     LoginPage.tsx        # 登录/注册
 .github/workflows/
-  ci.yml                 # CI（后端 pytest + 前端 build + Docker build）
+  ci.yml                 # CI（后端 pytest + 前端 lint/build/Playwright + Docker build）
 ```
 
-## 智能体工具（13种）
+## 智能体工具（12种）
 
 | 工具 | 功能 | A股 | 港股 | 美股 |
 |------|------|:---:|:---:|:---:|
-| get_quote | 实时行情快照 | OK | OK | OK |
+| get_quote | 近实时行情快照 | OK | OK | OK |
 | get_kline | K线数据（多周期） | OK | OK | OK |
 | get_financials | 财务摘要 | OK | OK | OK |
 | get_news | 个股新闻 | OK | OK | OK |
-| get_market_news | 实时财经快讯 | OK | OK | OK |
 | search_stock | 搜索股票代码 | OK | OK | OK |
 | web_search | 联网搜索（DuckDuckGo） | OK | OK | OK |
 | compare_industry | 行业对比 | OK | OK | OK |
@@ -217,7 +221,7 @@ frontend/
 | 认证 | /api/auth/register, /login, /me, /profile, /change-password | 注册/登录/用户画像/密码 |
 | LLM配置 | /api/auth/llm-config | per-user LLM Key（加密） |
 | 对话 | /api/chat, /api/chat/stream, /api/chat/session(s) | ReAct 智能体 + SSE + 会话管理 |
-| 投研 | /api/analysis, /api/analysis/stream | 多智能体分析（SSE流式） |
+| 投研 | /api/analysis, /api/analysis/stream | 多智能体分析（SSE流式 + 持久化运行追踪） |
 | 行情 | /api/quote/{symbol}, /api/search/{q}, /api/hot | 行情/K线/搜索/热门 |
 | 新闻 | /api/news/{symbol}, /api/flash | 个股新闻/快讯 |
 | 行业 | /api/industry/{symbol}, /api/industry/peers | 行业对比/同行管理 |
