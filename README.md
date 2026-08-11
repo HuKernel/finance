@@ -12,6 +12,7 @@
 - **Agentic 模式**：分析师可自主调用工具（联网搜索、行情查询），不限于预设数据
 - **投研知识库**：搜索用户历史投研分析记录，AI 可引用过去的研究结论
 - **运行追踪**：每次投研保存 run ID、模型、节点时间线、Agentic 工具调用和最终状态；历史报告可展开查看，失败记录同样保留
+- **多模型对比**：最多 5 个 OpenAI 兼容模型并发调用，分别返回耗时、Provider usage、可选成本和证据完整度启发式；单模型失败不影响其他结果
 - **报告证据分层**：报告明确标注原始事实、确定性计算和 AI 判断，并保存数据源、截止时间、复权口径、关键假设与报告版本
 
 ### 行情与数据
@@ -241,7 +242,7 @@ frontend/
 | 反思 | /api/reflection/settle/{ticker} | 手动结算pending决策 |
 | 定时 | /api/scheduled-tasks | 定时分析任务管理 |
 | 市场数据 | /api/market/sectors, /screener, /margin, /north-flow | 板块/选股/融资/北向 |
-| LLM对比 | /api/llm-compare | 多模型对比 |
+| LLM对比 | /api/llm-compare | 并行对比耗时/token/可选成本/证据指标 |
 
 ## 免责声明
 

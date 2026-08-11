@@ -227,8 +227,8 @@ export const api = {
     request<T>(`/api/ml-signal/${encodeURIComponent(symbol)}?days=${days}&model=${model}`),
 
   // 多LLM对比
-  compareLLM: (prompt: string, models: { name: string; base_url: string; api_key: string; model: string }[]) =>
-    request<{ results: { name: string; model: string; response: string; latency_ms: number; error: string }[] }>(
+  compareLLM: (prompt: string, models: { name: string; base_url: string; api_key: string; model: string; input_cost_per_million?: number; output_cost_per_million?: number }[]) =>
+    request<{ results: { name: string; model: string; response: string; latency_ms: number; usage: { input_tokens: number; output_tokens: number; total_tokens: number } | null; cost_usd: number | null; cost_status: string; evidence: { citation_count: number; numeric_claim_count: number; completeness_score: number | null; status: string; method: string }; error: string }[]; execution: { mode: string; model_count: number; wall_latency_ms: number } }>(
       '/api/llm-compare', { method: 'POST', body: JSON.stringify({ prompt, models }) }
     ),
 

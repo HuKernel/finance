@@ -1,6 +1,8 @@
 """路由模块: system"""
 from __future__ import annotations
 from typing import Any
+import asyncio
+import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -82,9 +84,19 @@ async def llm_compare_api(request: Request, user: dict[str, Any] = Depends(get_c
     body = await request.json()
     prompt = body.get("prompt", "").strip()
     models = body.get("models", [])
-    if not prompt or not models:
+    if not prompt or not isinstance(models, list) or not models:
         raise HTTPException(400, "请提供prompt和models列表")
-    results = llm_compare.compare_models(prompt, models)
-    return {"results": results}
+    if len(models) > 5 or not all(isinstance(model, dict) for model in models):
+        raise HTTPException(400, "models 必须是最多5项的对象列表")
+    started = time.perf_counter()
+    results = await asyncio.to_thread(compare_models, prompt, models)
+    return {
+        "results": results,
+        "execution": {
+            "mode": "parallel",
+            "model_count": len(models),
+            "wall_latency_ms": int((time.perf_counter() - started) * 1000),
+        },
+    }
 
 
