@@ -78,6 +78,9 @@ class AgenticAnalyst(Agent):
         )
 
         # LangChain原生工具调用循环
+        knowledge = context.get("knowledge_context") or ""
+        if knowledge:
+            system += f"\n\n{knowledge}"
         messages: list[Any] = [
             SystemMessage(content=system),
             HumanMessage(content=f"请分析标的: {ticker}"),
@@ -145,6 +148,9 @@ class AgenticAnalyst(Agent):
             "调用格式: TOOL: 工具名\n"
             '最终结论: {"score": 0, "summary": "...", "evidence": [], "risk_points": []}'
         )
+        knowledge = context.get("knowledge_context") or ""
+        if knowledge:
+            system += f"\n\n{knowledge}"
         tool_results: list[str] = []
         response = ""
         for i in range(MAX_TOOL_CALLS):

@@ -65,12 +65,12 @@ def reactivate_alert_api(alert_id: int, user: dict[str, Any] = Depends(get_curre
 
 
 @router.post("/api/alerts/check")
-def check_alerts_api() -> dict[str, Any]:
+def check_alerts_api(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     """扫描所有 active 预警（定时轮询触发），返回新触发的预警列表。
 
     前端每30秒轮询此端点，收到触发的预警后弹出通知。
     """
-    triggered = alert.check_alerts()
+    triggered = alert.check_alerts(user["id"])
     return {"triggered": triggered, "count": len(triggered)}
 
 

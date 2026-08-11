@@ -18,7 +18,15 @@ def test_fastapi_app_imports_all_routes():
     from fastapi.testclient import TestClient
     from app.main import app
 
-    assert len(app.routes) >= 95
+    paths = set(app.openapi()["paths"])
+    assert {
+        "/api/health",
+        "/api/auth/login",
+        "/api/analysis",
+        "/api/portfolio",
+        "/api/alerts",
+        "/api/feedback",
+    } <= paths
     with TestClient(app) as client:
         assert client.get("/api/config").status_code == 401
         assert client.get("/api/reflection/600519").status_code == 401

@@ -20,6 +20,16 @@ def get_portfolio_api(user: dict[str, Any] = Depends(get_current_user)) -> dict[
     return portfolio.get_portfolio(user["id"])
 
 
+@router.get("/api/company-events")
+def company_events_api(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    from ..company_events import list_company_events
+
+    try:
+        return list_company_events(user["id"])
+    except Exception as exc:
+        raise HTTPException(503, f"公司事件数据暂不可用: {exc}") from exc
+
+
 
 @router.post("/api/portfolio/buy")
 async def buy_api(request: Request, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
@@ -40,7 +50,8 @@ async def buy_api(request: Request, user: dict[str, Any] = Depends(get_current_u
         brief = datalayer.get_stock_brief(resolved)
         name = brief.get("name", resolved) if brief else resolved
     result = portfolio.buy_stock(user["id"], resolved, name, shares, price,
-                                 body.get("date", ""), body.get("note", ""))
+                                 body.get("date", ""), body.get("note", ""),
+                                 max(0, float(body.get("fee", 0))))
     if "error" in result:
         raise HTTPException(400, result["error"])
     return result
@@ -58,7 +69,8 @@ async def sell_api(request: Request, user: dict[str, Any] = Depends(get_current_
     if shares <= 0 or price <= 0:
         raise HTTPException(400, "数量和价格必须大于0")
     result = portfolio.sell_stock(user["id"], resolved, shares, price,
-                                  body.get("date", ""), body.get("note", ""))
+                                  body.get("date", ""), body.get("note", ""),
+                                  max(0, float(body.get("fee", 0))))
     if "error" in result:
         raise HTTPException(400, result["error"])
     return result
@@ -79,6 +91,18 @@ def transactions_api(user: dict[str, Any] = Depends(get_current_user)) -> list[d
     return portfolio.list_transactions(user["id"])
 
 
+@router.delete("/api/portfolio/transactions/{transaction_id}")
+def delete_transaction_api(
+    transaction_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    try:
+        ok = portfolio.delete_transaction(transaction_id, user["id"])
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"status": "ok" if ok else "not_found"}
+
+
 # ---------- 回测系统 ----------
 
 
@@ -90,7 +114,11 @@ def list_peers() -> list[dict[str, Any]]:
 
 
 @router.put("/api/peers/{code}")
-async def save_peer(code: str, request: Request) -> dict[str, str]:
+async def save_peer(
+    code: str,
+    request: Request,
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict[str, str]:
     """新增或更新行业同行映射。"""
     body = await request.json()
     chat_service.save_peers(code, body.get("name", code), body.get("peers", []))
@@ -99,7 +127,10 @@ async def save_peer(code: str, request: Request) -> dict[str, str]:
 
 
 @router.delete("/api/peers/{code}")
-def delete_peer(code: str) -> dict[str, str]:
+def delete_peer(
+    code: str,
+    _admin: dict[str, Any] = Depends(require_admin),
+) -> dict[str, str]:
     """删除行业同行映射。"""
     ok = chat_service.delete_peers(code)
     return {"status": "ok" if ok else "not_found"}

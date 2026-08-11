@@ -429,26 +429,10 @@ def _save_result(task_id: int, user_id: int, results: dict[str, Any]) -> None:
 
 
 def _notify_user(user_id: int, task: dict[str, Any], summary: str) -> None:
-    """通过聊天系统给用户发一条系统消息，告知定时分析结果。
+    """持久化定时分析完成通知。"""
+    from .notifications import create_notification
 
-    创建一个新的聊天session，以系统消息形式存储分析摘要。
-    用户下次打开聊天页面时可以看到。
-    """
-    try:
-        from .chat import create_session, save_message
-        session_id = create_session(
-            user_id,
-            f"定时分析 {datetime.now().strftime('%m-%d %H:%M')} {task['name']}"
-        )
-        msg = (
-            f"【定时分析完成】{task['name']}\n"
-            f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-            f"结果:\n{summary}\n"
-            f"详细结果请到「定时分析」页面查看。"
-        )
-        save_message(session_id, "assistant", msg)
-    except Exception as e:
-        logger.warning("创建通知session失败: %s", e)
+    create_notification(user_id, "scheduler", f"定时分析完成：{task['name']}", summary, "scheduler")
 
 
 # ---------- utils ----------

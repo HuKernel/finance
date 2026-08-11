@@ -5,23 +5,32 @@ import type { PortfolioPosition, PortfolioSummary, TransactionItem } from './typ
 
 // 投资组合页面
 export default function PortfolioPage() {
-  const { toast } = useModal()
+  const { toast, confirm } = useModal()
   const [positions, setPositions] = useState<PortfolioPosition[]>([])
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [transactions, setTransactions] = useState<TransactionItem[]>([])
+  const [events, setEvents] = useState<{ symbol: string; name: string; period: string; date: string; status: string }[]>([])
+  const [loadError, setLoadError] = useState('')
+  const [eventsError, setEventsError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [view, setView] = useState<'holdings' | 'history'>('holdings')
 
   const load = async () => {
     try {
+      setLoadError('')
       const [p, t] = await Promise.all([api.getPortfolio(), api.getTransactions()])
       setPositions(p.positions)
       setSummary(p.summary)
       setTransactions(t)
-    } catch { /* ignore */ }
+    } catch (error) { setLoadError(error instanceof Error ? error.message : '组合数据加载失败') }
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    api.getCompanyEvents()
+      .then(result => setEvents(result.items))
+      .catch(error => setEventsError(error instanceof Error ? error.message : '公司事件加载失败'))
+  }, [])
 
   // 15秒定时刷新盈亏
   useEffect(() => {
@@ -29,8 +38,9 @@ export default function PortfolioPage() {
     return () => clearInterval(timer)
   }, [])
 
-  const handleRemove = async (symbol: string) => {
-    try { await api.removePosition(symbol); load() } catch { toast('删除失败', 'error') }
+  const handleDeleteTransaction = async (id: number) => {
+    if (!await confirm('确定撤销这笔交易吗？持仓会按剩余流水重新计算。', { danger: true, confirmText: '撤销' })) return
+    try { await api.deleteTransaction(id); await load() } catch (e: any) { toast(e.message || '撤销失败', 'error') }
   }
 
   return (
@@ -41,6 +51,7 @@ export default function PortfolioPage() {
           {showForm ? '取消' : '+ 记录交易'}
         </button>
       </div>
+      {loadError && <div className="error-box">{loadError}</div>}
 
       {summary && (
         <div className="portfolio-summary">
@@ -66,8 +77,27 @@ export default function PortfolioPage() {
           </div>
         </div>
       )}
+      {summary && summary.unpriced_count > 0 && (
+        <div className="alert-error">{summary.unpriced_count} 项持仓暂时无法获取行情，总市值和总盈亏仅统计有报价的持仓。</div>
+      )}
 
       {showForm && <TradeForm onDone={() => { setShowForm(false); load() }} />}
+
+      {events.length > 0 && (
+        <details className="company-events">
+          <summary>公司事件日历（{events.length}）</summary>
+          <div className="company-event-list">
+            {events.map(event => (
+              <div key={`${event.symbol}-${event.period}`}>
+                <strong>{event.date || '日期待定'}</strong>
+                <span>{event.name}（{event.symbol}）</span>
+                <em>{event.status}</em>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      {eventsError && <div className="hint">公司事件日历暂不可用：{eventsError}</div>}
 
       <div className="portfolio-tabs">
         <button className={view === 'holdings' ? 'active' : ''} onClick={() => setView('holdings')}>持仓</button>
@@ -78,12 +108,12 @@ export default function PortfolioPage() {
         <table className="portfolio-table">
           <thead>
             <tr>
-              <th>股票</th><th>持仓</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th><th>收益率</th><th></th>
+              <th>股票</th><th>持仓</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th><th>收益率</th>
             </tr>
           </thead>
           <tbody>
             {positions.length === 0 && (
-              <tr><td colSpan={8} className="empty-row">暂无持仓，点击"记录交易"添加</td></tr>
+              <tr><td colSpan={7} className="empty-row">暂无持仓，点击"记录交易"添加</td></tr>
             )}
             {positions.map(p => (
               <tr key={p.id}>
@@ -98,7 +128,6 @@ export default function PortfolioPage() {
                 <td className={p.pnl_pct != null && p.pnl_pct >= 0 ? 'up' : 'down'}>
                   {p.pnl_pct != null ? (p.pnl_pct >= 0 ? '+' : '') + p.pnl_pct + '%' : '-'}
                 </td>
-                <td><button className="pf-del" onClick={() => handleRemove(p.symbol)}>x</button></td>
               </tr>
             ))}
           </tbody>
@@ -106,11 +135,11 @@ export default function PortfolioPage() {
       ) : (
         <table className="portfolio-table">
           <thead>
-            <tr><th>日期</th><th>股票</th><th>操作</th><th>数量</th><th>价格</th><th>金额</th></tr>
+            <tr><th>日期</th><th>股票</th><th>操作</th><th>数量</th><th>价格</th><th>手续费</th><th>净额</th><th></th></tr>
           </thead>
           <tbody>
             {transactions.length === 0 && (
-              <tr><td colSpan={6} className="empty-row">暂无交易记录</td></tr>
+              <tr><td colSpan={8} className="empty-row">暂无交易记录</td></tr>
             )}
             {transactions.map(t => (
               <tr key={t.id}>
@@ -119,7 +148,9 @@ export default function PortfolioPage() {
                 <td className={t.action === 'buy' ? 'up' : 'down'}>{t.action === 'buy' ? '买入' : '卖出'}</td>
                 <td>{t.shares}</td>
                 <td>{t.price}</td>
+                <td>{t.fee || 0}</td>
                 <td>{t.total.toLocaleString()}</td>
+                <td><button className="pf-del" onClick={() => handleDeleteTransaction(t.id)}>撤销</button></td>
               </tr>
             ))}
           </tbody>
@@ -134,6 +165,9 @@ function TradeForm({ onDone }: { onDone: () => void }) {
   const [action, setAction] = useState<'buy' | 'sell'>('buy')
   const [shares, setShares] = useState('')
   const [price, setPrice] = useState('')
+  const [fee, setFee] = useState('')
+  const [date, setDate] = useState('')
+  const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -142,11 +176,11 @@ function TradeForm({ onDone }: { onDone: () => void }) {
     setLoading(true); setError('')
     try {
       if (action === 'buy') {
-        await api.buyStock(symbol.trim(), parseFloat(shares), parseFloat(price))
+        await api.buyStock(symbol.trim(), parseFloat(shares), parseFloat(price), date, parseFloat(fee) || 0, note)
       } else {
-        await api.sellStock(symbol.trim(), parseFloat(shares), parseFloat(price))
+        await api.sellStock(symbol.trim(), parseFloat(shares), parseFloat(price), date, parseFloat(fee) || 0, note)
       }
-      setSymbol(''); setShares(''); setPrice('')
+      setSymbol(''); setShares(''); setPrice(''); setFee(''); setDate(''); setNote('')
       onDone()
     } catch (e: any) { setError(e.message || '操作失败') }
     finally { setLoading(false) }
@@ -161,6 +195,9 @@ function TradeForm({ onDone }: { onDone: () => void }) {
       </select>
       <input className="alert-input" placeholder="数量（股）" type="number" value={shares} onChange={e => setShares(e.target.value)} />
       <input className="alert-input" placeholder="价格" type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} />
+      <input className="alert-input" placeholder="手续费（可选）" type="number" min="0" step="0.01" value={fee} onChange={e => setFee(e.target.value)} />
+      <input className="alert-input" aria-label="交易日期" type="date" value={date} onChange={e => setDate(e.target.value)} />
+      <input className="alert-input" placeholder="备注（可选）" value={note} onChange={e => setNote(e.target.value)} />
       {error && <span className="alert-error">{error}</span>}
       <button className="btn-primary" onClick={submit} disabled={loading}>{loading ? '处理中...' : '确认'}</button>
     </div>

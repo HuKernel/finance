@@ -3,7 +3,7 @@ import type {
   AnalysisResult, AuthResponse, ChatMessage, ChatReply, ChatSession,
   HistoryItem, LLMConfig, NewsItem, QuoteResponse, SearchItem, UserProfile,
   AlertItem, SentimentData, DCFResult, PortfolioPosition, PortfolioSummary,
-  TransactionItem, BacktestResult, DataMetadata,
+  TransactionItem, BacktestResult, DataMetadata, NotificationItem,
 } from './types'
 
 const TOKEN_KEY = 'financecrew_token'
@@ -114,7 +114,8 @@ export const api = {
     request<{ id: number; status: string }>('/api/feedback', {
       method: 'POST', body: JSON.stringify(body),
     }),
-  listFeedback: () => request<any[]>('/api/feedback'),
+  listFeedback: (page: number = 1, pageSize: number = 10) =>
+    request<{ items: any[]; total: number; page: number; page_size: number }>(`/api/feedback?page=${page}&page_size=${pageSize}`),
 
   // 认证
   register: (username: string, password: string, inviteCode?: string) =>
@@ -196,6 +197,15 @@ export const api = {
   checkAlerts: () =>
     request<{ triggered: AlertItem[]; count: number }>('/api/alerts/check', { method: 'POST' }),
 
+  listNotifications: () =>
+    request<{ items: NotificationItem[]; unread: number }>('/api/notifications'),
+
+  markNotificationsRead: () =>
+    request<{ status: string }>('/api/notifications/read-all', { method: 'POST' }),
+
+  deleteNotification: (id: number) =>
+    request<{ status: string }>(`/api/notifications/${id}`, { method: 'DELETE' }),
+
   // 情绪面数据
   getSentiment: (symbol: string) =>
     request<SentimentData>(`/api/sentiment/${symbol}`),
@@ -208,14 +218,17 @@ export const api = {
   getPortfolio: () =>
     request<{ positions: PortfolioPosition[]; summary: PortfolioSummary }>(`/api/portfolio`),
 
-  buyStock: (symbol: string, shares: number, price: number, date?: string) =>
+  getCompanyEvents: () =>
+    request<{ items: { symbol: string; name: string; period: string; date: string; status: string }[]; periods: string[]; source: string; as_of: string }>('/api/company-events'),
+
+  buyStock: (symbol: string, shares: number, price: number, date?: string, fee: number = 0, note: string = '') =>
     request<{ symbol: string; action: string }>(`/api/portfolio/buy`, {
-      method: 'POST', body: JSON.stringify({ symbol, shares, price, date: date || '' }),
+      method: 'POST', body: JSON.stringify({ symbol, shares, price, date: date || '', fee, note }),
     }),
 
-  sellStock: (symbol: string, shares: number, price: number, date?: string) =>
+  sellStock: (symbol: string, shares: number, price: number, date?: string, fee: number = 0, note: string = '') =>
     request<{ symbol: string; action: string }>(`/api/portfolio/sell`, {
-      method: 'POST', body: JSON.stringify({ symbol, shares, price, date: date || '' }),
+      method: 'POST', body: JSON.stringify({ symbol, shares, price, date: date || '', fee, note }),
     }),
 
   removePosition: (symbol: string) =>
@@ -223,6 +236,9 @@ export const api = {
 
   getTransactions: () =>
     request<TransactionItem[]>(`/api/portfolio/transactions`),
+
+  deleteTransaction: (id: number) =>
+    request<{ status: string }>(`/api/portfolio/transactions/${id}`, { method: 'DELETE' }),
 
   // 回测
   getBacktest: (symbol: string, strategy: string, days: number, enable_cost: number = 1, params?: Record<string, any>) => {
@@ -267,7 +283,8 @@ export const api = {
   createInvite: (note: string) => request<{ code: string }>('/api/admin/invite-codes', { method: 'POST', body: JSON.stringify({ note }) }),
   adminInvites: () => request<any[]>('/api/admin/invite-codes'),
   adminAuditLogs: () => request<any[]>('/api/admin/audit-logs'),
-  adminFeedback: () => request<any[]>('/api/admin/feedback'),
+  adminFeedback: (page: number = 1, pageSize: number = 20) =>
+    request<{ items: any[]; total: number; page: number; page_size: number }>(`/api/admin/feedback?page=${page}&page_size=${pageSize}`),
   updateFeedback: (id: number, body: { status?: string; reply?: string }) =>
     request<{ status: string }>(`/api/admin/feedback/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteFeedback: (id: number) =>

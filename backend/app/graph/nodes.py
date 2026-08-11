@@ -126,6 +126,12 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         ctx["reflection_memory"] = build_memory_block(ticker, user_id) if user_id else ""
     except Exception:
         ctx["reflection_memory"] = ""
+    try:
+        from ..knowledge_base import build_knowledge_context
+
+        ctx["knowledge_context"] = build_knowledge_context(user_id, ticker) if user_id else ""
+    except Exception:
+        ctx["knowledge_context"] = ""
     return {"context": ctx}
 
 

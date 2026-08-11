@@ -94,32 +94,40 @@ def create_feedback(
 @router.get("/api/feedback")
 def list_own_feedback(
     user: dict = Depends(get_current_user),
-) -> list[dict[str, Any]]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=50),
+) -> dict[str, Any]:
     _ensure_table()
     with _connect() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM user_feedback WHERE user_id = ?",
+            (user["id"],),
+        ).fetchone()[0]
         rows = conn.execute(
             """SELECT id, category, content, page, status, created_at, admin_reply
-               FROM user_feedback WHERE user_id = ? ORDER BY id DESC""",
-            (user["id"],),
+               FROM user_feedback WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?""",
+            (user["id"], page_size, (page - 1) * page_size),
         ).fetchall()
-    return [dict(row) for row in rows]
+    return {"items": [dict(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/api/admin/feedback")
 def list_feedback(
     _admin: dict = Depends(require_admin),
-    limit: int = Query(default=100, ge=1, le=500),
-) -> list[dict[str, Any]]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> dict[str, Any]:
     _ensure_table()
     with _connect() as conn:
+        total = conn.execute("SELECT COUNT(*) FROM user_feedback").fetchone()[0]
         rows = conn.execute(
             """SELECT f.*, COALESCE(u.username, '已删除用户') AS username
                FROM user_feedback f
                LEFT JOIN users u ON u.id = f.user_id
-               ORDER BY f.id DESC LIMIT ?""",
-            (limit,),
+               ORDER BY f.id DESC LIMIT ? OFFSET ?""",
+            (page_size, (page - 1) * page_size),
         ).fetchall()
-    return [dict(row) for row in rows]
+    return {"items": [dict(row) for row in rows], "total": total, "page": page, "page_size": page_size}
 
 
 @router.patch("/api/admin/feedback/{feedback_id}")
@@ -130,6 +138,7 @@ def update_feedback(
 ) -> dict[str, str]:
     _ensure_table()
     with _connect() as conn:
+        row = conn.execute("SELECT user_id FROM user_feedback WHERE id=?", (feedback_id,)).fetchone()
         cursor = conn.execute(
             """UPDATE user_feedback
                SET status = COALESCE(?, status),
@@ -139,6 +148,10 @@ def update_feedback(
         )
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="反馈不存在")
+    if row and (body.reply is not None or body.status is not None):
+        from ..notifications import create_notification
+        message = body.reply or f"你的反馈状态已更新为 {body.status}"
+        create_notification(row["user_id"], "feedback", "反馈有新进展", message, "feedback")
     return {"status": "updated"}
 
 

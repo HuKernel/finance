@@ -98,7 +98,7 @@ def test_check_alerts():
             threshold=0.01,
         )
 
-        triggered = check_alerts()
+        triggered = check_alerts(TEST_USER_ID)
         assert isinstance(triggered, list)
 
         # 网络正常时，应能找到我们创建的预警
@@ -128,7 +128,7 @@ def test_reactivate():
         alert_id = created["id"]
 
         # 触发它
-        check_alerts()
+        check_alerts(TEST_USER_ID)
         alerts = list_alerts(TEST_USER_ID)
         target = [a for a in alerts if a["id"] == alert_id]
         if not target or target[0]["status"] != "triggered":
@@ -180,3 +180,24 @@ def test_technical_alert():
         assert "volume_surge" in types
     finally:
         _cleanup_alerts(TEST_USER_ID)
+
+
+def test_check_alerts_only_scans_current_user(monkeypatch):
+    other_user_id = TEST_USER_ID + 1
+    _cleanup_alerts(TEST_USER_ID)
+    _cleanup_alerts(other_user_id)
+    try:
+        create_alert(TEST_USER_ID, "600519", "A", "price_above", 1)
+        create_alert(other_user_id, "600519", "B", "price_above", 1)
+        monkeypatch.setattr(
+            "app.data.fetcher.get_stock_brief",
+            lambda *args, **kwargs: {"price": 10, "change_pct": 0},
+        )
+
+        triggered = check_alerts(TEST_USER_ID)
+
+        assert {item["user_id"] for item in triggered} == {TEST_USER_ID}
+        assert list_alerts(other_user_id)[0]["status"] == "active"
+    finally:
+        _cleanup_alerts(TEST_USER_ID)
+        _cleanup_alerts(other_user_id)

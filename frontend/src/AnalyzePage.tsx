@@ -250,6 +250,8 @@ function AnalyzePane({ onBacktest, onQuote }: { onBacktest: () => void; onQuote:
 }
 
 function ReportView({ result }: { result: AnalysisResult }) {
+  const { toast } = useModal()
+  const [actionBusy, setActionBusy] = useState('')
   const score = result.consensus_score
   const trend = score >= 3 ? '偏多' : score <= -3 ? '偏空' : '中性'
   const plan = result.trade_plan
@@ -261,6 +263,55 @@ function ReportView({ result }: { result: AnalysisResult }) {
   const changePct = result.change_pct
   const trace = result.raw?.trace
   const evidence = result.raw?.report
+
+  const saveThesis = async () => {
+    setActionBusy('thesis')
+    try {
+      await api.createThesis({
+        ticker: result.ticker,
+        name: result.name || result.ticker,
+        thesis_text: [result.consensus_verdict, plan?.reasoning].filter(Boolean).join('\n\n'),
+        key_assumptions: result.analyst_views.flatMap(view => view.evidence).slice(0, 6),
+        invalidation_conditions: [
+          ...(plan?.risk_warnings || []),
+          ...result.analyst_views.flatMap(view => view.risk_points),
+        ].slice(0, 6),
+        score: result.consensus_score,
+      })
+      toast('已保存为投资论文', 'success')
+    } catch (error) { toast(error instanceof Error ? error.message : '保存失败', 'error') }
+    finally { setActionBusy('') }
+  }
+
+  const createPlanAlerts = async () => {
+    const rules = [
+      plan?.target_price ? ['price_above', plan.target_price] as const : null,
+      plan?.stop_loss ? ['price_below', plan.stop_loss] as const : null,
+    ].filter(Boolean) as [string, number][]
+    if (!rules.length) return toast('这份报告没有目标价或止损价', 'warning')
+    setActionBusy('alerts')
+    try {
+      await Promise.all(rules.map(([type, threshold]) =>
+        api.createAlert(result.ticker, result.name || result.ticker, type, threshold)))
+      toast(`已创建 ${rules.length} 条价格预警`, 'success')
+    } catch (error) { toast(error instanceof Error ? error.message : '创建失败', 'error') }
+    finally { setActionBusy('') }
+  }
+
+  const scheduleTracking = async () => {
+    setActionBusy('schedule')
+    try {
+      await api.createScheduledTask({
+        name: `${result.name || result.ticker} 每日跟踪`,
+        symbols: [result.ticker],
+        mode: 'standard',
+        cron_hour: 9,
+        cron_minute: 30,
+      })
+      toast('已创建交易日 09:30 的每日跟踪', 'success')
+    } catch (error) { toast(error instanceof Error ? error.message : '创建失败', 'error') }
+    finally { setActionBusy('') }
+  }
 
   return (
     <div className="report">
@@ -296,6 +347,18 @@ function ReportView({ result }: { result: AnalysisResult }) {
           <div className="kpi-value">{result.analyst_views.length}</div>
           <div className="kpi-sub">五位角色独立研判</div>
         </div>
+      </div>
+
+      <div className="report-actions">
+        <button className="ghost" disabled={!!actionBusy} onClick={saveThesis}>
+          {actionBusy === 'thesis' ? '保存中...' : '保存为投资论文'}
+        </button>
+        <button className="ghost" disabled={!!actionBusy} onClick={createPlanAlerts}>
+          {actionBusy === 'alerts' ? '创建中...' : '按交易计划创建预警'}
+        </button>
+        <button className="ghost" disabled={!!actionBusy} onClick={scheduleTracking}>
+          {actionBusy === 'schedule' ? '创建中...' : '每日 09:30 跟踪'}
+        </button>
       </div>
 
       {evidence && <ReportEvidenceView evidence={evidence} />}

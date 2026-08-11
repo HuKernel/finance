@@ -1,16 +1,18 @@
 import { useEffect, useState, useRef } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
-import type { AlertItem, SearchItem } from './types'
+import type { AlertItem, NotificationItem, SearchItem } from './types'
 
 // 全局预警通知：铃铛图标 + 轮询检查 + 弹窗通知
 export default function AlertBell() {
   const { toast } = useModal()
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [showPanel, setShowPanel] = useState(false)
-  const [notifications, setNotifications] = useState<AlertItem[]>([])
+  const [popupAlerts, setPopupAlerts] = useState<AlertItem[]>([])
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [unread, setUnread] = useState(0)
   const [showNotif, setShowNotif] = useState(false)
-  const [panelTab, setPanelTab] = useState<'active' | 'triggered'>('active')
+  const [panelTab, setPanelTab] = useState<'notifications' | 'active' | 'triggered'>('notifications')
   const pollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
 
   const loadAlerts = async () => {
@@ -20,15 +22,25 @@ export default function AlertBell() {
     } catch { /* ignore */ }
   }
 
+  const loadNotifications = async () => {
+    try {
+      const data = await api.listNotifications()
+      setNotifications(data.items)
+      setUnread(data.unread)
+    } catch { /* ignore */ }
+  }
+
   useEffect(() => {
     loadAlerts()
+    loadNotifications()
     const check = async () => {
       try {
         const result = await api.checkAlerts()
         if (result.triggered.length > 0) {
-          setNotifications(prev => [...result.triggered, ...prev].slice(0, 20))
+          setPopupAlerts(prev => [...result.triggered, ...prev].slice(0, 20))
           setShowNotif(true)
           loadAlerts()
+          loadNotifications()
         }
       } catch { /* ignore */ }
     }
@@ -48,27 +60,36 @@ export default function AlertBell() {
     try { await api.reactivateAlert(id); loadAlerts() } catch { toast('激活失败', 'error') }
   }
 
+
+  const handleReadAll = async () => {
+    try { await api.markNotificationsRead(); await loadNotifications() } catch { toast('操作失败', 'error') }
+  }
+
+  const handleDeleteNotification = async (id: number) => {
+    try { await api.deleteNotification(id); await loadNotifications() } catch { toast('删除失败', 'error') }
+  }
+
   return (
     <>
       <button
         className="alert-bell-btn"
-        onClick={() => setShowPanel(!showPanel)}
-        title="价格预警"
+        onClick={() => { setShowPanel(!showPanel); if (!showPanel) loadNotifications() }}
+        title="通知与预警"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
-        {activeAlerts.length > 0 && <span className="alert-badge">{activeAlerts.length}</span>}
+        {unread > 0 && <span className="alert-badge">{unread > 99 ? '99+' : unread}</span>}
       </button>
 
-      {showNotif && notifications.length > 0 && (
+      {showNotif && popupAlerts.length > 0 && (
         <div className="alert-notif-toast">
           <div className="alert-notif-header">
             <span>预警触发通知</span>
             <button onClick={() => setShowNotif(false)}>x</button>
           </div>
-          {notifications.slice(0, 5).map((n, i) => (
+          {popupAlerts.slice(0, 5).map((n, i) => (
             <div key={i} className="alert-notif-item">
               <span className="alert-notif-msg">{n.message}</span>
               <span className="alert-notif-time">{n.triggered_at?.slice(11, 16) || ''}</span>
@@ -81,11 +102,15 @@ export default function AlertBell() {
         <AlertPanel
           activeAlerts={activeAlerts}
           triggeredAlerts={triggeredAlerts}
+          notifications={notifications}
+          unread={unread}
           panelTab={panelTab}
           setPanelTab={setPanelTab}
           onDelete={handleDelete}
           onReactivate={handleReactivate}
           onRefresh={loadAlerts}
+          onReadAll={handleReadAll}
+          onDeleteNotification={handleDeleteNotification}
         />
       )}
     </>
@@ -102,14 +127,18 @@ const TYPE_LABELS: Record<string, string> = {
   volume_surge: '放量突破(量比)',
 }
 
-function AlertPanel({ activeAlerts, triggeredAlerts, panelTab, setPanelTab, onDelete, onReactivate, onRefresh }: {
+function AlertPanel({ activeAlerts, triggeredAlerts, notifications, unread, panelTab, setPanelTab, onDelete, onReactivate, onRefresh, onReadAll, onDeleteNotification }: {
   activeAlerts: AlertItem[]
   triggeredAlerts: AlertItem[]
-  panelTab: 'active' | 'triggered'
-  setPanelTab: (t: 'active' | 'triggered') => void
+  notifications: NotificationItem[]
+  unread: number
+  panelTab: 'notifications' | 'active' | 'triggered'
+  setPanelTab: (t: 'notifications' | 'active' | 'triggered') => void
   onDelete: (id: number) => void
   onReactivate: (id: number) => void
   onRefresh: () => void
+  onReadAll: () => void
+  onDeleteNotification: (id: number) => void
 }) {
   const [showForm, setShowForm] = useState(false)
   const list = panelTab === 'active' ? activeAlerts : triggeredAlerts
@@ -117,7 +146,7 @@ function AlertPanel({ activeAlerts, triggeredAlerts, panelTab, setPanelTab, onDe
   return (
     <div className="alert-panel">
       <div className="alert-panel-header">
-        <h3>价格预警</h3>
+        <h3>通知与预警</h3>
         <button className="alert-add-btn" onClick={() => setShowForm(!showForm)}>
           {showForm ? '取消' : '+ 新建'}
         </button>
@@ -126,6 +155,9 @@ function AlertPanel({ activeAlerts, triggeredAlerts, panelTab, setPanelTab, onDe
       {showForm && <AlertForm onCreated={() => { setShowForm(false); onRefresh() }} />}
 
       <div className="alert-tabs">
+        <button className={panelTab === 'notifications' ? 'active' : ''} onClick={() => setPanelTab('notifications')}>
+          通知 ({unread})
+        </button>
         <button className={panelTab === 'active' ? 'active' : ''} onClick={() => setPanelTab('active')}>
           监控中 ({activeAlerts.length})
         </button>
@@ -135,6 +167,21 @@ function AlertPanel({ activeAlerts, triggeredAlerts, panelTab, setPanelTab, onDe
       </div>
 
       <div className="alert-list">
+        {panelTab === 'notifications' && unread > 0 && (
+          <button className="alert-add-btn" onClick={onReadAll}>全部标为已读</button>
+        )}
+        {panelTab === 'notifications' && notifications.length === 0 && <p className="alert-empty">暂无通知</p>}
+        {panelTab === 'notifications' && notifications.map(item => (
+          <div key={item.id} className={`alert-item ${item.read_at ? '' : 'active'}`}>
+            <div className="alert-item-main">
+              <div className="alert-item-info"><span className="alert-item-symbol">{item.title}</span></div>
+              <div className="alert-item-msg">{item.message}</div>
+              <div className="alert-notif-time">{item.created_at.slice(0, 16).replace('T', ' ')}</div>
+            </div>
+            <button className="alert-del-btn" onClick={() => onDeleteNotification(item.id)}>x</button>
+          </div>
+        ))}
+        {panelTab !== 'notifications' && <>
         {list.length === 0 && (
           <p className="alert-empty">{panelTab === 'active' ? '暂无监控中的预警' : '暂无已触发的预警'}</p>
         )}
@@ -159,6 +206,7 @@ function AlertPanel({ activeAlerts, triggeredAlerts, panelTab, setPanelTab, onDe
             </div>
           </div>
         ))}
+        </>}
       </div>
     </div>
   )

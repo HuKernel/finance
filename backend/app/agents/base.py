@@ -43,6 +43,9 @@ class Agent:
             reflection = context.get("reflection_memory") or ""
             if reflection:
                 user_prompt += f"\n\n{reflection}"
+            knowledge = context.get("knowledge_context") or ""
+            if knowledge:
+                user_prompt += f"\n\n{knowledge}"
         model = self.llm._build_model()
         if model is None:
             data = json.loads(self.llm._mock(self.system_prompt, user_prompt))

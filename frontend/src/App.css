@@ -112,6 +112,53 @@ a { color: var(--accent); text-decoration: none; }
 
 .app { max-width: 1400px; margin: 0 auto; padding: 24px 32px; }
 
+/* ---------- 公开推广首页 ---------- */
+.landing-page { max-width: 1180px; margin: 0 auto; padding: 28px 0 72px; }
+.landing-hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 56px; align-items: center; min-height: 560px; }
+.landing-kicker { display: block; margin-bottom: 12px; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.landing-hero h1 { max-width: 760px; font-size: clamp(38px, 5vw, 64px); line-height: 1.1; letter-spacing: -.045em; }
+.landing-hero > div > p { max-width: 720px; margin-top: 24px; color: var(--text-2); font-size: 17px; line-height: 1.9; }
+.landing-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 32px 0 14px; }
+.landing-actions button, .landing-cta button { min-height: 44px; padding: 0 22px; }
+.landing-hero small { color: var(--text-3); }
+.landing-report { border: 1px solid var(--border-strong); background: var(--surface); }
+.landing-report > div { display: grid; grid-template-columns: 38px 1fr; gap: 2px 12px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.landing-report > div:last-child { border-bottom: 0; }
+.landing-report span { grid-row: 1 / 3; color: var(--accent); font-family: var(--mono); font-size: 11px; }
+.landing-report strong { font-size: 14px; }
+.landing-report em { color: var(--text-3); font-size: 12px; font-style: normal; }
+.landing-section { padding: 76px 0; border-top: 1px solid var(--border); }
+.landing-section h2, .landing-cta h2 { max-width: 720px; font-size: clamp(28px, 3.5vw, 42px); line-height: 1.2; letter-spacing: -.03em; }
+.landing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 40px; background: var(--border); border: 1px solid var(--border); }
+.landing-grid > div { min-height: 190px; padding: 28px; background: var(--surface); }
+.landing-grid strong { font-size: 16px; }
+.landing-grid p { margin-top: 14px; color: var(--text-2); line-height: 1.8; }
+.landing-flow ol { display: grid; gap: 0; margin-top: 38px; list-style: none; border-top: 1px solid var(--border); }
+.landing-flow li { display: grid; grid-template-columns: 72px 1fr; gap: 20px; padding: 26px 0; border-bottom: 1px solid var(--border); }
+.landing-flow li > span { color: var(--accent); font-family: var(--mono); font-size: 13px; }
+.landing-flow li strong { font-size: 16px; }
+.landing-flow li p { margin-top: 5px; color: var(--text-2); }
+.landing-faq details { padding: 20px 0; border-bottom: 1px solid var(--border); }
+.landing-faq details:first-of-type { margin-top: 32px; border-top: 1px solid var(--border); }
+.landing-faq summary { cursor: pointer; font-size: 15px; font-weight: 600; }
+.landing-faq details p { max-width: 780px; margin-top: 12px; color: var(--text-2); }
+.landing-cta { display: flex; align-items: end; justify-content: space-between; gap: 32px; padding: 72px 40px; background: var(--surface); border: 1px solid var(--border-strong); }
+
+@media (max-width: 860px) {
+  .landing-page { padding-top: 0; }
+  .landing-hero { grid-template-columns: 1fr; gap: 36px; min-height: auto; padding: 56px 0 72px; }
+  .landing-grid { grid-template-columns: 1fr; }
+  .landing-grid > div { min-height: auto; }
+  .landing-cta { align-items: start; flex-direction: column; padding: 40px 24px; }
+}
+
+@media (max-width: 520px) {
+  .landing-hero h1 { font-size: 36px; }
+  .landing-section { padding: 56px 0; }
+  .landing-actions { flex-direction: column; }
+  .landing-actions button { width: 100%; }
+}
+
 /* ---------- 顶部导航 ---------- */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
@@ -657,6 +704,7 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
   .plan-box, .risk-box, .debate { page-break-inside: avoid; }
 }
 .report-export-btn { font-size: 12px; padding: 6px 14px; margin-left: auto; }
+.report-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 20px; }
 
 /* 风控确认 */
 .risk-review-card { padding: 16px 24px; margin: 12px 0; border: 1px solid; border-left-width: 3px; }
@@ -1362,6 +1410,11 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
   .qp-left, .qp-right { position: static; max-height: none; }
   .qp-left { display: none; }
 }
+.company-events { margin: 14px 0; padding: 12px 14px; border: 1px solid var(--border); }
+.company-events summary { cursor: pointer; font-weight: 600; }
+.company-event-list { display: grid; gap: 8px; margin-top: 10px; }
+.company-event-list > div { display: grid; grid-template-columns: 100px 1fr auto; gap: 12px; font-size: 13px; }
+.company-event-list em { color: var(--text-3); font-style: normal; }
 @media (max-width: 768px) {
   .kline-canvas { height: 380px; min-height: 320px; }
   .kline-ohlc { overflow-x: auto; white-space: nowrap; }
@@ -1588,6 +1641,8 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .feedback-history { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .feedback-history summary { cursor: pointer; font-weight: 600; }
 .feedback-history summary span { margin-left: 4px; color: var(--text-3); font-size: 11px; font-weight: 400; }
+.feedback-pagination { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; font-size: 12px; color: var(--text-3); }
+.feedback-pagination button { padding: 5px 10px; }
 .feedback-history-list { max-height: min(280px, 40vh); margin-top: 8px; overflow-y: auto; }
 .feedback-history-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .feedback-history-item > div { display: flex; justify-content: space-between; gap: 12px; }

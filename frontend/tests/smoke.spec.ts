@@ -23,10 +23,11 @@ async function mockApi(page: Page) {
     else if (path === '/api/auth/is-admin') body = { is_admin: true }
     else if (path === '/api/auth/profile') body = { watchlist: [] }
     else if (path === '/api/alerts') body = []
-    else if (path === '/api/admin/feedback') body = [{
+    else if (path === '/api/notifications') body = { items: [], unread: 0 }
+    else if (path === '/api/admin/feedback') body = { items: [{
       id: 3, user_id: 8, username: 'visitor', category: 'data', page: '行情',
       content: '港股行情时间显示不正确', status: 'new', created_at: '2026-08-11T17:20:00',
-    }]
+    }], total: 1, page: 1, page_size: 20 }
     else if (path === '/api/market/top-turnover') body = { code: '600519', name: '贵州茅台', amount: 1000000000, unit: '元', scope: 'a_share_full_market', as_of: '2026-08-11' }
     else if (path === '/api/hot') body = []
     else if (path === '/api/news/600519') body = { symbol: '600519', news: [] }

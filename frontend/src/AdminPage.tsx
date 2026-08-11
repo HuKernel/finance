@@ -52,9 +52,17 @@ const FEEDBACK_CATEGORY: Record<string, string> = {
 function FeedbackSection() {
   const { toast, confirm } = useModal()
   const [items, setItems] = useState<any[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
   const [replies, setReplies] = useState<Record<number, string>>({})
-  const load = () => { api.adminFeedback().then(setItems).catch(() => {}) }
-  useEffect(() => { load() }, [])
+  const load = (targetPage: number = page) => {
+    api.adminFeedback(targetPage).then(result => {
+      setItems(result.items)
+      setTotal(result.total)
+      setPage(result.page)
+    }).catch(() => {})
+  }
+  useEffect(() => { load(1) }, [])
 
   const updateStatus = async (id: number, status: string) => {
     try { await api.updateFeedback(id, { status }); load() }
@@ -77,6 +85,7 @@ function FeedbackSection() {
   }
 
   return (
+    <>
     <table className="portfolio-table">
       <thead><tr><th>时间</th><th>用户</th><th>类型</th><th>页面</th><th>反馈内容</th><th>状态</th><th>回复</th><th>操作</th></tr></thead>
       <tbody>
@@ -111,6 +120,14 @@ function FeedbackSection() {
         ))}
       </tbody>
     </table>
+    {total > 20 && (
+      <div className="feedback-pagination">
+        <button disabled={page <= 1} onClick={() => load(page - 1)}>上一页</button>
+        <span>{page} / {Math.ceil(total / 20)}，共 {total} 条</span>
+        <button disabled={page * 20 >= total} onClick={() => load(page + 1)}>下一页</button>
+      </div>
+    )}
+    </>
   )
 }
 

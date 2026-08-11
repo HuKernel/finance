@@ -179,7 +179,7 @@ def _check_technical_alerts(symbol: str, atype: str, threshold: float) -> tuple[
     return False, ""
 
 
-def check_alerts() -> list[dict[str, Any]]:
+def check_alerts(user_id: int) -> list[dict[str, Any]]:
     """扫描所有 active 预警，检查是否触发。返回触发的预警列表。
 
     被 /api/alerts/check 端点调用（前端轮询或定时触发）。
@@ -190,7 +190,8 @@ def check_alerts() -> list[dict[str, Any]]:
     _ensure_table()
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT * FROM alerts WHERE status='active'"
+            "SELECT * FROM alerts WHERE status='active' AND user_id=?",
+            (user_id,),
         ).fetchall()
 
     if not rows:
@@ -256,6 +257,8 @@ def check_alerts() -> list[dict[str, Any]]:
 
             if hit:
                 _mark_triggered(alert["id"], msg)
+                from .notifications import create_notification
+                create_notification(alert["user_id"], "alert", "价格预警已触发", msg, "alerts")
                 alert["current_price"] = brief.get("price") if brief else None
                 alert["message"] = msg
                 alert["status"] = "triggered"

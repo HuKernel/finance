@@ -51,15 +51,18 @@ def _ensure_tables() -> None:
                 note TEXT DEFAULT ''
             )
         """)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(transactions)")}
+        if "fee" not in cols:
+            conn.execute("ALTER TABLE transactions ADD COLUMN fee REAL NOT NULL DEFAULT 0")
 
 
 def buy_stock(
     user_id: int, symbol: str, symbol_name: str,
-    shares: float, price: float, date: str = "", note: str = "",
+    shares: float, price: float, date: str = "", note: str = "", fee: float = 0,
 ) -> dict[str, Any]:
     """买入股票：更新持仓（加权平均成本）+ 记录交易。"""
     _ensure_tables()
-    total = shares * price
+    total = shares * price + fee
     if not date:
         date = datetime.now().strftime("%Y-%m-%d")
     now = datetime.now().isoformat(timespec="seconds")
@@ -73,7 +76,7 @@ def buy_stock(
         if row:
             old = dict(row)
             new_shares = old["shares"] + shares
-            new_avg = (old["shares"] * old["avg_cost"] + shares * price) / new_shares
+            new_avg = (old["shares"] * old["avg_cost"] + total) / new_shares
             conn.execute(
                 "UPDATE portfolio SET shares=?, avg_cost=?, symbol_name=? WHERE id=?",
                 (new_shares, new_avg, symbol_name or old["symbol_name"], old["id"]),
@@ -82,23 +85,23 @@ def buy_stock(
             conn.execute(
                 """INSERT INTO portfolio (user_id, symbol, symbol_name, shares, avg_cost, buy_date, note, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (user_id, symbol, symbol_name, shares, price, date, note, now),
+                (user_id, symbol, symbol_name, shares, total / shares, date, note, now),
             )
         # 记录交易
         conn.execute(
-            """INSERT INTO transactions (user_id, symbol, symbol_name, action, shares, price, total, date, note)
-               VALUES (?, ?, ?, 'buy', ?, ?, ?, ?, ?)""",
-            (user_id, symbol, symbol_name, shares, price, total, date, note),
+            """INSERT INTO transactions (user_id, symbol, symbol_name, action, shares, price, total, date, note, fee)
+               VALUES (?, ?, ?, 'buy', ?, ?, ?, ?, ?, ?)""",
+            (user_id, symbol, symbol_name, shares, price, total, date, note, fee),
         )
     return {"symbol": symbol, "action": "buy", "shares": shares, "price": price, "total": total}
 
 
 def sell_stock(
-    user_id: int, symbol: str, shares: float, price: float, date: str = "", note: str = "",
+    user_id: int, symbol: str, shares: float, price: float, date: str = "", note: str = "", fee: float = 0,
 ) -> dict[str, Any]:
     """卖出股票：减少持仓 + 记录交易。"""
     _ensure_tables()
-    total = shares * price
+    total = shares * price - fee
     if not date:
         date = datetime.now().strftime("%Y-%m-%d")
 
@@ -118,9 +121,9 @@ def sell_stock(
         else:
             conn.execute("UPDATE portfolio SET shares=? WHERE id=?", (new_shares, old["id"]))
         conn.execute(
-            """INSERT INTO transactions (user_id, symbol, symbol_name, action, shares, price, total, date, note)
-               VALUES (?, ?, ?, 'sell', ?, ?, ?, ?, ?)""",
-            (user_id, symbol, old.get("symbol_name", symbol), shares, price, total, date, note),
+            """INSERT INTO transactions (user_id, symbol, symbol_name, action, shares, price, total, date, note, fee)
+               VALUES (?, ?, ?, 'sell', ?, ?, ?, ?, ?, ?)""",
+            (user_id, symbol, old.get("symbol_name", symbol), shares, price, total, date, note, fee),
         )
     return {"symbol": symbol, "action": "sell", "shares": shares, "price": price, "total": total}
 
@@ -151,18 +154,21 @@ def get_portfolio(user_id: int) -> dict[str, Any]:
     total_market_value = 0.0
     total_cost = 0.0
     total_pnl = 0.0
+    priced_cost = 0.0
+    unpriced_count = 0
 
     for row in rows:
         pos = dict(row)
+        cost = pos["avg_cost"] * pos["shares"]
+        total_cost += cost
         brief = datalayer.get_stock_brief(pos["symbol"], fresh=True)
         current_price = brief.get("price") if brief else None
         if current_price:
             market_value = current_price * pos["shares"]
-            cost = pos["avg_cost"] * pos["shares"]
             pnl = market_value - cost
             pnl_pct = (pnl / cost * 100) if cost > 0 else 0
             total_market_value += market_value
-            total_cost += cost
+            priced_cost += cost
             total_pnl += pnl
             pos.update({
                 "current_price": current_price,
@@ -173,7 +179,8 @@ def get_portfolio(user_id: int) -> dict[str, Any]:
                 "change_pct": brief.get("change_pct"),
             })
         else:
-            pos.update({"current_price": None, "market_value": None, "pnl": None, "pnl_pct": None})
+            unpriced_count += 1
+            pos.update({"current_price": None, "market_value": None, "cost": round(cost, 2), "pnl": None, "pnl_pct": None})
         positions.append(pos)
 
     return {
@@ -182,10 +189,57 @@ def get_portfolio(user_id: int) -> dict[str, Any]:
             "total_market_value": round(total_market_value, 2),
             "total_cost": round(total_cost, 2),
             "total_pnl": round(total_pnl, 2),
-            "total_pnl_pct": round((total_pnl / total_cost * 100) if total_cost > 0 else 0, 2),
+            "total_pnl_pct": round((total_pnl / priced_cost * 100) if priced_cost > 0 else 0, 2),
             "position_count": len(positions),
+            "unpriced_count": unpriced_count,
         },
     }
+
+
+def delete_transaction(transaction_id: int, user_id: int) -> bool:
+    """撤销用户最近录入的交易，并按剩余流水重建该标的持仓。"""
+    _ensure_tables()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM transactions WHERE id=? AND user_id=?",
+            (transaction_id, user_id),
+        ).fetchone()
+        if not row:
+            return False
+        symbol = row["symbol"]
+        conn.execute("DELETE FROM transactions WHERE id=?", (transaction_id,))
+        _rebuild_position(conn, user_id, symbol)
+    return True
+
+
+def _rebuild_position(conn: sqlite3.Connection, user_id: int, symbol: str) -> None:
+    rows = conn.execute(
+        "SELECT * FROM transactions WHERE user_id=? AND symbol=? ORDER BY date, id",
+        (user_id, symbol),
+    ).fetchall()
+    shares = 0.0
+    cost = 0.0
+    for row in rows:
+        if row["action"] == "buy":
+            cost += row["shares"] * row["price"] + row["fee"]
+            shares += row["shares"]
+        elif row["action"] == "sell":
+            if row["shares"] > shares:
+                raise ValueError("撤销后会导致历史卖出数量超过持仓")
+            avg_cost = cost / shares if shares else 0
+            shares -= row["shares"]
+            cost = avg_cost * shares
+
+    conn.execute("DELETE FROM portfolio WHERE user_id=? AND symbol=?", (user_id, symbol))
+    if shares > 0:
+        last = rows[-1]
+        conn.execute(
+            """INSERT INTO portfolio
+               (user_id, symbol, symbol_name, shares, avg_cost, buy_date, note, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, symbol, last["symbol_name"], shares, cost / shares,
+             last["date"], last["note"], datetime.now().isoformat(timespec="seconds")),
+        )
 
 
 def list_transactions(user_id: int, limit: int = 50) -> list[dict[str, Any]]:

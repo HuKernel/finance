@@ -248,6 +248,7 @@ export interface PortfolioSummary {
   total_pnl: number
   total_pnl_pct: number
   position_count: number
+  unpriced_count: number
 }
 
 export interface TransactionItem {
@@ -260,6 +261,17 @@ export interface TransactionItem {
   total: number
   date: string
   note: string
+  fee: number
+}
+
+export interface NotificationItem {
+  id: number
+  kind: string
+  title: string
+  message: string
+  link: string
+  read_at: string | null
+  created_at: string
 }
 
 export interface BacktestResult {

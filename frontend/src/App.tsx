@@ -9,6 +9,7 @@ import './App.css'
 
 // 懒加载页面组件 - 只挂载当前页面，避免隐藏页面消耗行情接口额度
 const ChatPage = lazy(() => import('./ChatPage'))
+const LandingPage = lazy(() => import('./LandingPage'))
 const QuotePage = lazy(() => import('./QuotePage'))
 const AnalyzePane = lazy(() => import('./AnalyzePage'))
 const HistoryPane = lazy(() => import('./HistoryPage'))
@@ -21,11 +22,12 @@ const AdminPage = lazy(() => import('./AdminPage'))
 const SchedulerPage = lazy(() => import('./SchedulerPage'))
 const ThesisPage = lazy(() => import('./ThesisPage'))
 
-type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'signal' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
+type Tab = 'home' | 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'signal' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
 
-const PUBLIC_TABS = new Set<Tab>(['quote', 'market'])
+const PUBLIC_TABS = new Set<Tab>(['home', 'quote', 'market'])
 
 const NAV_GROUPS: { label: string; items: { tab: Tab; label: string }[] }[] = [
+  { label: '开始', items: [{ tab: 'home', label: '产品首页' }] },
   { label: '研究', items: [
     { tab: 'analyze', label: '投研分析' },
     { tab: 'chat', label: '智能对话' },
@@ -57,7 +59,7 @@ function useTheme() {
 }
 
 function App() {
-  const [tab, setTab] = useState<Tab>('quote')
+  const [tab, setTab] = useState<Tab>('home')
   const [navOpen, setNavOpen] = useState(false)
   const [auth, setAuth] = useState<AuthResponse | null>(null)
   const [booted, setBooted] = useState(false)
@@ -120,7 +122,7 @@ function App() {
     setToken(null)
     setAuth(null)
     setIsAdmin(false)
-    setTab('quote')
+    setTab('home')
   }
 
   const visibleGroups = isAdmin
@@ -129,6 +131,7 @@ function App() {
   const activeLabel = visibleGroups.flatMap(group => group.items).find(item => item.tab === tab)?.label
   const activePage = (() => {
     switch (tab) {
+      case 'home': return <LandingPage onAnalyze={() => navigate('analyze')} onQuote={() => navigate('quote')} />
       case 'chat': return <ChatPage />
       case 'quote': return <QuotePage />
       case 'market': return <MarketDataPage />

@@ -58,9 +58,9 @@ def test_feedback_is_saved_for_current_user(isolated_db):
                VALUES (7, 'tester', '', '', '2026-08-11', 0, 1)"""
         )
 
-    items = feedback.list_feedback(_admin={"id": 1}, limit=100)
-    assert items[0]["username"] == "tester"
-    assert items[0]["content"] == "港股行情时间显示不正确"
+    result = feedback.list_feedback(_admin={"id": 1}, page=1, page_size=100)
+    assert result["items"][0]["username"] == "tester"
+    assert result["items"][0]["content"] == "港股行情时间显示不正确"
 
 
 def test_admin_can_reply_update_status_and_delete_feedback(isolated_db):
@@ -74,12 +74,17 @@ def test_admin_can_reply_update_status_and_delete_feedback(isolated_db):
         feedback.FeedbackUpdate(reply=" Fixed in the latest version ", status="resolved"),
         _admin={"id": 1},
     )
-    own_items = feedback.list_own_feedback(user={"id": 7})
-    assert own_items[0]["admin_reply"] == "Fixed in the latest version"
-    assert own_items[0]["status"] == "resolved"
+    own_items = feedback.list_own_feedback(user={"id": 7}, page=1, page_size=10)
+    assert own_items["items"][0]["admin_reply"] == "Fixed in the latest version"
+    assert own_items["items"][0]["status"] == "resolved"
+    with config._connect() as conn:
+        notification = conn.execute(
+            "SELECT * FROM notifications WHERE user_id=7 ORDER BY id DESC"
+        ).fetchone()
+    assert notification["message"] == "Fixed in the latest version"
 
     feedback.delete_feedback(created["id"], _admin={"id": 1})
-    assert feedback.list_own_feedback(user={"id": 7}) == []
+    assert feedback.list_own_feedback(user={"id": 7}, page=1, page_size=10)["items"] == []
 
 
 def test_feedback_rejects_blank_content():

@@ -17,10 +17,18 @@ export default function FeedbackWidget({
   const [content, setContent] = useState('')
   const [busy, setBusy] = useState(false)
   const [items, setItems] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
+  const [historyPage, setHistoryPage] = useState(1)
   const { toast } = useModal()
 
-  const load = () => { api.listFeedback().then(setItems).catch(() => {}) }
-  useEffect(() => { if (open) load() }, [open])
+  const load = (targetPage: number = historyPage) => {
+    api.listFeedback(targetPage).then(result => {
+      setItems(result.items)
+      setTotal(result.total)
+      setHistoryPage(result.page)
+    }).catch(() => {})
+  }
+  useEffect(() => { if (open) load(1) }, [open])
 
   const submit = async () => {
     const text = content.trim()
@@ -75,7 +83,7 @@ export default function FeedbackWidget({
           </button>
           {items.length > 0 && (
             <details className="feedback-history">
-              <summary>我的反馈 <span>{items.length}</span></summary>
+              <summary>我的反馈 <span>{total}</span></summary>
               <div className="feedback-history-list">
                 {items.map(item => (
                   <div className="feedback-history-item" key={item.id}>
@@ -84,6 +92,13 @@ export default function FeedbackWidget({
                   </div>
                 ))}
               </div>
+              {total > 10 && (
+                <div className="feedback-pagination">
+                  <button disabled={historyPage <= 1} onClick={() => load(historyPage - 1)}>上一页</button>
+                  <span>{historyPage} / {Math.ceil(total / 10)}</span>
+                  <button disabled={historyPage * 10 >= total} onClick={() => load(historyPage + 1)}>下一页</button>
+                </div>
+              )}
             </details>
           )}
         </div>
