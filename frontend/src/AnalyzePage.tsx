@@ -260,6 +260,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
   const price = result.price
   const changePct = result.change_pct
   const trace = result.raw?.trace
+  const evidence = result.raw?.report
 
   return (
     <div className="report">
@@ -297,9 +298,11 @@ function ReportView({ result }: { result: AnalysisResult }) {
         </div>
       </div>
 
+      {evidence && <ReportEvidenceView evidence={evidence} />}
+
       <div className="consensus">
         <div className="consensus-head">
-          <h3>共识结论 / CONSENSUS</h3>
+          <h3>共识结论 / CONSENSUS <span className="evidence-kind ai">AI 判断</span></h3>
           <span className={`score-display ${trend === '偏多' ? 'up' : trend === '偏空' ? 'down' : 'neutral'}`} style={{ fontSize: 22 }}>
             {score > 0 ? '+' : ''}{score}
           </span>
@@ -311,7 +314,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
         <div className="consensus-text"><Markdown text={result.consensus_verdict || '（无）'} /></div>
       </div>
 
-      <h3 className="section-title">分析师观点</h3>
+      <h3 className="section-title">分析师观点 <span className="evidence-kind ai">AI 判断</span></h3>
       <div className="views-grid">
         {result.analyst_views.map((v) => (
           <div className="view-card" key={v.role}>
@@ -334,7 +337,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
       {result.debate.length > 0 && (
         <>
-          <h3 className="section-title">多空辩论</h3>
+          <h3 className="section-title">多空辩论 <span className="evidence-kind ai">AI 判断</span></h3>
           <div className="debate">
             {result.debate.map((d, i) => (
               <div key={i}>
@@ -348,7 +351,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
       {risk && (
         <>
-          <h3 className="section-title">风控审查</h3>
+          <h3 className="section-title">风控审查 <span className="evidence-kind ai">AI 判断</span></h3>
           <div className={`risk-box ${risk.approved ? 'ok' : 'blocked'}`}>
             <div className="risk-verdict">{risk.approved ? '通过' : '否决'}：{risk.verdict}</div>
             <div className="risk-detail">最大建议仓位 {risk.max_position_pct}% | 止损位 {risk.stop_loss_pct}%</div>
@@ -358,7 +361,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
       {plan && (
         <>
-          <h3 className="section-title">交易计划</h3>
+          <h3 className="section-title">交易计划 <span className="evidence-kind ai">AI 判断</span></h3>
           <div className={`plan-box action-${plan.action}`}>
             <div className="plan-action">{plan.action}</div>
             <div className="plan-detail">
@@ -398,6 +401,48 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
       <div className="disclaimer">{result.disclaimer}</div>
     </div>
+  )
+}
+
+function ReportEvidenceView({ evidence }: { evidence: NonNullable<AnalysisResult['raw']>['report'] }) {
+  if (!evidence) return null
+  const quote = evidence.facts.quote
+  const history = evidence.facts.history
+  const financials = evidence.facts.financials
+  const calculation = evidence.calculations.consensus_score
+  const show = (value: unknown) => value === null || value === undefined || value === '' ? '--' : String(value)
+  return (
+    <details className="report-evidence" open>
+      <summary>
+        报告证据 · v{evidence.schema_version}
+        <span className="evidence-kind fact">原始事实</span>
+        <span className="evidence-kind calc">确定性计算</span>
+        <span className="evidence-kind ai">AI 判断</span>
+      </summary>
+      <div className="report-evidence-grid">
+        <div>
+          <strong>行情事实</strong>
+          <span>{show(quote.source.source)} · 获取于 {show(quote.source.fetched_at)}</span>
+          <span>价格 {show(quote.values.price)} · PE {show(quote.values.pe)} · PB {show(quote.values.pb)}</span>
+        </div>
+        <div>
+          <strong>历史数据</strong>
+          <span>{show(history.source)} · 截止 {show(history.as_of)} · {show(history.adjustment)}</span>
+          <span>{show(history.rows)} 行 · 丢弃 {show(history.rows_dropped)} 行</span>
+        </div>
+        <div>
+          <strong>财务与新闻</strong>
+          <span>{financials.source} · 报告期 {show(financials.period)}</span>
+          <span>新闻 {evidence.facts.news.count} 条 · {evidence.facts.news.sources.join('、') || '无来源'}</span>
+        </div>
+        <div>
+          <strong>共识评分计算</strong>
+          <span>原始均分 {show(calculation.raw_score)} + 投票调整 {show(calculation.vote_adjustment)} = {calculation.value}</span>
+          <span>{calculation.method}</span>
+        </div>
+      </div>
+      <p>假设：{evidence.assumptions.history_window} 个交易日、{show(evidence.assumptions.adjustment)}；研究主题“{evidence.assumptions.topic}”。分析师论据、共识、风控和交易计划均为 AI 判断，需回查上述输入数据。</p>
+    </details>
   )
 }
 

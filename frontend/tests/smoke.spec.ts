@@ -60,7 +60,20 @@ async function mockApi(page: Page) {
       risk_review: null,
       trade_plan: null,
       disclaimer: '测试数据',
-      raw: { trace: {
+      raw: { report: {
+        schema_version: 2, generated_at: '2026-08-11T13:00:00',
+        facts: {
+          quote: { source: { source: 'tencent_quote', fetched_at: '2026-08-11T12:59:00' }, values: { price: 1500, pe: 25, pb: 8 } },
+          history: { source: 'tencent_fqkline', as_of: '2026-08-11', adjustment: 'qfq', rows: 250, rows_dropped: 0 },
+          financials: { source: 'akshare_ths', period: '2026Q2', values: { roe: 30 } },
+          news: { count: 2, sources: ['东方财富'], latest_at: '2026-08-11 12:00' },
+        },
+        calculations: {
+          trend: { method: '测试', values: { ma5: 1500 } },
+          consensus_score: { method: '分析师评分算术平均 + 投票调整', raw_score: 1.7, votes: { bull: 2, bear: 1, neutral: 2 }, vote_adjustment: 0.3, value: 2 },
+        },
+        ai_judgments: ['consensus_verdict'], assumptions: { history_window: 120, adjustment: 'qfq', topic: '常规投研' },
+      }, trace: {
         run_id: 'run-e2e-42', mode: 'standard', provider: 'deepseek', model: 'deepseek-chat', status: 'completed', duration_ms: 1234,
         steps: [{ name: 'collect_data', label: '数据收集', status: 'done', at_ms: 120 }], tools: [],
       } },
@@ -159,6 +172,8 @@ test('历史报告可以查看持久化运行追踪', async ({ page }) => {
   await page.getByText(/运行追踪 · deepseek\/deepseek-chat/).click()
   await expect(page.getByText('Run ID: run-e2e-42')).toBeVisible()
   await expect(page.getByText('数据收集')).toBeVisible()
+  await expect(page.getByText('报告证据 · v2')).toBeVisible()
+  await expect(page.getByText(/原始均分 1.7 \+ 投票调整 0.3 = 2/)).toBeVisible()
 })
 
 test('ML 信号诊断展示样本外区间和质量结论', async ({ page }) => {

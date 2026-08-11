@@ -51,9 +51,21 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 
     ctx: dict[str, Any] = {"ticker": ticker}
     ctx["brief"] = datalayer.get_stock_brief(ticker) or {}
+    ctx["source_meta"] = {
+        "quote": {
+            "source": "tencent_quote",
+            "fetched_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "delay": "near_realtime",
+        },
+    }
+    history = None
     try:
         history = datalayer.get_history(ticker)
         ctx["tech"] = datalayer.compute_tech_signals(history) if history is not None else {"error": "行情数据不可用"}
+        if history is not None:
+            ctx["source_meta"]["history"] = {
+                **history.attrs.get("data_meta", {}), "rows": len(history),
+            }
     except Exception:
         ctx["tech"] = {"error": "技术指标计算失败"}
     # 财务/龙虎榜仅支持A股，港股美股自动跳过不报错
@@ -81,9 +93,9 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         ctx["sentiment"] = None
     # 历史趋势摘要（让分析师有纵向参照，不只是最新快照）
     try:
-        hist = datalayer.get_history(ticker, days=120)
+        hist = history.tail(120) if history is not None else None
         if hist is not None and len(hist) >= 20:
-            closes = [r.get("close", 0) for r in hist if r.get("close")]
+            closes = hist["close"].dropna().astype(float).tolist()
             if len(closes) >= 20:
                 import statistics
                 ctx["trend"] = {
@@ -383,12 +395,13 @@ def finalize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     from ..memory import save_analysis
 
     brief = state.get("context", {}).get("brief") or {}
+    created_at = datetime.now().isoformat(timespec="seconds")
     result = {
         "ticker": state.get("ticker", ""),
         "name": brief.get("name", ""),
         "price": brief.get("price"),
         "change_pct": brief.get("change_pct"),
-        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "created_at": created_at,
         "status": "completed",
         "consensus_score": state.get("consensus_score", 0.0),
         "consensus_verdict": state.get("consensus_verdict", ""),
@@ -397,7 +410,10 @@ def finalize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         "risk_review": state.get("risk_review").model_dump() if state.get("risk_review") else None,
         "trade_plan": state.get("trade_plan").model_dump() if state.get("trade_plan") else None,
         "disclaimer": DISCLAIMER,
-        "raw": {"topic": state.get("topic") or ""},
+        "raw": {
+            "topic": state.get("topic") or "",
+            "report": _build_report_evidence(state, created_at),
+        },
     }
     analysis_id = state.get("analysis_id")
     if analysis_id:
@@ -407,3 +423,62 @@ def finalize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     else:
         result["id"] = save_analysis(result["ticker"], result, user_id=state.get("user_id"))
     return {"result": result}
+
+
+def _build_report_evidence(state: AgentState, created_at: str) -> dict[str, Any]:
+    """保存报告可核对的事实、计算口径与 AI 判断边界。"""
+    context = state.get("context", {})
+    brief = context.get("brief") or {}
+    financials = context.get("financials") or {}
+    news = context.get("news") or []
+    sources = context.get("source_meta") or {}
+    ticker = state.get("ticker", "")
+    financial_source = "yfinance" if ticker.lower().startswith(("hk", "us")) else "akshare_ths"
+    return {
+        "schema_version": 2,
+        "generated_at": created_at,
+        "facts": {
+            "quote": {
+                "source": sources.get("quote", {}),
+                "values": {key: brief.get(key) for key in (
+                    "price", "change_pct", "market_cap", "pe", "pb", "turnover",
+                )},
+            },
+            "history": sources.get("history", {}),
+            "financials": {
+                "source": financial_source,
+                "period": financials.get("period"),
+                "values": {key: financials.get(key) for key in (
+                    "revenue", "revenue_yoy", "net_profit", "net_profit_yoy",
+                    "roe", "gross_margin", "debt_ratio",
+                )},
+            },
+            "news": {
+                "count": len(news),
+                "sources": sorted({item.get("source") for item in news if item.get("source")}),
+                "latest_at": max(
+                    (item.get("published_at") or item.get("time") or "" for item in news),
+                    default="",
+                ),
+            },
+        },
+        "calculations": {
+            "trend": {
+                "method": "最近120个交易日收盘价；MA为简单移动平均，波动为最近20日样本标准差",
+                "values": context.get("trend"),
+            },
+            "consensus_score": {
+                "method": "分析师评分算术平均 + 0.3 × (看多票 - 看空票)，结果限制在[-10, 10]",
+                "raw_score": state.get("raw_score"),
+                "votes": state.get("votes") or {},
+                "vote_adjustment": state.get("vote_adjustment"),
+                "value": state.get("consensus_score", 0.0),
+            },
+        },
+        "ai_judgments": ["analyst_views", "debate", "consensus_verdict", "risk_review", "trade_plan"],
+        "assumptions": {
+            "history_window": 120,
+            "adjustment": sources.get("history", {}).get("adjustment"),
+            "topic": state.get("topic") or "常规投研",
+        },
+    }

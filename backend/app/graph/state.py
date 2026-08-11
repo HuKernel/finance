@@ -35,6 +35,9 @@ class AgentState(TypedDict, total=False):
     debate: list[DebateRound]
     consensus_score: float
     consensus_verdict: str
+    votes: dict[str, int]
+    raw_score: float
+    vote_adjustment: float
 
     # 风控与执行
     risk_review: RiskReview

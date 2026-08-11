@@ -59,6 +59,23 @@ export interface AnalysisTrace {
   error?: string
 }
 
+export interface ReportEvidence {
+  schema_version: number
+  generated_at: string
+  facts: {
+    quote: { source: Record<string, unknown>; values: Record<string, number | null> }
+    history: Record<string, unknown>
+    financials: { source: string; period: string | null; values: Record<string, number | null> }
+    news: { count: number; sources: string[]; latest_at: string }
+  }
+  calculations: {
+    trend: { method: string; values: Record<string, number | null> | null }
+    consensus_score: { method: string; raw_score: number | null; votes: Record<string, number>; vote_adjustment: number | null; value: number }
+  }
+  ai_judgments: string[]
+  assumptions: { history_window: number; adjustment: string | null; topic: string }
+}
+
 export interface AnalysisResult {
   id: number | null
   run_id?: string
@@ -75,7 +92,7 @@ export interface AnalysisResult {
   risk_review: RiskReview | null
   trade_plan: TradePlan | null
   disclaimer: string
-  raw?: { topic?: string; trace?: AnalysisTrace }
+  raw?: { topic?: string; trace?: AnalysisTrace; report?: ReportEvidence }
 }
 
 export interface LLMConfig {
