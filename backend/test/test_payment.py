@@ -86,3 +86,15 @@ def test_admin_can_change_membership_prices(isolated_db):
 def test_membership_price_must_be_positive_money(isolated_db):
     with pytest.raises(ValueError, match="大于 0"):
         payment.save_admin_config({"MEMBERSHIP_MONTHLY_PRICE": "0"})
+
+
+def test_alipay_raw_keys_without_pem_headers_are_accepted(isolated_db):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_raw = private_key.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
+    public_raw = private_key.public_key().public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    result = payment.save_admin_config({
+        "ALIPAY_PRIVATE_KEY_PATH": __import__("base64").b64encode(private_raw).decode(),
+        "ALIPAY_PUBLIC_KEY_PATH": __import__("base64").b64encode(public_raw).decode(),
+    })
+    assert result["configured"]["ALIPAY_PRIVATE_KEY_PATH"] is True
+    assert result["configured"]["ALIPAY_PUBLIC_KEY_PATH"] is True

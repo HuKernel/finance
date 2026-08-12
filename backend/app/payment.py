@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import io
 import json
 import os
@@ -153,12 +154,28 @@ def public_config() -> dict[str, Any]:
     }
 
 
-def _key_bytes(value: str) -> bytes:
-    return value.encode() if "-----BEGIN" in value else Path(value).read_bytes()
+def _key_bytes(value: str, kind: str) -> bytes:
+    if "-----BEGIN" in value:
+        return value.encode()
+    try:
+        path = Path(value)
+        if path.is_file():
+            return path.read_bytes()
+    except OSError:
+        pass
+    compact = "".join(value.split())
+    try:
+        base64.b64decode(compact, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError(f"{kind}不是有效的 PEM 内容或服务器文件路径") from exc
+    label = "PRIVATE KEY" if kind == "私钥" else "PUBLIC KEY"
+    lines = [compact[index:index + 64] for index in range(0, len(compact), 64)]
+    body = "\n".join(lines)
+    return f"-----BEGIN {label}-----\n{body}\n-----END {label}-----\n".encode()
 
 
 def _load_private_key(value: str):
-    return serialization.load_pem_private_key(_key_bytes(value), password=None)
+    return serialization.load_pem_private_key(_key_bytes(value, "私钥"), password=None)
 
 
 def _private_key(key: str):
@@ -166,7 +183,7 @@ def _private_key(key: str):
 
 
 def _load_public_key(value: str):
-    raw = _key_bytes(value)
+    raw = _key_bytes(value, "公钥")
     try:
         return serialization.load_pem_public_key(raw)
     except ValueError:
