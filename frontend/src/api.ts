@@ -306,6 +306,9 @@ export const api = {
   deleteFeedback: (id: number) =>
     request<{ status: string }>(`/api/admin/feedback/${id}`, { method: 'DELETE' }),
   adminStats: () => request<Record<string, any>>('/api/admin/stats'),
+  adminPaymentConfig: () => request<{values:Record<string,string>;configured:Record<string,boolean>;channels:Record<string,boolean>}>('/api/admin/payment-config'),
+  saveAdminPaymentConfig: (values: Record<string, string>) =>
+    request<{values:Record<string,string>;configured:Record<string,boolean>;channels:Record<string,boolean>}>('/api/admin/payment-config', { method: 'PUT', body: JSON.stringify(values) }),
 
   // 定时/自动化分析
   listScheduledTasks: () => request<any[]>('/api/scheduled-tasks'),

@@ -29,6 +29,22 @@ PLANS = {
     "yearly": {"name": "专业会员年卡", "amount_fen": 19900, "months": 12},
 }
 
+PAYMENT_FIELDS = {
+    "PAYMENT_NOTIFY_BASE_URL": False,
+    "WECHAT_APP_ID": False,
+    "WECHAT_MCH_ID": False,
+    "WECHAT_CERT_SERIAL_NO": False,
+    "WECHAT_PRIVATE_KEY_PATH": True,
+    "WECHAT_API_V3_KEY": True,
+    "WECHAT_PAY_PUBLIC_KEY_ID": False,
+    "WECHAT_PAY_PUBLIC_KEY_PATH": True,
+    "ALIPAY_APP_ID": False,
+    "ALIPAY_PRIVATE_KEY_PATH": True,
+    "ALIPAY_PUBLIC_KEY_PATH": True,
+    "ALIPAY_SELLER_ID": False,
+    "ALIPAY_GATEWAY": False,
+}
+
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(config.DB_PATH)
@@ -64,7 +80,53 @@ def channel_configured(channel: str) -> bool:
         keys = ("ALIPAY_APP_ID", "ALIPAY_PRIVATE_KEY_PATH", "ALIPAY_PUBLIC_KEY_PATH", "PAYMENT_NOTIFY_BASE_URL")
     else:
         return False
-    return all(os.getenv(key, "").strip() for key in keys)
+    return all(_setting(key) for key in keys)
+
+
+def _setting(key: str, default: str = "") -> str:
+    init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT value FROM app_config WHERE key=?", ("payment." + key,)).fetchone()
+    if row:
+        return auth.decrypt_key(row["value"]) if PAYMENT_FIELDS.get(key) else row["value"]
+    return os.getenv(key, default).strip()
+
+
+def admin_config() -> dict[str, Any]:
+    values: dict[str, str] = {}
+    configured: dict[str, bool] = {}
+    for key, secret in PAYMENT_FIELDS.items():
+        value = _setting(key, "https://openapi.alipay.com/gateway.do" if key == "ALIPAY_GATEWAY" else "")
+        values[key] = "" if secret else value
+        if secret:
+            configured[key] = bool(value)
+    return {"values": values, "configured": configured, "channels": public_config()["channels"]}
+
+
+def save_admin_config(values: dict[str, Any]) -> dict[str, Any]:
+    clean = {key: str(values.get(key, "")).strip() for key in PAYMENT_FIELDS if key in values}
+    notify_url = clean.get("PAYMENT_NOTIFY_BASE_URL")
+    if notify_url and not notify_url.startswith("https://"):
+        raise ValueError("支付回调地址必须使用 HTTPS")
+    api_key = clean.get("WECHAT_API_V3_KEY")
+    if api_key and len(api_key.encode()) != 32:
+        raise ValueError("微信 API v3 Key 必须为 32 字节")
+    for key in ("WECHAT_PRIVATE_KEY_PATH", "ALIPAY_PRIVATE_KEY_PATH"):
+        if clean.get(key):
+            _load_private_key(clean[key])
+    for key in ("WECHAT_PAY_PUBLIC_KEY_PATH", "ALIPAY_PUBLIC_KEY_PATH"):
+        if clean.get(key):
+            _load_public_key(clean[key])
+    init_db()
+    stored_values = {
+        key: auth.encrypt_key(value) if PAYMENT_FIELDS[key] else value
+        for key, value in clean.items()
+        if not PAYMENT_FIELDS[key] or value
+    }
+    with _connect() as conn:
+        for key, stored in stored_values.items():
+            conn.execute("INSERT OR REPLACE INTO app_config (key,value) VALUES (?,?)", ("payment." + key, stored))
+    return admin_config()
 
 
 def public_config() -> dict[str, Any]:
@@ -74,17 +136,28 @@ def public_config() -> dict[str, Any]:
     }
 
 
-def _private_key(path_env: str):
-    path = Path(os.environ[path_env])
-    return serialization.load_pem_private_key(path.read_bytes(), password=None)
+def _key_bytes(value: str) -> bytes:
+    return value.encode() if "-----BEGIN" in value else Path(value).read_bytes()
 
 
-def _public_key(path_env: str):
-    raw = Path(os.environ[path_env]).read_bytes()
+def _load_private_key(value: str):
+    return serialization.load_pem_private_key(_key_bytes(value), password=None)
+
+
+def _private_key(key: str):
+    return _load_private_key(_setting(key))
+
+
+def _load_public_key(value: str):
+    raw = _key_bytes(value)
     try:
         return serialization.load_pem_public_key(raw)
     except ValueError:
         return x509.load_pem_x509_certificate(raw).public_key()
+
+
+def _public_key(key: str):
+    return _load_public_key(_setting(key))
 
 
 def _rsa_sign(message: str, path_env: str) -> str:
@@ -127,16 +200,16 @@ def create_order(user_id: int, plan_code: str, channel: str) -> dict[str, Any]:
 def _create_wechat_order(order: dict[str, Any]) -> dict[str, Any]:
     path = "/v3/pay/transactions/native"
     body = json.dumps({
-        "appid": os.environ["WECHAT_APP_ID"],
-        "mchid": os.environ["WECHAT_MCH_ID"],
+        "appid": _setting("WECHAT_APP_ID"),
+        "mchid": _setting("WECHAT_MCH_ID"),
         "description": order["plan"]["name"],
         "out_trade_no": order["order_no"],
-        "notify_url": os.environ["PAYMENT_NOTIFY_BASE_URL"].rstrip("/") + "/api/payments/wechat/notify",
+        "notify_url": _setting("PAYMENT_NOTIFY_BASE_URL").rstrip("/") + "/api/payments/wechat/notify",
         "amount": {"total": order["plan"]["amount_fen"], "currency": "CNY"},
     }, ensure_ascii=False, separators=(",", ":"))
     timestamp, nonce = str(int(time.time())), secrets.token_hex(16)
     signature = _rsa_sign(f"POST\n{path}\n{timestamp}\n{nonce}\n{body}\n", "WECHAT_PRIVATE_KEY_PATH")
-    token = f'mchid="{os.environ["WECHAT_MCH_ID"]}",nonce_str="{nonce}",timestamp="{timestamp}",serial_no="{os.environ["WECHAT_CERT_SERIAL_NO"]}",signature="{signature}"'
+    token = f'mchid="{_setting("WECHAT_MCH_ID")}",nonce_str="{nonce}",timestamp="{timestamp}",serial_no="{_setting("WECHAT_CERT_SERIAL_NO")}",signature="{signature}"'
     response = requests.post(
         "https://api.mch.weixin.qq.com" + path,
         data=body.encode(),
@@ -155,9 +228,9 @@ def _create_wechat_order(order: dict[str, Any]) -> dict[str, Any]:
 
 
 def _create_alipay_order(order: dict[str, Any]) -> dict[str, Any]:
-    base_url = os.environ["PAYMENT_NOTIFY_BASE_URL"].rstrip("/")
+    base_url = _setting("PAYMENT_NOTIFY_BASE_URL").rstrip("/")
     params = {
-        "app_id": os.environ["ALIPAY_APP_ID"], "method": "alipay.trade.page.pay", "format": "JSON",
+        "app_id": _setting("ALIPAY_APP_ID"), "method": "alipay.trade.page.pay", "format": "JSON",
         "charset": "utf-8", "sign_type": "RSA2", "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "version": "1.0", "notify_url": base_url + "/api/payments/alipay/notify",
         "return_url": base_url + "/?payment=return",
@@ -165,7 +238,7 @@ def _create_alipay_order(order: dict[str, Any]) -> dict[str, Any]:
     }
     content = "&".join(f"{key}={params[key]}" for key in sorted(params))
     params["sign"] = _rsa_sign(content, "ALIPAY_PRIVATE_KEY_PATH")
-    gateway = os.getenv("ALIPAY_GATEWAY", "https://openapi.alipay.com/gateway.do")
+    gateway = _setting("ALIPAY_GATEWAY", "https://openapi.alipay.com/gateway.do")
     return {"order_no": order["order_no"], "channel": "alipay", "status": "pending", "pay_url": gateway + "?" + urlencode(params)}
 
 
@@ -174,7 +247,7 @@ def _verify_wechat_message(headers: Any, body: str) -> None:
     nonce = headers.get("Wechatpay-Nonce", "")
     signature = headers.get("Wechatpay-Signature", "")
     serial = headers.get("Wechatpay-Serial", "")
-    if serial != os.environ["WECHAT_PAY_PUBLIC_KEY_ID"] or not timestamp.isdigit() or abs(time.time() - int(timestamp)) > 300:
+    if serial != _setting("WECHAT_PAY_PUBLIC_KEY_ID") or not timestamp.isdigit() or abs(time.time() - int(timestamp)) > 300:
         raise ValueError("微信支付签名信息无效")
     if not _rsa_verify(f"{timestamp}\n{nonce}\n{body}\n", signature, "WECHAT_PAY_PUBLIC_KEY_PATH"):
         raise ValueError("微信支付验签失败")
@@ -185,14 +258,14 @@ def handle_wechat_notify(headers: Any, body: str) -> dict[str, Any]:
     resource = json.loads(body)["resource"]
     if resource.get("algorithm") != "AEAD_AES_256_GCM":
         raise ValueError("不支持的微信支付加密算法")
-    key = os.environ["WECHAT_API_V3_KEY"].encode()
+    key = _setting("WECHAT_API_V3_KEY").encode()
     if len(key) != 32:
         raise ValueError("WECHAT_API_V3_KEY 必须为 32 字节")
     plain = AESGCM(key).decrypt(
         resource["nonce"].encode(), base64.b64decode(resource["ciphertext"]), resource.get("associated_data", "").encode()
     )
     data = json.loads(plain)
-    if data.get("trade_state") != "SUCCESS" or data.get("mchid") != os.environ["WECHAT_MCH_ID"] or data.get("appid") != os.environ["WECHAT_APP_ID"]:
+    if data.get("trade_state") != "SUCCESS" or data.get("mchid") != _setting("WECHAT_MCH_ID") or data.get("appid") != _setting("WECHAT_APP_ID"):
         raise ValueError("微信支付结果无效")
     amount = data.get("amount") or {}
     if amount.get("currency", "CNY") != "CNY":
@@ -206,9 +279,9 @@ def handle_alipay_notify(params: dict[str, str]) -> dict[str, Any]:
     content = "&".join(f"{key}={signed[key]}" for key in sorted(signed))
     if not _rsa_verify(content, signature, "ALIPAY_PUBLIC_KEY_PATH"):
         raise ValueError("支付宝验签失败")
-    if params.get("app_id") != os.environ["ALIPAY_APP_ID"] or params.get("trade_status") not in ("TRADE_SUCCESS", "TRADE_FINISHED"):
+    if params.get("app_id") != _setting("ALIPAY_APP_ID") or params.get("trade_status") not in ("TRADE_SUCCESS", "TRADE_FINISHED"):
         raise ValueError("支付宝支付结果无效")
-    seller_id = os.getenv("ALIPAY_SELLER_ID", "").strip()
+    seller_id = _setting("ALIPAY_SELLER_ID")
     if seller_id and params.get("seller_id") != seller_id:
         raise ValueError("支付宝收款账号不匹配")
     amount_fen = int(Decimal(params["total_amount"]) * 100)

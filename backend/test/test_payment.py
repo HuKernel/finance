@@ -1,6 +1,8 @@
 from datetime import datetime
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app import auth, config, payment
 
@@ -55,3 +57,21 @@ def test_forged_wechat_notify_is_rejected(monkeypatch):
     }
     with pytest.raises(ValueError, match="验签失败"):
         payment._verify_wechat_message(headers, "{}")
+
+
+def test_admin_payment_secrets_are_encrypted_and_not_returned(isolated_db):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_pem = private_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    public_pem = private_key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+    result = payment.save_admin_config({
+        "PAYMENT_NOTIFY_BASE_URL": "https://pay.example.com",
+        "WECHAT_APP_ID": "wx-app", "WECHAT_MCH_ID": "mch-1", "WECHAT_CERT_SERIAL_NO": "serial-1",
+        "WECHAT_PRIVATE_KEY_PATH": private_pem, "WECHAT_API_V3_KEY": "1" * 32,
+        "WECHAT_PAY_PUBLIC_KEY_ID": "PUB_KEY_ID_1", "WECHAT_PAY_PUBLIC_KEY_PATH": public_pem,
+    })
+    assert result["channels"]["wechat"] is True
+    assert result["values"]["WECHAT_PRIVATE_KEY_PATH"] == ""
+    with payment._connect() as conn:
+        stored = conn.execute("SELECT value FROM app_config WHERE key='payment.WECHAT_API_V3_KEY'").fetchone()["value"]
+    assert stored != "1" * 32
+    assert payment._setting("WECHAT_API_V3_KEY") == "1" * 32

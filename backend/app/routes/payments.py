@@ -6,9 +6,25 @@ from urllib.parse import parse_qsl
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from .. import payment
-from ..deps import get_current_user
+from ..deps import get_current_user, require_admin
 
 router = APIRouter()
+
+
+@router.get("/api/admin/payment-config")
+def get_admin_payment_config(admin: dict = Depends(require_admin)) -> dict:
+    return payment.admin_config()
+
+
+@router.put("/api/admin/payment-config")
+def put_admin_payment_config(body: dict, admin: dict = Depends(require_admin)) -> dict:
+    try:
+        result = payment.save_admin_config(body)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(400, f"支付配置无效：{exc}") from exc
+    from .. import auth
+    auth.audit_log(admin["id"], admin["username"], "update_payment_config")
+    return result
 
 
 @router.get("/api/payments/config")

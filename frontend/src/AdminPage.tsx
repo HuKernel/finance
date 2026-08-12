@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
 
-type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'audit'
+type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'payment' | 'audit'
 
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false)
@@ -21,6 +21,7 @@ export default function AdminPage() {
     { key: 'users', label: '用户管理' },
     { key: 'invites', label: '邀请码' },
     { key: 'feedback', label: '用户反馈' },
+    { key: 'payment', label: '支付配置' },
     { key: 'audit', label: '审计日志' },
   ]
 
@@ -39,10 +40,67 @@ export default function AdminPage() {
         {tab === 'users' && <UsersSection />}
         {tab === 'invites' && <InviteSection />}
         {tab === 'feedback' && <FeedbackSection />}
+        {tab === 'payment' && <PaymentConfigSection />}
         {tab === 'audit' && <AuditSection />}
       </div>
     </div>
   )
+}
+
+const PAYMENT_LABELS: Record<string, string> = {
+  PAYMENT_NOTIFY_BASE_URL: '支付回调 HTTPS 根地址',
+  WECHAT_APP_ID: '微信 AppID', WECHAT_MCH_ID: '微信商户号', WECHAT_CERT_SERIAL_NO: '微信商户证书序列号',
+  WECHAT_PRIVATE_KEY_PATH: '微信商户 API 私钥 PEM', WECHAT_API_V3_KEY: '微信 API v3 Key',
+  WECHAT_PAY_PUBLIC_KEY_ID: '微信支付公钥 ID', WECHAT_PAY_PUBLIC_KEY_PATH: '微信支付公钥 PEM',
+  ALIPAY_APP_ID: '支付宝 AppID', ALIPAY_PRIVATE_KEY_PATH: '支付宝应用私钥 PEM',
+  ALIPAY_PUBLIC_KEY_PATH: '支付宝公钥 PEM', ALIPAY_SELLER_ID: '支付宝 Seller ID（可选）',
+  ALIPAY_GATEWAY: '支付宝网关',
+}
+const PAYMENT_SECRET_FIELDS = new Set(['WECHAT_PRIVATE_KEY_PATH', 'WECHAT_API_V3_KEY', 'WECHAT_PAY_PUBLIC_KEY_PATH', 'ALIPAY_PRIVATE_KEY_PATH', 'ALIPAY_PUBLIC_KEY_PATH'])
+
+function PaymentConfigSection() {
+  const { toast } = useModal()
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [configured, setConfigured] = useState<Record<string, boolean>>({})
+  const [channels, setChannels] = useState<Record<string, boolean>>({})
+  const [saving, setSaving] = useState(false)
+
+  const applyConfig = (result: {values:Record<string,string>;configured:Record<string,boolean>;channels:Record<string,boolean>}) => {
+    setValues(result.values); setConfigured(result.configured); setChannels(result.channels)
+  }
+  useEffect(() => {
+    api.adminPaymentConfig().then(applyConfig).catch(() => toast('支付配置加载失败', 'error'))
+  }, [toast])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const result = await api.saveAdminPaymentConfig(values)
+      setValues(result.values); setConfigured(result.configured); setChannels(result.channels)
+      toast('支付配置已保存', 'success')
+    } catch (e) { toast(e instanceof Error ? e.message : '保存失败', 'error') }
+    finally { setSaving(false) }
+  }
+
+  return <div className="payment-admin-config">
+    <div className="payment-config-status">
+      <span className={channels.wechat ? 'up' : 'down'}>微信支付：{channels.wechat ? '可用' : '未完成'}</span>
+      <span className={channels.alipay ? 'up' : 'down'}>支付宝：{channels.alipay ? '可用' : '未完成'}</span>
+    </div>
+    <p className="hint">私钥和 API v3 Key 加密保存，页面不会回显原文；留空表示保留已有密钥。</p>
+    <div className="payment-config-grid">
+      {Object.entries(PAYMENT_LABELS).map(([key, label]) => {
+        const secret = PAYMENT_SECRET_FIELDS.has(key)
+        const multiline = key.includes('PRIVATE_KEY') || key.includes('PUBLIC_KEY')
+        return <label key={key}>{label}{secret && configured[key] && <small>已配置</small>}
+          {multiline
+            ? <textarea rows={4} value={values[key] || ''} placeholder={configured[key] ? '已配置，留空保持不变' : '粘贴完整 PEM 内容'} onChange={e => setValues(current => ({...current, [key]: e.target.value}))} />
+            : <input type={key === 'WECHAT_API_V3_KEY' ? 'password' : 'text'} value={values[key] || ''} placeholder={secret && configured[key] ? '已配置，留空保持不变' : ''} onChange={e => setValues(current => ({...current, [key]: e.target.value}))} />}
+        </label>
+      })}
+    </div>
+    <button className="btn-primary" disabled={saving} onClick={save}>{saving ? '保存中...' : '保存支付配置'}</button>
+  </div>
 }
 
 const FEEDBACK_CATEGORY: Record<string, string> = {
