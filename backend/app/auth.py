@@ -658,9 +658,16 @@ def list_invite_codes() -> list[dict[str, Any]]:
     with _connect() as conn:
         rows = conn.execute(
             "SELECT i.*, u.username as created_by_name FROM invite_codes i "
-            "LEFT JOIN users u ON i.created_by = u.id ORDER BY i.created_at DESC"
+            "LEFT JOIN users u ON i.created_by = u.id "
+            "ORDER BY i.created_at DESC"
         ).fetchall()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    with _connect() as conn:
+        for item in result:
+            if item.get("used_by"):
+                row = conn.execute("SELECT username FROM users WHERE id=?", (item["used_by"],)).fetchone()
+                item["used_by_name"] = row["username"] if row else None
+    return result
 
 
 def audit_log(user_id: int, username: str, action: str, detail: str = "", ip: str = "") -> None:
@@ -691,13 +698,17 @@ def get_system_stats() -> dict[str, Any]:
     with _connect() as conn:
         user_count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
         active_users = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_active=1").fetchone()["c"]
+        member_count = conn.execute(
+            "SELECT COUNT(*) as c FROM users WHERE plan_code NOT IN ('', 'free') AND (membership_expires_at IS NULL OR membership_expires_at >= ?)",
+            (datetime.now().isoformat(timespec="seconds"),),
+        ).fetchone()["c"]
         analysis_count = conn.execute("SELECT COUNT(*) as c FROM analyses").fetchone()["c"]
         session_count = conn.execute("SELECT COUNT(*) as c FROM chat_sessions").fetchone() if conn.execute("SELECT name FROM sqlite_master WHERE name='chat_sessions'").fetchone() else {"c": 0}
         alert_count = conn.execute("SELECT COUNT(*) as c FROM alerts").fetchone()["c"] if conn.execute("SELECT name FROM sqlite_master WHERE name='alerts'").fetchone() else {"c": 0}
         portfolio_count = conn.execute("SELECT COUNT(*) as c FROM portfolio").fetchone()["c"] if conn.execute("SELECT name FROM sqlite_master WHERE name='portfolio'").fetchone() else {"c": 0}
     return {
         "db_size_mb": round(db_size / 1024 / 1024, 2),
-        "users": {"total": user_count, "active": active_users},
+        "users": {"total": user_count, "active": active_users, "members": member_count},
         "analyses": analysis_count,
         "chat_sessions": session_count.get("c", 0) if isinstance(session_count, dict) else 0,
         "alerts": alert_count.get("c", 0) if isinstance(alert_count, dict) else 0,

@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin
+from ..deps import get_current_user, require_admin, require_membership
 
 router = APIRouter()
 
@@ -291,14 +291,14 @@ async def change_password_api(request: Request, user: dict[str, Any] = Depends(g
 
 
 @router.get("/api/auth/llm-config")
-def get_llm_config_api(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+def get_llm_config_api(user: dict[str, Any] = Depends(require_membership)) -> dict[str, Any]:
     """获取当前用户的LLM配置（api_key脱敏）。"""
     return auth.get_user_llm_config(user["id"]) | {"api_key": auth._mask_key(auth.get_user_llm_config(user["id"])["api_key"])}
 
 
 
 @router.put("/api/auth/llm-config")
-async def save_llm_config_api(request: Request, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+async def save_llm_config_api(request: Request, user: dict[str, Any] = Depends(require_membership)) -> dict[str, Any]:
     """保存当前用户的LLM配置（api_key加密存储）。"""
     body = await request.json()
     return auth.save_user_llm_config(user["id"], body)

@@ -6,6 +6,9 @@ type Section = 'membership' | 'invite' | 'llm' | 'profile' | 'analysts' | 'passw
 
 export default function ProfilePage() {
   const [section, setSection] = useState<Section>('membership')
+  const [isMember, setIsMember] = useState(false)
+
+  useEffect(() => { api.getCapabilities().then(({ plan }) => setIsMember(plan !== 'free')).catch(() => {}) }, [])
 
   return (
     <div className="pane profile-page">
@@ -17,7 +20,7 @@ export default function ProfilePage() {
         <div className="profile-nav">
           <button className={section === 'membership' ? 'active' : ''} onClick={() => setSection('membership')}>会员服务</button>
           <button className={section === 'invite' ? 'active' : ''} onClick={() => setSection('invite')}>邀请奖励</button>
-          <button className={section === 'llm' ? 'active' : ''} onClick={() => setSection('llm')}>模型配置</button>
+          <button className={section === 'llm' ? 'active' : ''} onClick={() => setSection('llm')}>模型配置{!isMember && '（会员专享）'}</button>
           <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}>用户画像</button>
           <button className={section === 'analysts' ? 'active' : ''} onClick={() => setSection('analysts')}>分析师配置</button>
           <button className={section === 'password' ? 'active' : ''} onClick={() => setSection('password')}>修改密码</button>
@@ -26,7 +29,7 @@ export default function ProfilePage() {
         <div className="profile-content">
           {section === 'membership' && <MembershipSection />}
           {section === 'invite' && <InviteSection />}
-          {section === 'llm' && <LLMConfigSection />}
+          {section === 'llm' && (isMember ? <LLMConfigSection /> : <div className="config-section"><p className="hint">模型配置仅限会员使用，请先开通会员。</p><button className="btn-primary" onClick={() => setSection('membership')}>前往开通会员</button></div>)}
           {section === 'profile' && <UserProfileSection />}
           {section === 'analysts' && <AnalystConfigSection />}
           {section === 'password' && <PasswordSection />}
@@ -122,7 +125,7 @@ function LLMConfigSection() {
   useEffect(() => {
     Promise.all([api.getUserLLMConfig(), api.getProviders()])
       .then(([c, p]) => { setCfg(c); setProviders(p) })
-      .catch((e) => setErr(e instanceof Error ? e.message : '加载配置失败'))
+      .catch((e) => setErr(e instanceof Error && e.message.includes('模型配置') ? '模型配置仅限会员使用，请先开通会员。' : e instanceof Error ? e.message : '加载配置失败'))
   }, [])
 
   const set = (patch: Partial<LLMConfig>) => setCfg((c) => (c ? { ...c, ...patch } : c))

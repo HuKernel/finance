@@ -33,6 +33,12 @@ def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str,
     return user
 
 
+def require_membership(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    if not auth.has_membership(user):
+        raise HTTPException(status_code=403, detail="模型配置仅限会员使用")
+    return user
+
+
 def consume_model_access(user: dict[str, Any]) -> None:
     try:
         auth.consume_model_usage(user)

@@ -293,6 +293,7 @@ function StatsSection() {
       <div className="kpi-card"><span className="kpi-label">数据库大小</span><span className="kpi-value">{stats.db_size_mb || 0} MB</span></div>
       <div className="kpi-card"><span className="kpi-label">注册用户</span><span className="kpi-value">{stats.users?.total || 0}</span></div>
       <div className="kpi-card"><span className="kpi-label">活跃用户</span><span className="kpi-value">{stats.users?.active || 0}</span></div>
+      <div className="kpi-card"><span className="kpi-label">有效会员</span><span className="kpi-value">{stats.users?.members || 0}</span></div>
       <div className="kpi-card"><span className="kpi-label">投研报告</span><span className="kpi-value">{stats.analyses || 0}</span></div>
       <div className="kpi-card"><span className="kpi-label">预警规则</span><span className="kpi-value">{stats.alerts || 0}</span></div>
       <div className="kpi-card"><span className="kpi-label">持仓记录</span><span className="kpi-value">{stats.portfolios || 0}</span></div>
@@ -315,13 +316,14 @@ function UsersSection() {
   return (
     <>
     <table className="portfolio-table">
-      <thead><tr><th>ID</th><th>用户名</th><th>注册时间</th><th>管理员</th><th>状态</th><th>投研数</th><th>操作</th></tr></thead>
+      <thead><tr><th>ID</th><th>用户名</th><th>注册时间</th><th>会员</th><th>管理员</th><th>状态</th><th>投研数</th><th>操作</th></tr></thead>
       <tbody>
         {users.map(u => (
           <tr key={u.id}>
             <td>{u.id}</td>
             <td className="pf-name">{u.username}</td>
             <td>{(u.created_at || '').slice(0, 10)}</td>
+            <td>{u.plan_code && u.plan_code !== 'free' ? `有效至 ${(u.membership_expires_at || '长期').slice(0, 10)}` : '免费用户'}</td>
             <td>
               <label className="admin-toggle">
                 <input type="checkbox" checked={!!u.is_admin} onChange={e => setAdmin(u.id, e.target.checked)} />
@@ -363,7 +365,7 @@ function InviteSection() {
               <td className="pf-code">{c.code}</td>
               <td>{c.created_by_name || c.created_by}</td>
               <td>{(c.created_at || '').slice(0, 16)}</td>
-              <td>{c.used_by || '-'}</td>
+              <td>{c.used_by_name || c.used_by || '-'}</td>
               <td className={c.used_by ? '' : 'up'}>{c.used_by ? '已使用' : '可用'}</td>
             </tr>
           ))}

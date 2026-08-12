@@ -2,6 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from app import auth, config
+from app.deps import require_membership
 from app.llm import LLMClient
 from app.routes import chat
 
@@ -30,6 +31,13 @@ def test_member_and_admin_model_usage_is_unlimited(isolated_db):
 
     assert auth.consume_model_usage(member)["limit"] is None
     assert auth.consume_model_usage(admin)["limit"] is None
+
+
+def test_model_config_requires_membership():
+    with pytest.raises(HTTPException, match="模型配置仅限会员使用"):
+        require_membership({"is_admin": 0, "plan_code": "free", "membership_expires_at": None})
+
+    assert require_membership({"is_admin": 0, "plan_code": "pro", "membership_expires_at": None})["plan_code"] == "pro"
 
 
 def test_chat_rejects_more_than_200_characters_before_counting(monkeypatch):
