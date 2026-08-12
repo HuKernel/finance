@@ -24,13 +24,27 @@ def _number(value: Any) -> float | None:
 
 def _pool(name: str, fn_name: str) -> dict[str, Any]:
     if not AK_AVAILABLE:
-        return {"name": name, "items": [], "available": False}
+        return {"name": name, "items": [], "available": False, "source": "akshare_eastmoney"}
     try:
         df = getattr(ak, fn_name)(date=datetime.now().strftime("%Y%m%d"))
     except Exception:
-        return {"name": name, "items": [], "available": False}
+        return {"name": name, "items": [], "available": False, "source": "akshare_eastmoney"}
     if df is None or df.empty:
-        return {"name": name, "items": [], "available": True}
+        if name == "跌停":
+            try:
+                from .stock_screener import _fetch_all_stocks
+                snapshot = _fetch_all_stocks()
+                if snapshot is not None:
+                    snapshot = snapshot[snapshot["change_pct"] <= -9.5].head(20)
+                    items = [{
+                        "code": str(row["code"]), "name": str(row["name"]),
+                        "change_pct": _number(row["change_pct"]), "price": _number(row["price"]),
+                        "reason": "全市场快照跌幅筛选", "boards": None,
+                    } for _, row in snapshot.iterrows()]
+                    return {"name": name, "items": items, "available": True, "source": "sina_snapshot"}
+            except Exception:
+                pass
+        return {"name": name, "items": [], "available": True, "source": "akshare_eastmoney"}
     columns = {str(col) for col in df.columns}
     items = []
     for _, row in df.head(20).iterrows():
@@ -43,7 +57,7 @@ def _pool(name: str, fn_name: str) -> dict[str, Any]:
             "reason": str(row.get("涨停原因类别", row.get("所属行业", ""))),
             "boards": _number(row.get("连板数")) if "连板数" in columns else None,
         })
-    return {"name": name, "items": items, "available": True}
+    return {"name": name, "items": items, "available": True, "source": "akshare_eastmoney"}
 
 
 def _lhb() -> list[dict[str, Any]]:

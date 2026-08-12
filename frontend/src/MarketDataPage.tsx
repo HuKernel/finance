@@ -117,7 +117,7 @@ function SentimentTab() {
     {!loading && !error && data && <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
         {(data.pools || []).map((pool: any) => <div key={pool.name} className="backtest-trades">
-          <h4 style={{ margin: '0 0 8px' }}>{pool.name}{!pool.available && '（暂不可用）'}</h4>
+          <h4 style={{ margin: '0 0 8px' }}>{pool.name}{!pool.available ? '（暂不可用）' : !pool.items?.length ? '（今日暂无）' : ''}</h4>
           {(pool.items || []).slice(0, 10).map((item: any) => <div key={item.code} style={{ display: 'flex', gap: 8, padding: '4px 0', fontSize: 13 }}>
             <span className="pf-code">{item.code}</span><span>{item.name}</span><span className={pctClass(item.change_pct)} style={{ marginLeft: 'auto' }}>{fmtPct(item.change_pct)}</span>
           </div>)}
