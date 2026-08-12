@@ -127,10 +127,18 @@ def save_admin_config(values: dict[str, Any]) -> dict[str, Any]:
             clean[key] = f"{price:.2f}"
     for key in ("WECHAT_PRIVATE_KEY_PATH", "ALIPAY_PRIVATE_KEY_PATH"):
         if clean.get(key):
-            _load_private_key(clean[key])
+            try:
+                _load_private_key(clean[key])
+            except (ValueError, TypeError) as exc:
+                label = "支付宝应用私钥" if key.startswith("ALIPAY") else "微信商户 API 私钥"
+                raise ValueError(f"{label}格式不正确，请填写 RSA 私钥") from exc
     for key in ("WECHAT_PAY_PUBLIC_KEY_PATH", "ALIPAY_PUBLIC_KEY_PATH"):
         if clean.get(key):
-            _load_public_key(clean[key])
+            try:
+                _load_public_key(clean[key])
+            except (ValueError, TypeError) as exc:
+                label = "支付宝公钥" if key.startswith("ALIPAY") else "微信支付公钥"
+                raise ValueError(f"{label}格式不正确，请勿填写应用公钥或 AES 密钥") from exc
     init_db()
     stored_values = {
         key: auth.encrypt_key(value) if PAYMENT_FIELDS[key] else value
@@ -154,13 +162,13 @@ def public_config() -> dict[str, Any]:
     }
 
 
-def _key_bytes(value: str, kind: str) -> bytes:
+def _key_bytes(value: str, kind: str) -> tuple[bytes, bool]:
     if "-----BEGIN" in value:
-        return value.encode()
+        return value.encode(), True
     try:
         path = Path(value)
         if path.is_file():
-            return path.read_bytes()
+            return path.read_bytes(), True
     except OSError:
         pass
     compact = "".join(value.split())
@@ -168,14 +176,15 @@ def _key_bytes(value: str, kind: str) -> bytes:
         base64.b64decode(compact, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise ValueError(f"{kind}不是有效的 PEM 内容或服务器文件路径") from exc
-    label = "PRIVATE KEY" if kind == "私钥" else "PUBLIC KEY"
-    lines = [compact[index:index + 64] for index in range(0, len(compact), 64)]
-    body = "\n".join(lines)
-    return f"-----BEGIN {label}-----\n{body}\n-----END {label}-----\n".encode()
+    return base64.b64decode(compact), False
 
 
 def _load_private_key(value: str):
-    return serialization.load_pem_private_key(_key_bytes(value, "私钥"), password=None)
+    raw, is_pem = _key_bytes(value, "私钥")
+    key = serialization.load_pem_private_key(raw, password=None) if is_pem else serialization.load_der_private_key(raw, password=None)
+    if not hasattr(key, "sign"):
+        raise ValueError("不是 RSA 私钥")
+    return key
 
 
 def _private_key(key: str):
@@ -183,7 +192,12 @@ def _private_key(key: str):
 
 
 def _load_public_key(value: str):
-    raw = _key_bytes(value, "公钥")
+    raw, is_pem = _key_bytes(value, "公钥")
+    if not is_pem:
+        try:
+            return serialization.load_der_public_key(raw)
+        except ValueError:
+            return x509.load_der_x509_certificate(raw).public_key()
     try:
         return serialization.load_pem_public_key(raw)
     except ValueError:

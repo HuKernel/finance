@@ -98,3 +98,15 @@ def test_alipay_raw_keys_without_pem_headers_are_accepted(isolated_db):
     })
     assert result["configured"]["ALIPAY_PRIVATE_KEY_PATH"] is True
     assert result["configured"]["ALIPAY_PUBLIC_KEY_PATH"] is True
+
+
+def test_alipay_raw_pkcs1_private_key_is_accepted(isolated_db):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private_raw = private_key.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption())
+    result = payment.save_admin_config({"ALIPAY_PRIVATE_KEY_PATH": __import__("base64").b64encode(private_raw).decode()})
+    assert result["configured"]["ALIPAY_PRIVATE_KEY_PATH"] is True
+
+
+def test_alipay_key_error_names_the_invalid_field(isolated_db):
+    with pytest.raises(ValueError, match="支付宝应用私钥格式不正确"):
+        payment.save_admin_config({"ALIPAY_PRIVATE_KEY_PATH": __import__("base64").b64encode(b"not-a-key").decode()})
