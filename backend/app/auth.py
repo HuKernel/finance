@@ -120,6 +120,16 @@ def _init_db() -> None:
                 PRIMARY KEY (user_id, month)
             )"""
         )
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS oauth_identities (
+                provider TEXT NOT NULL,
+                provider_user_id TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (provider, provider_user_id),
+                UNIQUE (provider, user_id)
+            )"""
+        )
 
         # 首个用户自动成为管理员
         count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
@@ -378,6 +388,40 @@ def create_user(username: str, password: str, invite_code: str = "") -> dict[str
     except sqlite3.IntegrityError:
         raise ValueError("用户名已存在")
     return {"id": user_id, "username": username, "is_admin": is_admin}
+
+
+def get_or_create_oauth_user(provider: str, provider_user_id: str, preferred_username: str) -> dict[str, Any]:
+    """按第三方稳定 ID 登录；首次登录创建普通本地用户。"""
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT u.* FROM oauth_identities o JOIN users u ON u.id=o.user_id WHERE o.provider=? AND o.provider_user_id=?",
+            (provider, provider_user_id),
+        ).fetchone()
+        if row:
+            if not row["is_active"]:
+                raise PermissionError("账号已被禁用，请联系管理员")
+            return {"id": row["id"], "username": row["username"], "is_admin": row["is_admin"]}
+
+        base = "".join(char for char in preferred_username.strip() if char.isalnum() or char in "-_")[:20] or f"{provider}_user"
+        username, suffix = base, 0
+        while conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
+            suffix += 1
+            tail = f"_{suffix}"
+            username = base[:20 - len(tail)] + tail
+        digest, salt = hash_password(secrets.token_urlsafe(32))
+        now = datetime.now().isoformat(timespec="seconds")
+        cur = conn.execute(
+            "INSERT INTO users (username,password_hash,salt,created_at,is_admin,is_active,is_invited) VALUES (?,?,?,?,0,1,0)",
+            (username, digest, salt, now),
+        )
+        user_id = int(cur.lastrowid)
+        conn.execute("INSERT INTO user_profiles (user_id,risk_preference,watchlist) VALUES (?,'balanced','[]')", (user_id,))
+        conn.execute(
+            "INSERT INTO oauth_identities (provider,provider_user_id,user_id,created_at) VALUES (?,?,?,?)",
+            (provider, provider_user_id, user_id, now),
+        )
+    return {"id": user_id, "username": username, "is_admin": 0}
 
 
 def authenticate(username: str, password: str) -> Optional[dict[str, Any]]:

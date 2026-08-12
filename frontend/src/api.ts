@@ -127,6 +127,8 @@ export const api = {
   login: (username: string, password: string) =>
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
 
+  authProviders: () => request<{github:boolean}>('/api/auth/providers'),
+
   me: () => request<{ user: { id: number; username: string }; profile: UserProfile }>('/api/auth/me'),
 
   getProfile: () => request<UserProfile>('/api/auth/profile'),
@@ -309,6 +311,9 @@ export const api = {
   adminPaymentConfig: () => request<{values:Record<string,string>;configured:Record<string,boolean>;channels:Record<string,boolean>}>('/api/admin/payment-config'),
   saveAdminPaymentConfig: (values: Record<string, string>) =>
     request<{values:Record<string,string>;configured:Record<string,boolean>;channels:Record<string,boolean>}>('/api/admin/payment-config', { method: 'PUT', body: JSON.stringify(values) }),
+  adminGithubOAuth: () => request<{values:Record<string,string>;client_secret_configured:boolean;enabled:boolean}>('/api/admin/github-oauth'),
+  saveAdminGithubOAuth: (values: Record<string,string>) =>
+    request<{values:Record<string,string>;client_secret_configured:boolean;enabled:boolean}>('/api/admin/github-oauth', { method: 'PUT', body: JSON.stringify(values) }),
 
   // 定时/自动化分析
   listScheduledTasks: () => request<any[]>('/api/scheduled-tasks'),

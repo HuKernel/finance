@@ -3,7 +3,7 @@ import { api } from './api'
 import { useModal } from './Modal'
 import type { LLMConfig } from './types'
 
-type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'model' | 'payment' | 'audit'
+type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'model' | 'login' | 'payment' | 'audit'
 
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false)
@@ -23,6 +23,7 @@ export default function AdminPage() {
     { key: 'invites', label: '邀请码' },
     { key: 'feedback', label: '用户反馈' },
     { key: 'model', label: '默认模型' },
+    { key: 'login', label: '登录配置' },
     { key: 'payment', label: '支付配置' },
     { key: 'audit', label: '审计日志' },
   ]
@@ -43,11 +44,44 @@ export default function AdminPage() {
         {tab === 'invites' && <InviteSection />}
         {tab === 'feedback' && <FeedbackSection />}
         {tab === 'model' && <DefaultModelSection />}
+        {tab === 'login' && <LoginConfigSection />}
         {tab === 'payment' && <PaymentConfigSection />}
         {tab === 'audit' && <AuditSection />}
       </div>
     </div>
   )
+}
+
+function LoginConfigSection() {
+  const { toast } = useModal()
+  const [values, setValues] = useState<Record<string,string>>({})
+  const [secretConfigured, setSecretConfigured] = useState(false)
+  const [enabled, setEnabled] = useState(false)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    api.adminGithubOAuth().then(result => {
+      setValues(result.values); setSecretConfigured(result.client_secret_configured); setEnabled(result.enabled)
+    }).catch(() => toast('登录配置加载失败', 'error'))
+  }, [toast])
+  const save = async () => {
+    setSaving(true)
+    try {
+      const result = await api.saveAdminGithubOAuth(values)
+      setValues(result.values); setSecretConfigured(result.client_secret_configured); setEnabled(result.enabled)
+      toast('GitHub 登录配置已保存', 'success')
+    } catch (e) { toast(e instanceof Error ? e.message : '保存失败', 'error') }
+    finally { setSaving(false) }
+  }
+  return <div className="payment-admin-config">
+    <div className="payment-config-status"><span className={enabled ? 'up' : 'down'}>GitHub 登录：{enabled ? '已启用' : '未完成'}</span></div>
+    <p className="hint">在 GitHub OAuth App 中，将 Authorization callback URL 设置为：站点地址 + <code>/api/auth/github/callback</code>。Client Secret 加密保存且不会回显。</p>
+    <div className="payment-config-grid">
+      <label>站点根地址<input placeholder="https://example.com" value={values.site_url || ''} onChange={e => setValues(current => ({...current, site_url:e.target.value}))} /></label>
+      <label>GitHub Client ID<input value={values.client_id || ''} onChange={e => setValues(current => ({...current, client_id:e.target.value}))} /></label>
+      <label>GitHub Client Secret{secretConfigured && <small>已配置</small>}<input type="password" value={values.client_secret || ''} placeholder={secretConfigured ? '已配置，留空保持不变' : ''} onChange={e => setValues(current => ({...current, client_secret:e.target.value}))} /></label>
+    </div>
+    <button className="btn-primary" disabled={saving} onClick={save}>{saving ? '保存中...' : '保存登录配置'}</button>
+  </div>
 }
 
 function DefaultModelSection() {

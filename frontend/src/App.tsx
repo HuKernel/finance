@@ -72,6 +72,14 @@ function App() {
 
   // 启动时校验 token
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hashParams = new URLSearchParams(window.location.hash.slice(1))
+    const oauthToken = hashParams.get('oauth_token')
+    if (oauthToken) {
+      setToken(oauthToken)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    if (params.get('oauth_error')) setLoginTarget('home')
     if (!getToken()) { setBooted(true); return }
     api.me()
       .then((r) => {
@@ -126,9 +134,10 @@ function App() {
     setTab('home')
   }
 
+  const userGroups = auth ? NAV_GROUPS : NAV_GROUPS.filter(group => group.label !== '我的')
   const visibleGroups = isAdmin
-    ? [...NAV_GROUPS, { label: '系统', items: [{ tab: 'admin' as Tab, label: '管理后台' }] }]
-    : NAV_GROUPS
+    ? [...userGroups, { label: '系统', items: [{ tab: 'admin' as Tab, label: '管理后台' }] }]
+    : userGroups
   const activeLabel = visibleGroups.flatMap(group => group.items).find(item => item.tab === tab)?.label
   const activePage = (() => {
     switch (tab) {

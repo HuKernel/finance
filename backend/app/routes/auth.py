@@ -1,8 +1,10 @@
 """路由模块: auth"""
 from __future__ import annotations
+import secrets
 from typing import Any
+import requests
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
@@ -12,6 +14,8 @@ router = APIRouter()
 
 from .. import auth
 from ..models import LLMConfig
+
+OAUTH_COOKIE_MAX_AGE = 600
 
 
 @router.post("/api/auth/register")
@@ -60,6 +64,65 @@ def login(body: dict[str, str], request: Request) -> dict[str, Any]:
         auth.record_login_success(ident)
     auth.audit_log(user["id"], username, "login", ip=client_ip)
     return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
+
+
+@router.get("/api/auth/providers")
+def auth_providers() -> dict[str, bool]:
+    from ..github_oauth import configured
+    return {"github": configured()}
+
+
+@router.get("/api/auth/github/start")
+def github_start() -> RedirectResponse:
+    from ..github_oauth import authorize_url
+    try:
+        url, state, verifier = authorize_url()
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    response = RedirectResponse(url)
+    from ..github_oauth import _get
+    secure = _get("site_url").startswith("https://")
+    response.set_cookie("github_oauth_state", state, max_age=OAUTH_COOKIE_MAX_AGE, httponly=True, secure=secure, samesite="lax")
+    response.set_cookie("github_oauth_verifier", verifier, max_age=OAUTH_COOKIE_MAX_AGE, httponly=True, secure=secure, samesite="lax")
+    return response
+
+
+@router.get("/api/auth/github/callback")
+def github_callback(request: Request, code: str = "", state: str = "") -> RedirectResponse:
+    from ..github_oauth import exchange_identity, _get
+    site_url = _get("site_url").rstrip("/")
+    expected_state = request.cookies.get("github_oauth_state", "")
+    verifier = request.cookies.get("github_oauth_verifier", "")
+    if not code or not state or not expected_state or not secrets.compare_digest(state, expected_state) or not verifier:
+        return RedirectResponse(site_url + "/?oauth_error=state")
+    try:
+        profile = exchange_identity(code, verifier)
+        user = auth.get_or_create_oauth_user("github", str(profile["id"]), str(profile["login"]))
+        token = auth.create_token(user["id"], user["username"])
+        auth.audit_log(user["id"], user["username"], "login_github", ip=request.client.host if request.client else "")
+        response = RedirectResponse(site_url + "/#oauth_token=" + token)
+    except (ValueError, PermissionError, requests.RequestException):
+        response = RedirectResponse(site_url + "/?oauth_error=github")
+    response.delete_cookie("github_oauth_state")
+    response.delete_cookie("github_oauth_verifier")
+    return response
+
+
+@router.get("/api/admin/github-oauth")
+def get_admin_github_oauth(admin: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    from ..github_oauth import admin_config
+    return admin_config()
+
+
+@router.put("/api/admin/github-oauth")
+def put_admin_github_oauth(body: dict[str, Any], admin: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    from ..github_oauth import save_admin_config
+    try:
+        result = save_admin_config(body)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    auth.audit_log(admin["id"], admin["username"], "update_github_oauth")
+    return result
 
 
 

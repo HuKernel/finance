@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, setToken } from './api'
 import type { AuthResponse } from './types'
 
@@ -8,8 +8,14 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
   const [password, setPassword] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [remember, setRemember] = useState(!!localStorage.getItem('fc_remember_user'))
-  const [error, setError] = useState('')
+  const [error, setError] = useState(() => new URLSearchParams(window.location.search).get('oauth_error') ? 'GitHub 登录失败，请重试' : '')
   const [busy, setBusy] = useState(false)
+  const [githubEnabled, setGithubEnabled] = useState(false)
+
+  useEffect(() => {
+    api.authProviders().then(result => setGithubEnabled(result.github)).catch(() => {})
+    if (new URLSearchParams(window.location.search).get('oauth_error')) window.history.replaceState({}, '', window.location.pathname)
+  }, [])
 
   const submit = async () => {
     if (!username.trim() || !password) {
@@ -62,6 +68,12 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
         <button onClick={submit} disabled={busy} className="login-btn">
           {busy ? '处理中...' : mode === 'login' ? '登录' : '注册并登录'}
         </button>
+        {githubEnabled && <>
+          <div className="login-divider"><span>或</span></div>
+          <button className="github-login" onClick={() => { window.location.href = '/api/auth/github/start' }}>
+            <span aria-hidden="true">GitHub</span> 使用 GitHub 登录
+          </button>
+        </>}
         {onCancel && <button className="ghost login-cancel" onClick={onCancel}>暂不登录，继续浏览</button>}
       </div>
     </div>
