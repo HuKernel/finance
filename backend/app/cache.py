@@ -15,6 +15,7 @@ from .config import DB_PATH
 TTL = {
     "quote": 60,        # 实时行情 1 分钟
     "kline": 3600,      # 日K线 1 小时
+    "minute_kline": 300,  # 分钟K线 5 分钟
     "financials": 86400,  # 财务 24 小时
     "lhb": 21600,       # 龙虎榜 6 小时
     "news": 900,        # 新闻 15 分钟

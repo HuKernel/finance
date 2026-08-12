@@ -113,6 +113,11 @@ async function mockApi(page: Page) {
   })
 }
 
+async function navigateTo(page: Page, label: string) {
+  await page.getByRole('button', { name: '展开侧边栏' }).click()
+  await page.getByRole('button', { name: label, exact: true }).click()
+}
+
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await page.goto('/')
@@ -122,10 +127,12 @@ test.beforeEach(async ({ page }) => {
 test('移动端导航和智能对话输入区可用', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-  const menu = page.getByRole('button', { name: '打开导航菜单' })
+  const menu = page.getByRole('button', { name: '展开侧边栏' })
   await expect(menu).toBeVisible()
+  await expect(page.getByRole('navigation', { name: '主导航' })).not.toBeVisible()
   await menu.click()
-  await expect(menu).toHaveAttribute('aria-expanded', 'true')
+  await expect(menu).not.toBeVisible()
+  await expect(page.getByRole('button', { name: '收起侧边栏' })).toBeVisible()
   await page.getByRole('button', { name: '智能对话' }).click()
 
   const input = page.getByRole('textbox', { name: '向 FinanceCrew 提问' })
@@ -136,12 +143,15 @@ test('移动端导航和智能对话输入区可用', async ({ page }) => {
 })
 
 test('K线分钟周期发送正确请求并更新数据状态', async ({ page }) => {
-  await page.getByRole('button', { name: '行情' }).click()
+  await navigateTo(page, '行情')
   await expect(page.getByLabel('行情数据状态')).toContainText('图表源 腾讯')
 
   for (const period of ['5min', '15min', '30min', '60min']) {
     const label = period.replace('min', '分')
-    const request = page.waitForRequest(req => new URL(req.url()).pathname === '/api/kline/600519' && new URL(req.url()).searchParams.get('period') === period)
+    const request = page.waitForRequest(req => {
+      const url = new URL(req.url())
+      return url.pathname === '/api/kline/600519' && url.searchParams.get('period') === period && url.searchParams.get('count') === '100000'
+    })
     await page.getByRole('button', { name: label, exact: true }).click()
     await request
     await expect(page.getByLabel('行情数据状态')).toContainText('图表源 AKShare/腾讯')
@@ -162,7 +172,7 @@ test('A股、港股和美股交易所时间不会被浏览器时区偏移', asyn
 })
 
 test('策略回测入口提交用户选择的参数', async ({ page }) => {
-  await page.getByRole('button', { name: '策略回测' }).click()
+  await navigateTo(page, '策略回测')
   await page.getByRole('textbox', { name: '回测股票代码' }).fill('600519')
   await page.getByRole('combobox', { name: '回测周期' }).selectOption('250')
   const request = page.waitForRequest(req => req.url().includes('/api/backtest/600519') && new URL(req.url()).searchParams.get('days') === '250')
@@ -171,7 +181,7 @@ test('策略回测入口提交用户选择的参数', async ({ page }) => {
 })
 
 test('历史报告可以查看持久化运行追踪', async ({ page }) => {
-  await page.getByRole('button', { name: '历史记录' }).click()
+  await navigateTo(page, '历史记录')
   await page.getByRole('button', { name: '查看' }).click()
   await expect(page.getByText(/运行追踪 · deepseek\/deepseek-chat/)).toBeVisible()
   await page.getByText(/运行追踪 · deepseek\/deepseek-chat/).click()
@@ -182,7 +192,7 @@ test('历史报告可以查看持久化运行追踪', async ({ page }) => {
 })
 
 test('ML 信号诊断展示样本外区间和质量结论', async ({ page }) => {
-  await page.getByRole('button', { name: '信号诊断' }).click()
+  await navigateTo(page, '信号诊断')
   await expect(page.getByRole('option', { name: '随机森林' })).toHaveAttribute('value', 'rf')
   const request = page.waitForRequest(req => req.url().includes('/api/ml-signal/600519') && new URL(req.url()).searchParams.get('model') === 'auto')
   await page.getByRole('button', { name: '开始诊断' }).click()
@@ -193,7 +203,7 @@ test('ML 信号诊断展示样本外区间和质量结论', async ({ page }) => 
 })
 
 test('投资论文可追溯分析、回测数据指纹和 Reflection', async ({ page }) => {
-  await page.getByRole('button', { name: '投资论文' }).click()
+  await navigateTo(page, '投资论文')
   await page.getByText('贵州茅台').click()
   await expect(page.getByText(/分析 #42/)).toBeVisible()
   await expect(page.getByText('Run ID run-e2e-42')).toBeVisible()
@@ -206,7 +216,7 @@ test('投资论文可追溯分析、回测数据指纹和 Reflection', async ({ 
 })
 
 test('管理员可以查看用户反馈记录', async ({ page }) => {
-  await page.getByRole('button', { name: '管理后台' }).click()
+  await navigateTo(page, '管理后台')
   await page.getByRole('button', { name: '用户反馈' }).click()
 
   await expect(page.getByText('visitor')).toBeVisible()

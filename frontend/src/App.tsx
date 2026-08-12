@@ -1,4 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { api, getToken, setToken } from './api'
 import type { AuthResponse } from './types'
 import LoginPage from './LoginPage'
@@ -148,12 +149,13 @@ function App() {
   })()
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${navOpen ? ' nav-open' : ''}`}>
       <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <aside className={`sidebar${navOpen ? ' open' : ''}`}>
+      <aside id="main-navigation" className={`sidebar${navOpen ? ' open' : ''}`}>
         <div className="brand">
           <div className="brand-mark">FC</div>
           <h1>FinanceCrew<small>个人投研工作台</small></h1>
+          <button className="sidebar-close" aria-label="收起侧边栏" onClick={() => setNavOpen(false)}><PanelLeftClose aria-hidden="true" size={18} strokeWidth={1.8} /></button>
         </div>
         <nav aria-label="主导航" className="side-nav">
           {visibleGroups.map(group => (
@@ -166,10 +168,10 @@ function App() {
           ))}
         </nav>
       </aside>
-      <button className={`nav-backdrop${navOpen ? ' open' : ''}`} aria-label="关闭导航菜单" onClick={() => setNavOpen(false)} />
+      <button className={`nav-backdrop${navOpen ? ' open' : ''}`} aria-hidden="true" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <div className="workspace">
         <header className="workspace-header">
-          <button className="mobile-menu-btn" aria-label="打开导航菜单" aria-expanded={navOpen} onClick={() => setNavOpen(true)}>菜单</button>
+          {!navOpen && <button className="sidebar-trigger" aria-label="展开侧边栏" aria-controls="main-navigation" aria-expanded="false" onClick={() => setNavOpen(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>}
           <div className="workspace-title">
             <div className="workspace-eyebrow">FinanceCrew / {activeLabel}</div>
             <h2>{activeLabel}</h2>

@@ -183,7 +183,8 @@ export default function QuotePage() {
     setChartLoading(true)
     try {
       const token = localStorage.getItem('financecrew_token')
-      const r = await fetch(`/api/kline/${code}?period=${p}&count=250`, {
+      const count = p.endsWith('min') ? 100000 : 250
+      const r = await fetch(`/api/kline/${code}?period=${p}&count=${count}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const d = await r.json()

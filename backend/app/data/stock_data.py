@@ -267,7 +267,8 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
         except Exception:
             return None
 
-    data = cached(cache_key, TTL["kline"], _fetch)
+    cache_ttl = TTL["minute_kline"] if period_info["type"] == "mkline" else TTL["kline"]
+    data = cached(cache_key, cache_ttl, _fetch)
     if data is None or not data.get("bars"):
         return None
     is_minute = period_info["type"] == "mkline"
