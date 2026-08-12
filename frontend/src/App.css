@@ -674,24 +674,56 @@ a.quote-news-title:hover { color: var(--accent); text-decoration: underline; }
 .zoom-ind { color: var(--accent); }
 .zoom-hint { font-size: 10px; color: var(--text-3); opacity: 0.7; margin-left: 6px; }
 
-/* Markdown */
-.md-body { font-size: 14px; line-height: 1.65; }
+/* Markdown —— 模型回答排版：研报式层级 / 细线表格 / 终端代码块 */
+.md-body { font-size: 14px; line-height: 1.75; }
 .md-body > *:first-child { margin-top: 0; }
 .md-body > *:last-child { margin-bottom: 0; }
-.md-body h1, .md-body h2, .md-body h3, .md-body h4 { font-size: 14px; font-weight: 700; color: var(--text); margin: 10px 0 6px; }
-.md-body h1 { font-size: 16px; }
-.md-body p { margin: 0; color: var(--text); }
-.md-body strong { color: var(--text); font-weight: 600; }
-.md-body ul, .md-body ol { margin: 6px 0; padding-left: 20px; }
-.md-body li { margin: 3px 0; }
-.md-body code { font-family: var(--mono); font-size: 12px; background: var(--muted); border: 1px solid var(--border); padding: 4px 8px; color: var(--accent); }
-.md-body pre { background: var(--bg); border: 1px solid var(--border); padding: 12px 14px; overflow-x: auto; margin: 10px 0; }
-.md-body pre code { background: none; border: none; padding: 0; color: var(--text-2); }
-.md-body table, .md-table { border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 13px; }
-.md-body th, .md-body td, .md-table th, .md-table td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
-.md-body th, .md-table th { background: var(--muted); color: var(--text-2); font-weight: 600; }
-.md-body blockquote { border-left: 3px solid var(--accent); background: var(--surface); padding: 8px 16px; margin: 10px 0; color: var(--text-2); }
+
+/* 标题层级：h1 翠绿刻度条分区，h2 方块小节标记，h3/h4 段题（颜色继承气泡，兼容用户消息） */
+.md-body h1, .md-body h2 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; margin: 12px 0 6px; }
+.md-body h1 { padding-left: 9px; border-left: 3px solid var(--accent); }
+.md-body h2 { padding-left: 13px; position: relative; }
+.md-body h2::before { content: ''; position: absolute; left: 0; top: 7px; width: 6px; height: 6px; background: var(--accent); }
+.md-body h3 { font-size: 14px; font-weight: 700; margin: 10px 0 4px; }
+.md-body h4 { font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
+
+/* 段落与行内 */
+.md-body p { margin: 0; }
+.md-body strong { font-weight: 600; }
+.md-body em { font-style: italic; }
+.md-body a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); transition: border-bottom-style 0.12s; }
+.md-body a:hover { border-bottom-style: solid; }
+
+/* 列表：无序用翠绿短横线标记（直角语言），有序编号等宽强调色，缩进即嵌套 */
+.md-li { position: relative; padding-left: 16px; margin: 4px 0; }
+.md-li::before { content: ''; position: absolute; left: 2px; top: 11px; width: 6px; height: 2px; background: var(--accent); }
+.md-oli { position: relative; padding-left: 22px; margin: 4px 0; }
+.md-oli-num { position: absolute; left: 0; top: 1px; font-family: var(--mono); font-size: 12.5px; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* 引用 */
+.md-body blockquote { border-left: 2px solid var(--accent); background: var(--muted); padding: 8px 14px; margin: 10px 0; color: var(--text-2); }
+
 .md-body hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+/* 表格：金融研报式横线表（去竖线），表头加粗发丝线，行 hover，数字等宽对齐 */
+.md-table-wrap { margin: 10px 0; overflow-x: auto; }
+.md-body table, .md-table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.md-body th, .md-body td, .md-table th, .md-table td { border: none; border-bottom: 1px solid var(--border); padding: 7px 12px; text-align: left; }
+.md-body th, .md-table th { border-bottom: 1px solid var(--border-strong); color: var(--text-2); font-weight: 600; font-size: 12px; letter-spacing: 0.02em; white-space: nowrap; }
+.md-body tr:last-child td, .md-table tr:last-child td { border-bottom: none; }
+.md-body tbody tr, .md-table tbody tr { transition: background 0.12s; }
+.md-body tbody tr:hover, .md-table tbody tr:hover { background: var(--surface-hover); }
+
+/* 行内代码 */
+.md-body code { font-family: var(--mono); font-size: 12px; background: var(--muted); border: 1px solid var(--border); padding: 1px 6px; color: var(--accent); }
+
+/* 围栏代码块：终端面板风格，语言标签角标 */
+.md-codeblock { margin: 10px 0; border: 1px solid var(--border); background: var(--bg); }
+.md-codeblock-lang { display: inline-block; padding: 3px 10px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); background: var(--muted); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.md-codeblock pre { margin: 0; padding: 12px 14px; overflow-x: auto; }
+.md-codeblock code { background: none; border: none; padding: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.65; }
+
+/* 块级公式 */
 .md-math { margin: 8px 0; overflow-x: auto; text-align: center; }
 .md-math .katex-display { margin: 0; }
 
