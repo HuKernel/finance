@@ -59,6 +59,10 @@ def test_delete_invited_user_does_not_reuse_invite_code(isolated_db):
     with pytest.raises(ValueError, match="邀请码无效或已被使用"):
         auth.create_user("replacement", "password", code)
 
+    new_code = auth.create_invite_code(1)["code"]
+    replacement = auth.create_user("invited", "password", new_code)
+    assert replacement["username"] == "invited"
+
 
 def test_agreement_consent_is_recorded(isolated_db):
     auth.record_agreement_consent(7, "privacy")
