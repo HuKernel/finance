@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { api, setToken } from './api'
+import { useModal } from './Modal'
 import type { AuthResponse } from './types'
 
 export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResponse) => void; onCancel?: () => void }) {
+  const { prompt } = useModal()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState(localStorage.getItem('fc_remember_user') || '')
   const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('')
+  const [mfaCode, setMfaCode] = useState('')
   const [inviteCode, setInviteCode] = useState('')
   const [remember, setRemember] = useState(!!localStorage.getItem('fc_remember_user'))
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get('oauth_error') ? 'GitHub 登录失败，请重试' : '')
@@ -26,8 +30,8 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
     setError('')
     try {
       const r = mode === 'login'
-        ? await api.login(username.trim(), password)
-        : await api.register(username.trim(), password, inviteCode.trim())
+        ? await api.login(username.trim(), password, mfaCode)
+        : await api.register(username.trim(), password, inviteCode.trim(), email.trim())
       setToken(r.token)
       if (remember) {
         localStorage.setItem('fc_remember_user', username.trim())
@@ -57,6 +61,8 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
         </div>
         <input aria-label="用户名" autoComplete="username" placeholder="用户名" value={username} onChange={(e) => setUsername(e.target.value)} />
         <input aria-label="密码" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="密码（至少 6 位）" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        {mode === 'register' && <input aria-label="邮箱" type="email" placeholder="邮箱（用于验证和找回密码）" value={email} onChange={e => setEmail(e.target.value)} />}
+        {mode === 'login' && <input aria-label="MFA 验证码" inputMode="numeric" placeholder="已启用 MFA 时填写 6 位验证码" value={mfaCode} onChange={e => setMfaCode(e.target.value)} />}
         {mode === 'register' && (
           <input aria-label="邀请码" placeholder="邀请码（如需要）" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
         )}
@@ -68,6 +74,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
         <button onClick={submit} disabled={busy} className="login-btn">
           {busy ? '处理中...' : mode === 'login' ? '登录' : '注册并登录'}
         </button>
+        {mode === 'login' && <button className="ghost" onClick={async () => { const value = await prompt('请输入注册邮箱', { placeholder: '邮箱地址' }); if (value?.trim()) { try { await api.forgotPassword(value.trim()); setError('如果邮箱存在，重置链接已发送') } catch { setError('请求失败，请稍后重试') } } }}>忘记密码</button>}
         {githubEnabled && <>
           <div className="login-divider"><span>或</span></div>
           <button className="github-login" onClick={() => { window.location.href = '/api/auth/github/start' }}>

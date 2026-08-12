@@ -3,7 +3,7 @@ import { api } from './api'
 import { useModal } from './Modal'
 import type { LLMConfig } from './types'
 
-type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'model' | 'login' | 'payment' | 'audit'
+type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'model' | 'login' | 'mail' | 'payment' | 'audit'
 
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false)
@@ -24,6 +24,7 @@ export default function AdminPage() {
     { key: 'feedback', label: '用户反馈' },
     { key: 'model', label: '默认模型' },
     { key: 'login', label: '登录配置' },
+    { key: 'mail', label: '邮件配置' },
     { key: 'payment', label: '支付配置' },
     { key: 'audit', label: '审计日志' },
   ]
@@ -45,11 +46,29 @@ export default function AdminPage() {
         {tab === 'feedback' && <FeedbackSection />}
         {tab === 'model' && <DefaultModelSection />}
         {tab === 'login' && <LoginConfigSection />}
+        {tab === 'mail' && <MailConfigSection />}
         {tab === 'payment' && <PaymentConfigSection />}
         {tab === 'audit' && <AuditSection />}
       </div>
     </div>
   )
+}
+
+function MailConfigSection() {
+  const { toast } = useModal()
+  const [values, setValues] = useState<Record<string,string>>({})
+  const [configured, setConfigured] = useState(false)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { api.adminMail().then(r => { setValues(r.values); setConfigured(r.password_configured) }).catch(() => toast('邮件配置加载失败', 'error')) }, [toast])
+  const save = async () => { setSaving(true); try { const r = await api.saveAdminMail(values); setValues(r.values); setConfigured(r.password_configured); toast('邮件配置已保存', 'success') } catch (e) { toast(e instanceof Error ? e.message : '保存失败', 'error') } finally { setSaving(false) } }
+  return <div className="payment-admin-config"><p className="hint">用于邮箱验证和找回密码。建议使用 SMTP 专用授权码，密码加密保存且不会回显。</p><div className="payment-config-grid">
+    <label>SMTP 主机<input value={values.host || ''} onChange={e => setValues(v => ({...v, host:e.target.value}))} /></label>
+    <label>SMTP 端口<input type="number" value={values.port || '587'} onChange={e => setValues(v => ({...v, port:e.target.value}))} /></label>
+    <label>SMTP 用户名<input value={values.username || ''} onChange={e => setValues(v => ({...v, username:e.target.value}))} /></label>
+    <label>SMTP 密码{configured && <small>已配置</small>}<input type="password" placeholder={configured ? '已配置，留空保持不变' : ''} value={values.password || ''} onChange={e => setValues(v => ({...v, password:e.target.value}))} /></label>
+    <label>发件邮箱<input type="email" value={values.from_email || ''} onChange={e => setValues(v => ({...v, from_email:e.target.value}))} /></label>
+    <label>启用 TLS<select value={values.use_tls || 'true'} onChange={e => setValues(v => ({...v, use_tls:e.target.value}))}><option value="true">是</option><option value="false">否</option></select></label>
+  </div><button className="btn-primary" disabled={saving} onClick={save}>{saving ? '保存中...' : '保存邮件配置'}</button></div>
 }
 
 function LoginConfigSection() {
@@ -282,15 +301,19 @@ function StatsSection() {
 }
 
 function UsersSection() {
-  const { toast } = useModal()
+  const { toast, confirm } = useModal()
   const [users, setUsers] = useState<any[]>([])
-  const load = () => { api.adminUsers().then(setUsers).catch(() => {}) }
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const load = (p = page) => { api.adminUsers(p).then(r => { setUsers(r.items); setPage(r.page); setTotal(r.total) }).catch(() => {}) }
   useEffect(() => { load() }, [])
 
   const toggleActive = async (id: number) => { try { await api.toggleUserActive(id); load() } catch { toast('操作失败', 'error') } }
   const setAdmin = async (id: number, val: boolean) => { try { await api.setUserAdmin(id, val); load() } catch { toast('设置失败', 'error') } }
+  const remove = async (id: number, username: string) => { if (!await confirm(`确定永久删除用户“${username}”吗？`, { danger: true })) return; try { await api.deleteUser(id); load(page > 1 && users.length === 1 ? page - 1 : page) } catch (e) { toast(e instanceof Error ? e.message : '删除失败', 'error') } }
 
   return (
+    <>
     <table className="portfolio-table">
       <thead><tr><th>ID</th><th>用户名</th><th>注册时间</th><th>管理员</th><th>状态</th><th>投研数</th><th>操作</th></tr></thead>
       <tbody>
@@ -307,11 +330,13 @@ function UsersSection() {
             </td>
             <td className={u.is_active ? 'up' : 'down'}>{u.is_active ? '正常' : '禁用'}</td>
             <td>{u.analysis_count}</td>
-            <td><button className="admin-action-btn" onClick={() => toggleActive(u.id)}>{u.is_active ? '禁用' : '启用'}</button></td>
+            <td><button className="admin-action-btn" onClick={() => toggleActive(u.id)}>{u.is_active ? '禁用' : '启用'}</button> <button className="admin-action-btn danger" onClick={() => remove(u.id, u.username)}>删除</button></td>
           </tr>
         ))}
       </tbody>
     </table>
+    {total > 20 && <div className="feedback-pagination"><button disabled={page <= 1} onClick={() => load(page - 1)}>上一页</button><span>{page} / {Math.ceil(total / 20)}，共 {total} 人</span><button disabled={page * 20 >= total} onClick={() => load(page + 1)}>下一页</button></div>}
+    </>
   )
 }
 
@@ -350,9 +375,13 @@ function InviteSection() {
 
 function AuditSection() {
   const [logs, setLogs] = useState<any[]>([])
-  useEffect(() => { api.adminAuditLogs().then(setLogs).catch(() => {}) }, [])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const load = (p = page) => api.adminAuditLogs(p).then(r => { setLogs(r.items); setPage(r.page); setTotal(r.total) }).catch(() => {})
+  useEffect(() => { load(1) }, [])
 
   return (
+    <>
     <table className="portfolio-table">
       <thead><tr><th>时间</th><th>用户</th><th>操作</th><th>详情</th><th>IP</th></tr></thead>
       <tbody>
@@ -368,5 +397,7 @@ function AuditSection() {
         ))}
       </tbody>
     </table>
+    {total > 20 && <div className="feedback-pagination"><button disabled={page <= 1} onClick={() => load(page - 1)}>上一页</button><span>{page} / {Math.ceil(total / 20)}，共 {total} 条</span><button disabled={page * 20 >= total} onClick={() => load(page + 1)}>下一页</button></div>}
+    </>
   )
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import type { LLMConfig, UserProfile } from './types'
 
-type Section = 'membership' | 'llm' | 'profile' | 'analysts' | 'password'
+type Section = 'membership' | 'invite' | 'llm' | 'profile' | 'analysts' | 'password'
 
 export default function ProfilePage() {
   const [section, setSection] = useState<Section>('membership')
@@ -16,6 +16,7 @@ export default function ProfilePage() {
       <div className="profile-sections">
         <div className="profile-nav">
           <button className={section === 'membership' ? 'active' : ''} onClick={() => setSection('membership')}>会员服务</button>
+          <button className={section === 'invite' ? 'active' : ''} onClick={() => setSection('invite')}>邀请奖励</button>
           <button className={section === 'llm' ? 'active' : ''} onClick={() => setSection('llm')}>模型配置</button>
           <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}>用户画像</button>
           <button className={section === 'analysts' ? 'active' : ''} onClick={() => setSection('analysts')}>分析师配置</button>
@@ -24,6 +25,7 @@ export default function ProfilePage() {
 
         <div className="profile-content">
           {section === 'membership' && <MembershipSection />}
+          {section === 'invite' && <InviteSection />}
           {section === 'llm' && <LLMConfigSection />}
           {section === 'profile' && <UserProfileSection />}
           {section === 'analysts' && <AnalystConfigSection />}
@@ -32,6 +34,14 @@ export default function ProfilePage() {
       </div>
     </div>
   )
+}
+
+function InviteSection() {
+  const [items, setItems] = useState<any[]>([])
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { api.myInvites().then(setItems).catch(() => {}) }, [])
+  const create = async () => { setBusy(true); try { const item = await api.createUserInvite(''); setItems(prev => [item, ...prev]) } finally { setBusy(false) } }
+  return <div className="config-section"><p className="hint">生成邀请码并分享给朋友。朋友注册成功后，你将获得 1 次额外 AI 使用次数。</p><button className="btn-primary" disabled={busy} onClick={create}>{busy ? '生成中...' : '生成邀请码'}</button><div className="invite-list">{items.map(item => <div key={item.code}><code>{item.code}</code><span>{item.used_by ? '已使用' : '未使用'}</span></div>)}</div></div>
 }
 
 function MembershipSection() {

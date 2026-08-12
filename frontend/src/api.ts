@@ -121,13 +121,16 @@ export const api = {
     request<{ items: any[]; total: number; page: number; page_size: number }>(`/api/feedback?page=${page}&page_size=${pageSize}`),
 
   // 认证
-  register: (username: string, password: string, inviteCode?: string) =>
-    request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password, invite_code: inviteCode || '' }) }),
+  register: (username: string, password: string, inviteCode?: string, email?: string) =>
+    request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password, invite_code: inviteCode || '', email: email || '' }) }),
 
-  login: (username: string, password: string) =>
-    request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  login: (username: string, password: string, mfaCode?: string) =>
+    request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password, mfa_code: mfaCode || '' }) }),
 
   authProviders: () => request<{github:boolean}>('/api/auth/providers'),
+  forgotPassword: (email: string) => request<{status:string}>('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({email}) }),
+  createUserInvite: (note: string) => request<{code:string}>('/api/auth/invite-codes', { method: 'POST', body: JSON.stringify({note}) }),
+  myInvites: () => request<any[]>('/api/auth/invite-codes'),
 
   me: () => request<{ user: { id: number; username: string }; profile: UserProfile }>('/api/auth/me'),
 
@@ -283,6 +286,9 @@ export const api = {
     request<{ status: string }>('/api/auth/change-password', {
       method: 'POST', body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
     }),
+  setupMFA: () => request<{secret:string;otpauth:string}>('/api/auth/mfa/setup', { method: 'POST' }),
+  enableMFA: (code: string) => request<{status:string}>('/api/auth/mfa/enable', { method: 'POST', body: JSON.stringify({code}) }),
+  disableMFA: (code: string) => request<{status:string}>('/api/auth/mfa/disable', { method: 'POST', body: JSON.stringify({code}) }),
 
   // per-user LLM 配置
   getUserLLMConfig: () =>
@@ -295,12 +301,13 @@ export const api = {
 
   // 管理员
   isAdmin: () => request<{ is_admin: boolean }>('/api/auth/is-admin'),
-  adminUsers: () => request<any[]>('/api/admin/users'),
+  adminUsers: (page = 1) => request<{items:any[];total:number;page:number;page_size:number}>(`/api/admin/users?page=${page}&page_size=20`),
+  deleteUser: (id: number) => request<{status:string}>(`/api/admin/users/${id}`, { method: 'DELETE' }),
   toggleUserActive: (id: number) => request<{ status: string }>(`/api/admin/users/${id}/toggle-active`, { method: 'POST' }),
   setUserAdmin: (id: number, isAdmin: boolean) => request<{ status: string }>(`/api/admin/users/${id}/set-admin`, { method: 'POST', body: JSON.stringify({ is_admin: isAdmin }) }),
   createInvite: (note: string) => request<{ code: string }>('/api/admin/invite-codes', { method: 'POST', body: JSON.stringify({ note }) }),
   adminInvites: () => request<any[]>('/api/admin/invite-codes'),
-  adminAuditLogs: () => request<any[]>('/api/admin/audit-logs'),
+  adminAuditLogs: (page = 1) => request<{items:any[];total:number;page:number;page_size:number}>(`/api/admin/audit-logs?page=${page}&page_size=20`),
   adminFeedback: (page: number = 1, pageSize: number = 20) =>
     request<{ items: any[]; total: number; page: number; page_size: number }>(`/api/admin/feedback?page=${page}&page_size=${pageSize}`),
   updateFeedback: (id: number, body: { status?: string; reply?: string }) =>
@@ -312,6 +319,8 @@ export const api = {
   saveAdminPaymentConfig: (values: Record<string, string>) =>
     request<{values:Record<string,string>;configured:Record<string,boolean>;channels:Record<string,boolean>}>('/api/admin/payment-config', { method: 'PUT', body: JSON.stringify(values) }),
   adminGithubOAuth: () => request<{values:Record<string,string>;client_secret_configured:boolean;enabled:boolean}>('/api/admin/github-oauth'),
+  adminMail: () => request<any>('/api/admin/mail'),
+  saveAdminMail: (values: Record<string,string>) => request<any>('/api/admin/mail', { method: 'PUT', body: JSON.stringify(values) }),
   saveAdminGithubOAuth: (values: Record<string,string>) =>
     request<{values:Record<string,string>;client_secret_configured:boolean;enabled:boolean}>('/api/admin/github-oauth', { method: 'PUT', body: JSON.stringify(values) }),
 

@@ -24,9 +24,17 @@ interface ConfirmState {
   resolve: ((ok: boolean) => void) | null
 }
 
+interface PromptState {
+  visible: boolean
+  title: string
+  placeholder?: string
+  resolve: ((value: string | null) => void) | null
+}
+
 interface ModalCtx {
   toast: (message: string, type?: ToastType) => void
   confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>
+  prompt: (message: string, options?: { placeholder?: string }) => Promise<string | null>
 }
 
 const Ctx = createContext<ModalCtx | null>(null)
@@ -40,6 +48,8 @@ export function useModal(): ModalCtx {
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [confirmState, setConfirmState] = useState<ConfirmState>({ visible: false, options: {}, resolve: null })
+  const [promptState, setPromptState] = useState<PromptState>({ visible: false, title: '', resolve: null })
+  const [promptValue, setPromptValue] = useState('')
 
   const toast = useCallback((message: string, type: ToastType = 'info') => {
     const id = Date.now() + Math.random()
@@ -53,13 +63,18 @@ export function ModalProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const prompt = useCallback((message: string, options: { placeholder?: string } = {}) => new Promise<string | null>(resolve => {
+    setPromptValue('')
+    setPromptState({ visible: true, title: message, placeholder: options.placeholder, resolve })
+  }), [])
+
   const resolveConfirm = (ok: boolean) => {
     confirmState.resolve?.(ok)
     setConfirmState({ visible: false, options: {}, resolve: null })
   }
 
   return (
-    <Ctx.Provider value={{ toast, confirm }}>
+    <Ctx.Provider value={{ toast, confirm, prompt }}>
       {children}
       {/* Toasts */}
       <div className="toast-container">
@@ -85,6 +100,18 @@ export function ModalProvider({ children }: { children: ReactNode }) {
               >
                 {confirmState.options.confirmText || '确定'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {promptState.visible && (
+        <div className="modal-overlay" onClick={() => { promptState.resolve?.(null); setPromptState({ visible: false, title: '', resolve: null }) }}>
+          <div className="modal-dialog" onClick={e => e.stopPropagation()}>
+            <p className="modal-message">{promptState.title}</p>
+            <input autoFocus className="modal-input" value={promptValue} placeholder={promptState.placeholder} onChange={e => setPromptValue(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { promptState.resolve?.(promptValue); setPromptState({ visible: false, title: '', resolve: null }) } }} />
+            <div className="modal-actions">
+              <button className="modal-btn cancel" onClick={() => { promptState.resolve?.(null); setPromptState({ visible: false, title: '', resolve: null }) }}>取消</button>
+              <button className="modal-btn primary" onClick={() => { promptState.resolve?.(promptValue); setPromptState({ visible: false, title: '', resolve: null }) }}>确定</button>
             </div>
           </div>
         </div>

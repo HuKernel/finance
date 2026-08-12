@@ -15,6 +15,7 @@ import secrets
 import sqlite3
 import time
 import base64
+import struct
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Any, Optional
@@ -55,6 +56,10 @@ def _init_db() -> None:
                 membership_expires_at TEXT
             )"""
         )
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        for col, definition in [("email", "TEXT"), ("email_verified", "INTEGER DEFAULT 0"), ("mfa_secret", "TEXT"), ("mfa_enabled", "INTEGER DEFAULT 0")]:
+            if col not in cols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
         conn.execute(
             """CREATE TABLE IF NOT EXISTS user_profiles (
                 user_id INTEGER PRIMARY KEY,
@@ -67,6 +72,10 @@ def _init_db() -> None:
         conn.execute(
             "CREATE TABLE IF NOT EXISTS app_config (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
         )
+        conn.execute("""CREATE TABLE IF NOT EXISTS auth_tokens (
+            token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, kind TEXT NOT NULL,
+            expires_at INTEGER NOT NULL, used INTEGER DEFAULT 0, created_at TEXT NOT NULL
+        )""")
         # per-user LLM 配置
         conn.execute(
             """CREATE TABLE IF NOT EXISTS user_llm_config (
@@ -117,7 +126,21 @@ def _init_db() -> None:
                 user_id INTEGER NOT NULL,
                 month TEXT NOT NULL,
                 usage_count INTEGER NOT NULL DEFAULT 0,
+                bonus_count INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (user_id, month)
+            )"""
+        )
+        usage_cols = [r[1] for r in conn.execute("PRAGMA table_info(monthly_model_usage)").fetchall()]
+        if "bonus_count" not in usage_cols:
+            conn.execute("ALTER TABLE monthly_model_usage ADD COLUMN bonus_count INTEGER NOT NULL DEFAULT 0")
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS invite_rewards (
+                invite_code TEXT PRIMARY KEY,
+                inviter_id INTEGER NOT NULL,
+                invited_user_id INTEGER NOT NULL,
+                month TEXT NOT NULL,
+                reward_count INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
             )"""
         )
         conn.execute(
@@ -385,9 +408,72 @@ def create_user(username: str, password: str, invite_code: str = "") -> dict[str
                     "UPDATE invite_codes SET used_by=?, used_at=? WHERE code=?",
                     (user_id, datetime.now().isoformat(timespec="seconds"), invite_code),
                 )
+                inviter_id = conn.execute("SELECT created_by FROM invite_codes WHERE code=?", (invite_code,)).fetchone()["created_by"]
+                month = _usage_month()
+                conn.execute("INSERT INTO monthly_model_usage (user_id, month, usage_count) VALUES (?, ?, 1) ON CONFLICT(user_id, month) DO UPDATE SET usage_count=usage_count+1", (inviter_id, month))
+                conn.execute("INSERT INTO invite_rewards(invite_code, inviter_id, invited_user_id, month, created_at) VALUES(?,?,?,?,?)", (invite_code, inviter_id, user_id, month, datetime.now().isoformat(timespec="seconds")))
     except sqlite3.IntegrityError:
         raise ValueError("用户名已存在")
     return {"id": user_id, "username": username, "is_admin": is_admin}
+
+
+def set_user_email(user_id: int, email: str) -> None:
+    _init_db()
+    with _connect() as conn:
+        conn.execute("UPDATE users SET email=?, email_verified=0 WHERE id=?", (email.strip().lower(), user_id))
+
+
+def get_security_profile(user_id: int) -> dict[str, Any]:
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT email,email_verified,mfa_enabled FROM users WHERE id=?", (user_id,)).fetchone()
+    return dict(row) if row else {"email": None, "email_verified": 0, "mfa_enabled": 0}
+
+
+def issue_auth_token(user_id: int, kind: str, ttl: int = 900) -> str:
+    raw = secrets.token_urlsafe(32)
+    digest = hashlib.sha256(raw.encode()).hexdigest()
+    with _connect() as conn:
+        conn.execute("INSERT INTO auth_tokens(token_hash,user_id,kind,expires_at,created_at) VALUES(?,?,?,?,?)", (digest, user_id, kind, int(time.time()) + ttl, datetime.now().isoformat(timespec="seconds")))
+    return raw
+
+
+def consume_auth_token(raw: str, kind: str) -> Optional[int]:
+    digest = hashlib.sha256(raw.encode()).hexdigest()
+    with _connect() as conn:
+        row = conn.execute("SELECT * FROM auth_tokens WHERE token_hash=? AND kind=? AND used=0 AND expires_at>?", (digest, kind, int(time.time()))).fetchone()
+        if not row:
+            return None
+        conn.execute("UPDATE auth_tokens SET used=1 WHERE token_hash=?", (digest,))
+    return int(row["user_id"])
+
+
+def set_email_verified(user_id: int) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE users SET email_verified=1 WHERE id=?", (user_id,))
+
+
+def set_mfa(user_id: int, secret: Optional[str], enabled: bool) -> None:
+    with _connect() as conn:
+        conn.execute("UPDATE users SET mfa_secret=?, mfa_enabled=? WHERE id=?", (secret, 1 if enabled else 0, user_id))
+
+
+def get_mfa_secret(user_id: int) -> Optional[str]:
+    with _connect() as conn:
+        row = conn.execute("SELECT mfa_secret,mfa_enabled FROM users WHERE id=?", (user_id,)).fetchone()
+    return row["mfa_secret"] if row and row["mfa_enabled"] else None
+
+
+def totp_code(secret: str, at: Optional[int] = None) -> str:
+    counter = int((at or int(time.time())) // 30)
+    key = base64.b32decode(secret + "=" * (-len(secret) % 8), casefold=True)
+    digest = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = digest[-1] & 15
+    return str((struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7fffffff) % 1000000).zfill(6)
+
+
+def verify_totp(secret: str, code: str) -> bool:
+    return any(hmac.compare_digest(totp_code(secret, int(time.time()) + delta), code.strip()) for delta in (-30, 0, 30))
 
 
 def get_or_create_oauth_user(provider: str, provider_user_id: str, preferred_username: str) -> dict[str, Any]:
@@ -473,12 +559,13 @@ def get_model_usage(user: dict[str, Any]) -> dict[str, Any]:
     month = _usage_month()
     with _connect() as conn:
         row = conn.execute(
-            "SELECT usage_count FROM monthly_model_usage WHERE user_id=? AND month=?",
+            "SELECT usage_count, bonus_count FROM monthly_model_usage WHERE user_id=? AND month=?",
             (user["id"], month),
         ).fetchone()
     used = int(row["usage_count"]) if row else 0
+    bonus = int(row["bonus_count"]) if row else 0
     unlimited = has_membership(user)
-    return {"month": month, "used": used, "limit": None if unlimited else FREE_MONTHLY_MODEL_LIMIT, "remaining": None if unlimited else max(0, FREE_MONTHLY_MODEL_LIMIT - used)}
+    return {"month": month, "used": used, "limit": None if unlimited else FREE_MONTHLY_MODEL_LIMIT + bonus, "bonus": bonus, "remaining": None if unlimited else max(0, FREE_MONTHLY_MODEL_LIMIT + bonus - used)}
 
 
 def consume_model_usage(user: dict[str, Any]) -> dict[str, Any]:
@@ -488,12 +575,13 @@ def consume_model_usage(user: dict[str, Any]) -> dict[str, Any]:
     month = _usage_month()
     with _connect() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO monthly_model_usage (user_id, month, usage_count) VALUES (?, ?, 0)",
+            "INSERT OR IGNORE INTO monthly_model_usage (user_id, month, usage_count, bonus_count) VALUES (?, ?, 0, 0)",
             (user["id"], month),
         )
+        bonus = conn.execute("SELECT bonus_count FROM monthly_model_usage WHERE user_id=? AND month=?", (user["id"], month)).fetchone()["bonus_count"]
         cursor = conn.execute(
             "UPDATE monthly_model_usage SET usage_count=usage_count+1 WHERE user_id=? AND month=? AND usage_count<?",
-            (user["id"], month, FREE_MONTHLY_MODEL_LIMIT),
+            (user["id"], month, FREE_MONTHLY_MODEL_LIMIT + bonus),
         )
         if cursor.rowcount == 0:
             raise PermissionError("免费用户每月可使用 5 次 AI 功能，本月次数已用完")
@@ -509,16 +597,29 @@ def is_admin(user_id: int) -> bool:
 
 # ---------- 管理员功能 ----------
 
-def list_all_users() -> list[dict[str, Any]]:
+def list_all_users(page: int = 1, page_size: int = 20) -> dict[str, Any]:
     """列出所有用户（管理员功能）。"""
     _init_db()
     with _connect() as conn:
+        total = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
         rows = conn.execute(
             "SELECT u.id, u.username, u.created_at, u.is_admin, u.is_active, u.is_invited, u.plan_code, u.membership_expires_at, "
             "(SELECT COUNT(*) FROM analyses WHERE analyses.user_id = u.id) as analysis_count "
-            "FROM users u ORDER BY u.id"
+            "FROM users u ORDER BY u.id LIMIT ? OFFSET ?", (page_size, (page - 1) * page_size)
         ).fetchall()
-    return [dict(r) for r in rows]
+    return {"items": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
+
+
+def delete_user(user_id: int) -> bool:
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            return False
+        for table, col in [("user_profiles", "user_id"), ("user_llm_config", "user_id"), ("monthly_model_usage", "user_id"), ("oauth_identities", "user_id")]:
+            conn.execute(f"DELETE FROM {table} WHERE {col}=?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+    return True
 
 
 def toggle_user_active(user_id: int) -> bool:
@@ -572,13 +673,14 @@ def audit_log(user_id: int, username: str, action: str, detail: str = "", ip: st
         )
 
 
-def list_audit_logs(limit: int = 100) -> list[dict[str, Any]]:
+def list_audit_logs(page: int = 1, page_size: int = 20) -> dict[str, Any]:
     _init_db()
     with _connect() as conn:
+        total = conn.execute("SELECT COUNT(*) c FROM audit_log").fetchone()["c"]
         rows = conn.execute(
-            "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)
+            "SELECT * FROM audit_log ORDER BY id DESC LIMIT ? OFFSET ?", (page_size, (page - 1) * page_size)
         ).fetchall()
-    return [dict(r) for r in rows]
+    return {"items": [dict(r) for r in rows], "total": total, "page": page, "page_size": page_size}
 
 
 def get_system_stats() -> dict[str, Any]:
