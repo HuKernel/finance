@@ -30,6 +30,8 @@ PLANS = {
 }
 
 PAYMENT_FIELDS = {
+    "MEMBERSHIP_MONTHLY_PRICE": False,
+    "MEMBERSHIP_YEARLY_PRICE": False,
     "PAYMENT_NOTIFY_BASE_URL": False,
     "WECHAT_APP_ID": False,
     "WECHAT_MCH_ID": False,
@@ -44,6 +46,7 @@ PAYMENT_FIELDS = {
     "ALIPAY_SELLER_ID": False,
     "ALIPAY_GATEWAY": False,
 }
+PRICE_DEFAULTS = {"MEMBERSHIP_MONTHLY_PRICE": "29.00", "MEMBERSHIP_YEARLY_PRICE": "199.00"}
 
 
 def _connect() -> sqlite3.Connection:
@@ -96,7 +99,8 @@ def admin_config() -> dict[str, Any]:
     values: dict[str, str] = {}
     configured: dict[str, bool] = {}
     for key, secret in PAYMENT_FIELDS.items():
-        value = _setting(key, "https://openapi.alipay.com/gateway.do" if key == "ALIPAY_GATEWAY" else "")
+        default = PRICE_DEFAULTS.get(key, "https://openapi.alipay.com/gateway.do" if key == "ALIPAY_GATEWAY" else "")
+        value = _setting(key, default)
         values[key] = "" if secret else value
         if secret:
             configured[key] = bool(value)
@@ -111,6 +115,15 @@ def save_admin_config(values: dict[str, Any]) -> dict[str, Any]:
     api_key = clean.get("WECHAT_API_V3_KEY")
     if api_key and len(api_key.encode()) != 32:
         raise ValueError("微信 API v3 Key 必须为 32 字节")
+    for key in PRICE_DEFAULTS:
+        if key in clean:
+            try:
+                price = Decimal(clean[key])
+            except Exception as exc:
+                raise ValueError("会员价格必须是数字") from exc
+            if price <= 0 or price.as_tuple().exponent < -2:
+                raise ValueError("会员价格必须大于 0，且最多保留两位小数")
+            clean[key] = f"{price:.2f}"
     for key in ("WECHAT_PRIVATE_KEY_PATH", "ALIPAY_PRIVATE_KEY_PATH"):
         if clean.get(key):
             _load_private_key(clean[key])
@@ -130,8 +143,12 @@ def save_admin_config(values: dict[str, Any]) -> dict[str, Any]:
 
 
 def public_config() -> dict[str, Any]:
+    prices = {
+        "monthly": int(Decimal(_setting("MEMBERSHIP_MONTHLY_PRICE", "29.00")) * 100),
+        "yearly": int(Decimal(_setting("MEMBERSHIP_YEARLY_PRICE", "199.00")) * 100),
+    }
     return {
-        "plans": [{"code": code, "name": plan["name"], "amount_fen": plan["amount_fen"]} for code, plan in PLANS.items()],
+        "plans": [{"code": code, "name": plan["name"], "amount_fen": prices[code]} for code, plan in PLANS.items()],
         "channels": {name: channel_configured(name) for name in ("wechat", "alipay")},
     }
 
@@ -178,7 +195,8 @@ def _new_order(user_id: int, plan_code: str, channel: str) -> dict[str, Any]:
         raise ValueError("无效的会员套餐或支付渠道")
     if not channel_configured(channel):
         raise RuntimeError("该支付渠道尚未配置")
-    plan = PLANS[plan_code]
+    plan = dict(PLANS[plan_code])
+    plan["amount_fen"] = next(item["amount_fen"] for item in public_config()["plans"] if item["code"] == plan_code)
     order_no = datetime.now().strftime("FC%Y%m%d%H%M%S") + secrets.token_hex(5).upper()
     created_at = datetime.now().isoformat(timespec="seconds")
     with _connect() as conn:

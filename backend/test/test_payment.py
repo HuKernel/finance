@@ -75,3 +75,14 @@ def test_admin_payment_secrets_are_encrypted_and_not_returned(isolated_db):
         stored = conn.execute("SELECT value FROM app_config WHERE key='payment.WECHAT_API_V3_KEY'").fetchone()["value"]
     assert stored != "1" * 32
     assert payment._setting("WECHAT_API_V3_KEY") == "1" * 32
+
+
+def test_admin_can_change_membership_prices(isolated_db):
+    payment.save_admin_config({"MEMBERSHIP_MONTHLY_PRICE": "39.90", "MEMBERSHIP_YEARLY_PRICE": "299"})
+    plans = {item["code"]: item["amount_fen"] for item in payment.public_config()["plans"]}
+    assert plans == {"monthly": 3990, "yearly": 29900}
+
+
+def test_membership_price_must_be_positive_money(isolated_db):
+    with pytest.raises(ValueError, match="大于 0"):
+        payment.save_admin_config({"MEMBERSHIP_MONTHLY_PRICE": "0"})

@@ -153,7 +153,7 @@ function App() {
       <a className="skip-link" href="#main-content">跳到主要内容</a>
       <aside id="main-navigation" className={`sidebar${navOpen ? ' open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark">FC</div>
+          <div className="brand-mark"><img src="/favicon.svg" alt="" /></div>
           <h1>FinanceCrew<small>个人投研工作台</small></h1>
           <button className="sidebar-close" aria-label="收起侧边栏" onClick={() => setNavOpen(false)}><PanelLeftClose aria-hidden="true" size={18} strokeWidth={1.8} /></button>
         </div>

@@ -48,6 +48,7 @@ export default function AdminPage() {
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
+  MEMBERSHIP_MONTHLY_PRICE: '月卡价格（元）', MEMBERSHIP_YEARLY_PRICE: '年卡价格（元）',
   PAYMENT_NOTIFY_BASE_URL: '支付回调 HTTPS 根地址',
   WECHAT_APP_ID: '微信 AppID', WECHAT_MCH_ID: '微信商户号', WECHAT_CERT_SERIAL_NO: '微信商户证书序列号',
   WECHAT_PRIVATE_KEY_PATH: '微信商户 API 私钥 PEM', WECHAT_API_V3_KEY: '微信 API v3 Key',
@@ -95,7 +96,7 @@ function PaymentConfigSection() {
         return <label key={key}>{label}{secret && configured[key] && <small>已配置</small>}
           {multiline
             ? <textarea rows={4} value={values[key] || ''} placeholder={configured[key] ? '已配置，留空保持不变' : '粘贴完整 PEM 内容'} onChange={e => setValues(current => ({...current, [key]: e.target.value}))} />
-            : <input type={key === 'WECHAT_API_V3_KEY' ? 'password' : 'text'} value={values[key] || ''} placeholder={secret && configured[key] ? '已配置，留空保持不变' : ''} onChange={e => setValues(current => ({...current, [key]: e.target.value}))} />}
+            : <input type={key.includes('PRICE') ? 'number' : key === 'WECHAT_API_V3_KEY' ? 'password' : 'text'} min={key.includes('PRICE') ? '0.01' : undefined} step={key.includes('PRICE') ? '0.01' : undefined} value={values[key] || ''} placeholder={secret && configured[key] ? '已配置，留空保持不变' : ''} onChange={e => setValues(current => ({...current, [key]: e.target.value}))} />}
         </label>
       })}
     </div>

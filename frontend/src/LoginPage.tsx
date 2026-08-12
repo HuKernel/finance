@@ -41,7 +41,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-brand">
-          <div className="brand-mark">FC</div>
+          <div className="brand-mark"><img src="/favicon.svg" alt="" /></div>
           <h1>FinanceCrew</h1>
           <p>金融智能体投研团队</p>
         </div>
