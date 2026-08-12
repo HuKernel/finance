@@ -68,6 +68,15 @@ def me(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return {"user": user, "profile": auth.get_profile(user["id"])}
 
 
+@router.get("/api/auth/capabilities")
+def capabilities(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    return {
+        "plan": user.get("plan_code") or "free",
+        "membership_expires_at": user.get("membership_expires_at"),
+        "model_usage": auth.get_model_usage(user),
+    }
+
+
 
 @router.get("/api/auth/profile")
 def get_profile(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:

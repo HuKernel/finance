@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin
+from ..deps import consume_model_access, get_current_user, require_admin
 
 router = APIRouter()
 
@@ -32,6 +32,7 @@ def settle_api(
 ) -> dict[str, Any]:
     """手动触发某股票的 pending 决策结算（N 天后反思）。
     force=true 时立即结算（不等5天，用于测试/演示）。"""
+    consume_model_access(user)
     settled = settle_pending(
         ticker,
         LLMClient(user_id=user["id"]),

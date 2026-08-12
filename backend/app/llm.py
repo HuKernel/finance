@@ -28,8 +28,8 @@ class LLMClient:
             self.config = config
         elif user_id is not None:
             # 从per-user存储读取（key已解密）
-            from .auth import get_user_llm_config
-            self.config = get_user_llm_config(user_id)
+            from .auth import get_effective_llm_config
+            self.config = get_effective_llm_config(user_id)
         else:
             self.config = get_config()
 

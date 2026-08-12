@@ -361,6 +361,8 @@ def _execute_task(task: dict[str, Any]) -> dict[str, Any]:
     symbols: list[str] = task["symbols"]
     mode = task.get("mode", "standard")
     user_id = task["user_id"]
+    from . import auth
+    user = auth.get_user(user_id)
 
     logger.info("定时任务 #%s 开始执行: %s 模式=%s", task["id"], symbols, mode)
     all_results: dict[str, Any] = {}
@@ -368,6 +370,9 @@ def _execute_task(task: dict[str, Any]) -> dict[str, Any]:
 
     for sym in symbols:
         try:
+            if not user:
+                raise RuntimeError("用户不存在")
+            auth.consume_model_usage(user)
             from .pipeline import run_analysis
             result = run_analysis(sym, mode=mode, user_id=user_id)
             # 提取关键结论

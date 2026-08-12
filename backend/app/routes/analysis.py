@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin, _resolve_ticker
+from ..deps import consume_model_access, get_current_user, require_admin, _resolve_ticker
 
 router = APIRouter()
 
@@ -29,6 +29,7 @@ def create_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
     resolved = _resolve_ticker(ticker)
     if not resolved:
         raise HTTPException(status_code=400, detail=f"无法识别 {ticker}")
+    consume_model_access(user)
     try:
         return run_analysis(resolved, req.topic, user_id=user["id"], mode=req.mode)
     except Exception as e:
@@ -60,6 +61,7 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
     if not resolved:
         raise HTTPException(status_code=400, detail=f"无法识别 {ticker}")
     ticker = resolved
+    consume_model_access(user)
 
     def _sse(obj: dict) -> str:
         import json

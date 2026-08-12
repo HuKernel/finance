@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin
+from ..deps import consume_model_access, get_current_user, require_admin
 
 router = APIRouter()
 
@@ -80,6 +80,7 @@ def check_thesis_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """手动触发证伪检查。"""
+    consume_model_access(user)
     return check_thesis(thesis_id, user["id"], LLMClient(user_id=user["id"]))
 
 
@@ -89,6 +90,7 @@ def check_all_theses_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     """批量检查所有active论文。"""
+    consume_model_access(user)
     return check_all_active_theses(user["id"], LLMClient(user_id=user["id"]))
 
 
@@ -142,6 +144,7 @@ def thesis_drift_api(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """论文漂移检测：对比同一标的最近的两次分析。"""
+    consume_model_access(user)
     result = detect_thesis_drift(ticker, user["id"], LLMClient(user_id=user["id"]))
     if result is None:
         raise HTTPException(404, f"需要至少2次{ticker}的分析记录才能做漂移检测")

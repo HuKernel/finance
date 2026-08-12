@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin
+from ..deps import consume_model_access, get_current_user, require_admin
 
 router = APIRouter()
 
@@ -164,6 +164,7 @@ def backtest_api(
     rsi_overbought: int = 0,
     slippage: float = 0,
     position_pct: float = 0,
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """策略回测：在历史K线上模拟交易策略。
     strategy: ma_cross / dual_ma / macd / kdj / boll / rsi / grid / hold / ai
@@ -172,6 +173,8 @@ def backtest_api(
     enable_cost: 1=含A股交易成本
     """
     sym = datalayer._norm_symbol(symbol)
+    if strategy == "ai":
+        consume_model_access(user)
     # 构建策略参数（只传非零/非默认值）
     kwargs: dict[str, Any] = {}
     if fast_period > 0: kwargs["fast_period"] = fast_period

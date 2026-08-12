@@ -33,6 +33,13 @@ def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str,
     return user
 
 
+def consume_model_access(user: dict[str, Any]) -> None:
+    try:
+        auth.consume_model_usage(user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+
 def _resolve_ticker(ticker: str) -> str | None:
     """把用户输入（公司名/代码）解析为标准代码，复用 tools.resolve_symbol。"""
     from .tools import resolve_symbol

@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from .. import config, scheduler
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin
+from ..deps import consume_model_access, get_current_user, require_admin
 
 router = APIRouter()
 
@@ -88,6 +88,7 @@ async def llm_compare_api(request: Request, user: dict[str, Any] = Depends(get_c
         raise HTTPException(400, "请提供prompt和models列表")
     if len(models) > 5 or not all(isinstance(model, dict) for model in models):
         raise HTTPException(400, "models 必须是最多5项的对象列表")
+    consume_model_access(user)
     started = time.perf_counter()
     results = await asyncio.to_thread(compare_models, prompt, models)
     return {

@@ -461,6 +461,7 @@ export default function ChatPage() {
   const send = async (overrideText?: string) => {
     const text = (overrideText ?? input).trim()
     if (!text || busy) return
+    if (text.length > 200) { setError('每条消息最多输入 200 个字符'); return }
     if (!overrideText) setInput('')
     setBusy(true)
     setError('')
@@ -645,8 +646,10 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send()}
+            maxLength={200}
             placeholder="输入问题，回车发送（支持直接输入股票代码）"
           />
+          <span className="chat-input-count">{input.length}/200</span>
           <button onClick={() => send()} disabled={busy || !input.trim()}>发送</button>
         </div>
       </div>

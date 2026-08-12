@@ -16,6 +16,7 @@ import sqlite3
 import time
 import base64
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any, Optional
 
 import jwt
@@ -49,7 +50,9 @@ def _init_db() -> None:
                 created_at TEXT NOT NULL,
                 is_admin INTEGER DEFAULT 0,
                 is_active INTEGER DEFAULT 1,
-                is_invited INTEGER DEFAULT 0
+                is_invited INTEGER DEFAULT 0,
+                plan_code TEXT DEFAULT 'free',
+                membership_expires_at TEXT
             )"""
         )
         conn.execute(
@@ -105,6 +108,18 @@ def _init_db() -> None:
         for col, default in [("is_admin", "0"), ("is_active", "1"), ("is_invited", "0")]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT {default}")
+        if "plan_code" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN plan_code TEXT DEFAULT 'free'")
+        if "membership_expires_at" not in cols:
+            conn.execute("ALTER TABLE users ADD COLUMN membership_expires_at TEXT")
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS monthly_model_usage (
+                user_id INTEGER NOT NULL,
+                month TEXT NOT NULL,
+                usage_count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_id, month)
+            )"""
+        )
 
         # 首个用户自动成为管理员
         count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
@@ -236,6 +251,15 @@ def get_user_llm_config(user_id: int) -> dict[str, Any]:
         "temperature": row["temperature"],
         "max_tokens": row["max_tokens"],
     }
+
+
+def get_effective_llm_config(user_id: int) -> dict[str, Any]:
+    """用户配置了 Key 就用用户模型，否则使用平台默认模型。"""
+    user_config = get_user_llm_config(user_id)
+    if (user_config.get("api_key") or "").strip():
+        return user_config
+    from .config import get_config
+    return get_config()
 
 
 def save_user_llm_config(user_id: int, cfg: dict[str, Any]) -> dict[str, Any]:
@@ -372,8 +396,64 @@ def authenticate(username: str, password: str) -> Optional[dict[str, Any]]:
 
 def get_user(user_id: int) -> Optional[dict[str, Any]]:
     with _connect() as conn:
-        row = conn.execute("SELECT id, username, created_at, is_admin, is_active FROM users WHERE id=?", (user_id,)).fetchone()
+        row = conn.execute(
+            "SELECT id, username, created_at, is_admin, is_active, plan_code, membership_expires_at FROM users WHERE id=?",
+            (user_id,),
+        ).fetchone()
     return dict(row) if row else None
+
+
+FREE_MONTHLY_MODEL_LIMIT = 5
+
+
+def _usage_month() -> str:
+    return datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m")
+
+
+def has_membership(user: dict[str, Any]) -> bool:
+    if user.get("is_admin"):
+        return True
+    if user.get("plan_code") not in (None, "", "free"):
+        expires = user.get("membership_expires_at")
+        if not expires:
+            return True
+        try:
+            return datetime.fromisoformat(str(expires)).date() >= datetime.now(ZoneInfo("Asia/Shanghai")).date()
+        except ValueError:
+            return False
+    return False
+
+
+def get_model_usage(user: dict[str, Any]) -> dict[str, Any]:
+    _init_db()
+    month = _usage_month()
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT usage_count FROM monthly_model_usage WHERE user_id=? AND month=?",
+            (user["id"], month),
+        ).fetchone()
+    used = int(row["usage_count"]) if row else 0
+    unlimited = has_membership(user)
+    return {"month": month, "used": used, "limit": None if unlimited else FREE_MONTHLY_MODEL_LIMIT, "remaining": None if unlimited else max(0, FREE_MONTHLY_MODEL_LIMIT - used)}
+
+
+def consume_model_usage(user: dict[str, Any]) -> dict[str, Any]:
+    _init_db()
+    if has_membership(user):
+        return get_model_usage(user)
+    month = _usage_month()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO monthly_model_usage (user_id, month, usage_count) VALUES (?, ?, 0)",
+            (user["id"], month),
+        )
+        cursor = conn.execute(
+            "UPDATE monthly_model_usage SET usage_count=usage_count+1 WHERE user_id=? AND month=? AND usage_count<?",
+            (user["id"], month, FREE_MONTHLY_MODEL_LIMIT),
+        )
+        if cursor.rowcount == 0:
+            raise PermissionError("免费用户每月可使用 5 次 AI 功能，本月次数已用完")
+    return get_model_usage(user)
 
 
 def is_admin(user_id: int) -> bool:
@@ -390,7 +470,7 @@ def list_all_users() -> list[dict[str, Any]]:
     _init_db()
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT u.id, u.username, u.created_at, u.is_admin, u.is_active, u.is_invited, "
+            "SELECT u.id, u.username, u.created_at, u.is_admin, u.is_active, u.is_invited, u.plan_code, u.membership_expires_at, "
             "(SELECT COUNT(*) FROM analyses WHERE analyses.user_id = u.id) as analysis_count "
             "FROM users u ORDER BY u.id"
         ).fetchall()

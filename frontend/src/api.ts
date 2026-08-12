@@ -71,7 +71,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
       body: JSON.stringify({ ticker, topic: topic || null, mode }),
     })
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => null)
+      throw new Error(data?.detail || `HTTP ${resp.status}`)
+    }
     const reader = resp.body!.getReader()
     const decoder = new TextDecoder()
     let buf = ''
@@ -154,7 +157,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
       body: JSON.stringify({ message, session_id: sessionId }),
     })
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => null)
+      throw new Error(data?.detail || `HTTP ${resp.status}`)
+    }
     const reader = resp.body!.getReader()
     const decoder = new TextDecoder()
     let buf = ''

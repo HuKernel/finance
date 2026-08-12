@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
-from ..deps import get_current_user, require_admin
+from ..deps import consume_model_access, get_current_user, require_admin
 
 router = APIRouter()
 
@@ -26,6 +26,9 @@ def chat_stream(body: dict[str, Any], user: dict[str, Any] = Depends(get_current
     message = str(body.get("message", "")).strip()
     if not message:
         raise HTTPException(400, "消息不能为空")
+    if len(message) > 200:
+        raise HTTPException(400, "每条消息最多输入 200 个字符")
+    consume_model_access(user)
     session_id = body.get("session_id")
     if session_id is None:
         session_id = chat_service.create_session(user["id"])
@@ -72,6 +75,9 @@ def chat(body: dict[str, Any], user: dict[str, Any] = Depends(get_current_user))
     message = (body.get("message") or "").strip()
     if not message:
         raise HTTPException(400, "消息不能为空")
+    if len(message) > 200:
+        raise HTTPException(400, "每条消息最多输入 200 个字符")
+    consume_model_access(user)
     session_id = body.get("session_id")
     if not session_id:
         session_id = chat_service.create_session(user["id"])
