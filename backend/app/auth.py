@@ -410,7 +410,7 @@ def create_user(username: str, password: str, invite_code: str = "") -> dict[str
                 )
                 inviter_id = conn.execute("SELECT created_by FROM invite_codes WHERE code=?", (invite_code,)).fetchone()["created_by"]
                 month = _usage_month()
-                conn.execute("INSERT INTO monthly_model_usage (user_id, month, usage_count) VALUES (?, ?, 1) ON CONFLICT(user_id, month) DO UPDATE SET usage_count=usage_count+1", (inviter_id, month))
+                conn.execute("INSERT INTO monthly_model_usage (user_id, month, bonus_count) VALUES (?, ?, 1) ON CONFLICT(user_id, month) DO UPDATE SET bonus_count=bonus_count+1", (inviter_id, month))
                 conn.execute("INSERT INTO invite_rewards(invite_code, inviter_id, invited_user_id, month, created_at) VALUES(?,?,?,?,?)", (invite_code, inviter_id, user_id, month, datetime.now().isoformat(timespec="seconds")))
     except sqlite3.IntegrityError:
         raise ValueError("用户名已存在")

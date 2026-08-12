@@ -40,6 +40,16 @@ def test_model_config_requires_membership():
     assert require_membership({"is_admin": 0, "plan_code": "pro", "membership_expires_at": None})["plan_code"] == "pro"
 
 
+def test_invite_reward_increases_bonus_not_used(isolated_db):
+    auth.create_user("inviter", "password")
+    code = auth.create_invite_code(1)["code"]
+    auth.create_user("invited", "password", code)
+    usage = auth.get_model_usage({"id": 1, "is_admin": 0, "plan_code": "free", "membership_expires_at": None})
+    assert usage["used"] == 0
+    assert usage["bonus"] == 1
+    assert usage["remaining"] == 6
+
+
 def test_chat_rejects_more_than_200_characters_before_counting(monkeypatch):
     monkeypatch.setattr(chat, "consume_model_access", lambda user: pytest.fail("不应计次"))
 
