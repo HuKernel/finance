@@ -31,7 +31,13 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     let detail = `HTTP ${resp.status}`
     try {
       const data = await resp.json()
-      if (data.detail) detail = data.detail
+      if (data.detail) {
+        detail = typeof data.detail === 'string'
+          ? data.detail
+          : Array.isArray(data.detail)
+            ? data.detail.map((e: any) => e.msg || JSON.stringify(e)).join('; ')
+            : JSON.stringify(data.detail)
+      }
     } catch { /* ignore */ }
     if (resp.status === 401 && !url.includes('/auth/')) {
       setToken(null)

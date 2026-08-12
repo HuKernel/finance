@@ -21,7 +21,7 @@ OAUTH_COOKIE_MAX_AGE = 600
 
 
 @router.post("/api/auth/register")
-def register(body: dict[str, str], request: Request) -> dict[str, Any]:
+def register(body: dict[str, Any], request: Request) -> dict[str, Any]:
     client_ip = request.client.host if request.client else "unknown"
     allowed, msg = auth.check_rate_limit(f"register:{client_ip}")
     if not allowed:
