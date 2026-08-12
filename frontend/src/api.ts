@@ -121,8 +121,8 @@ export const api = {
     request<{ items: any[]; total: number; page: number; page_size: number }>(`/api/feedback?page=${page}&page_size=${pageSize}`),
 
   // 认证
-  register: (username: string, password: string, inviteCode?: string, email?: string) =>
-    request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password, invite_code: inviteCode || '', email: email || '' }) }),
+  register: (username: string, password: string, inviteCode?: string, email?: string, agreementsAccepted = false) =>
+    request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password, invite_code: inviteCode || '', email: email || '', agreements_accepted: agreementsAccepted }) }),
 
   login: (username: string, password: string, mfaCode?: string) =>
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password, mfa_code: mfaCode || '' }) }),
@@ -143,8 +143,8 @@ export const api = {
 
   getPaymentConfig: () => request<{plans:{code:string;name:string;amount_fen:number}[];channels:Record<string,boolean>}>('/api/payments/config'),
 
-  createPaymentOrder: (plan: string, channel: string) =>
-    request<{order_no:string;channel:string;status:string;qr_code?:string;pay_url?:string}>('/api/payments/orders', { method: 'POST', body: JSON.stringify({ plan, channel }) }),
+  createPaymentOrder: (plan: string, channel: string, paymentAgreementAccepted = false) =>
+    request<{order_no:string;channel:string;status:string;qr_code?:string;pay_url?:string}>('/api/payments/orders', { method: 'POST', body: JSON.stringify({ plan, channel, payment_agreement_accepted: paymentAgreementAccepted }) }),
 
   getPaymentOrder: (orderNo: string) =>
     request<{order_no:string;channel:string;status:string;qr_code?:string;pay_url?:string}>(`/api/payments/orders/${orderNo}`),

@@ -153,6 +153,15 @@ def _init_db() -> None:
                 UNIQUE (provider, user_id)
             )"""
         )
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS agreement_consents (
+                user_id INTEGER NOT NULL,
+                agreement TEXT NOT NULL,
+                version TEXT NOT NULL,
+                agreed_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, agreement, version)
+            )"""
+        )
 
         # 首个用户自动成为管理员
         count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
@@ -415,6 +424,18 @@ def create_user(username: str, password: str, invite_code: str = "") -> dict[str
     except sqlite3.IntegrityError:
         raise ValueError("用户名已存在")
     return {"id": user_id, "username": username, "is_admin": is_admin}
+
+
+AGREEMENT_VERSION = "2026-08-12"
+
+
+def record_agreement_consent(user_id: int, agreement: str) -> None:
+    _init_db()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO agreement_consents(user_id, agreement, version, agreed_at) VALUES (?, ?, ?, ?)",
+            (user_id, agreement, AGREEMENT_VERSION, datetime.now().isoformat(timespec="seconds")),
+        )
 
 
 def set_user_email(user_id: int, email: str) -> None:

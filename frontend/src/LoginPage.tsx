@@ -15,6 +15,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
   const [error, setError] = useState(() => new URLSearchParams(window.location.search).get('oauth_error') ? 'GitHub 登录失败，请重试' : '')
   const [busy, setBusy] = useState(false)
   const [githubEnabled, setGithubEnabled] = useState(false)
+  const [agreementsAccepted, setAgreementsAccepted] = useState(false)
 
   useEffect(() => {
     api.authProviders().then(result => setGithubEnabled(result.github)).catch(() => {})
@@ -31,7 +32,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
     try {
       const r = mode === 'login'
         ? await api.login(username.trim(), password, mfaCode)
-        : await api.register(username.trim(), password, inviteCode.trim(), email.trim())
+        : await api.register(username.trim(), password, inviteCode.trim(), email.trim(), agreementsAccepted)
       setToken(r.token)
       if (remember) {
         localStorage.setItem('fc_remember_user', username.trim())
@@ -66,6 +67,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
         {mode === 'register' && (
           <input aria-label="邀请码" placeholder="邀请码（如需要）" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
         )}
+        {mode === 'register' && <label className="login-remember"><input type="checkbox" checked={agreementsAccepted} onChange={e => setAgreementsAccepted(e.target.checked)} /><span>我已阅读并同意<a href="/terms" target="_blank">用户服务协议</a>和<a href="/privacy" target="_blank">隐私政策</a></span></label>}
         <label className="login-remember">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
           <span>记住用户名</span>

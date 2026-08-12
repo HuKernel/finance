@@ -50,6 +50,13 @@ def test_invite_reward_increases_bonus_not_used(isolated_db):
     assert usage["remaining"] == 6
 
 
+def test_agreement_consent_is_recorded(isolated_db):
+    auth.record_agreement_consent(7, "privacy")
+    with auth._connect() as conn:
+        row = conn.execute("SELECT agreement, version FROM agreement_consents WHERE user_id=7").fetchone()
+    assert dict(row) == {"agreement": "privacy", "version": auth.AGREEMENT_VERSION}
+
+
 def test_chat_rejects_more_than_200_characters_before_counting(monkeypatch):
     monkeypatch.setattr(chat, "consume_model_access", lambda user: pytest.fail("不应计次"))
 

@@ -34,7 +34,11 @@ def payment_config(user: dict = Depends(get_current_user)) -> dict:
 
 @router.post("/api/payments/orders")
 def create_payment_order(body: dict, user: dict = Depends(get_current_user)) -> dict:
+    if not body.get("payment_agreement_accepted"):
+        raise HTTPException(400, "请阅读并同意会员与支付协议")
     try:
+        from .. import auth
+        auth.record_agreement_consent(user["id"], "payment")
         return payment.create_order(user["id"], body.get("plan", ""), body.get("channel", ""))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc

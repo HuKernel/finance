@@ -30,6 +30,8 @@ def register(body: dict[str, str], request: Request) -> dict[str, Any]:
     password = body.get("password") or ""
     email = (body.get("email") or "").strip().lower()
     invite_code = body.get("invite_code", "").strip()
+    if not body.get("agreements_accepted"):
+        raise HTTPException(400, "请阅读并同意用户服务协议和隐私政策")
     if len(username) < 2 or len(username) > 20:
         raise HTTPException(400, "用户名需 2-20 个字符")
     if len(password) < 8:
@@ -38,6 +40,8 @@ def register(body: dict[str, str], request: Request) -> dict[str, Any]:
         raise HTTPException(400, "请输入有效邮箱")
     try:
         user = auth.create_user(username, password, invite_code)
+        auth.record_agreement_consent(user["id"], "service")
+        auth.record_agreement_consent(user["id"], "privacy")
         auth.set_user_email(user["id"], email)
         if email:
             try:
