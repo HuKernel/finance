@@ -637,6 +637,21 @@ def delete_user(user_id: int) -> bool:
         row = conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
         if not row:
             return False
+        # 删除被邀请用户时释放邀请码，避免邀请码永久卡在“已使用”状态。
+        conn.execute(
+            "UPDATE invite_codes SET used_by=NULL, used_at=NULL WHERE used_by=?",
+            (user_id,),
+        )
+        # 邀请奖励属于已删除用户的关系记录，也一并清理。
+        conn.execute(
+            "DELETE FROM invite_rewards WHERE inviter_id=? OR invited_user_id=?",
+            (user_id, user_id),
+        )
+        # 删除邀请人时，未使用的邀请码没有保留价值；已使用的保留历史。
+        conn.execute(
+            "DELETE FROM invite_codes WHERE created_by=? AND used_by IS NULL",
+            (user_id,),
+        )
         for table, col in [("user_profiles", "user_id"), ("user_llm_config", "user_id"), ("monthly_model_usage", "user_id"), ("oauth_identities", "user_id")]:
             conn.execute(f"DELETE FROM {table} WHERE {col}=?", (user_id,))
         conn.execute("DELETE FROM users WHERE id=?", (user_id,))
