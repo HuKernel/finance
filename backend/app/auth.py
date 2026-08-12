@@ -388,8 +388,8 @@ def create_user(username: str, password: str, invite_code: str = "") -> dict[str
     _init_db()
     # 邀请码校验：如果存在邀请码记录，则必须提供有效码
     with _connect() as conn:
-        code_count = conn.execute("SELECT COUNT(*) as c FROM invite_codes").fetchone()["c"]
-        if code_count > 0:
+        from .config import get_invite_required
+        if get_invite_required():
             if not invite_code:
                 raise ValueError("当前需要邀请码注册")
             row = conn.execute("SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL", (invite_code,)).fetchone()

@@ -23,6 +23,30 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "max_tokens": 4096,
 }
 
+
+def get_invite_required() -> bool:
+    """读取邀请码注册开关；旧版本未配置时保持原有行为。"""
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT value FROM app_config WHERE key='invite_required'").fetchone()
+        if row is not None:
+            try:
+                return bool(json.loads(row["value"]))
+            except json.JSONDecodeError:
+                return row["value"].lower() == "true"
+        return conn.execute("SELECT COUNT(*) FROM invite_codes").fetchone()[0] > 0 if _has_invite_table(conn) else False
+
+
+def _has_invite_table(conn: sqlite3.Connection) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='invite_codes'").fetchone() is not None
+
+
+def set_invite_required(required: bool) -> bool:
+    _init_db()
+    with _connect() as conn:
+        conn.execute("INSERT OR REPLACE INTO app_config (key, value) VALUES ('invite_required', ?)", (json.dumps(bool(required)),))
+    return bool(required)
+
 # 常见 provider 预设，用户选择后自动填充
 PROVIDER_PRESETS: dict[str, dict[str, str]] = {
     "deepseek": {

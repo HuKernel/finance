@@ -346,13 +346,17 @@ function InviteSection() {
   const { toast } = useModal()
   const [codes, setCodes] = useState<any[]>([])
   const [note, setNote] = useState('')
-  const load = () => { api.adminInvites().then(setCodes).catch(() => {}) }
+  const [required, setRequired] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const load = () => { api.adminInvites().then(setCodes).catch(() => {}); api.adminInviteSettings().then(r => setRequired(r.invite_required)).catch(() => {}) }
   useEffect(() => { load() }, [])
   const create = async () => { try { await api.createInvite(note); setNote(''); load() } catch { toast('创建邀请码失败', 'error') } }
+  const toggle = async () => { setSaving(true); try { const r = await api.saveAdminInviteSettings(!required); setRequired(r.invite_required); toast(r.invite_required ? '已开启邀请码注册' : '已关闭邀请码注册', 'success') } catch { toast('邀请码开关保存失败', 'error') } finally { setSaving(false) } }
 
   return (
     <>
       <div className="trade-form" style={{ marginBottom: 16 }}>
+        <button className="admin-action-btn" disabled={saving} onClick={toggle}>邀请码注册：{required ? '已开启' : '已关闭'}</button>
         <input className="alert-input" placeholder="备注（可选）" value={note} onChange={e => setNote(e.target.value)} />
         <button className="btn-primary" onClick={create}>生成邀请码</button>
       </div>

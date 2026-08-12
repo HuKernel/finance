@@ -397,6 +397,20 @@ def admin_list_invites(admin: dict[str, Any] = Depends(require_admin)) -> list[d
     return auth.list_invite_codes()
 
 
+@router.get("/api/admin/invite-settings")
+def admin_invite_settings(admin: dict[str, Any] = Depends(require_admin)) -> dict[str, bool]:
+    from ..config import get_invite_required
+    return {"invite_required": get_invite_required()}
+
+
+@router.put("/api/admin/invite-settings")
+def admin_save_invite_settings(body: dict[str, Any], admin: dict[str, Any] = Depends(require_admin)) -> dict[str, bool]:
+    from ..config import set_invite_required
+    required = set_invite_required(bool(body.get("invite_required")))
+    auth.audit_log(admin["id"], admin["username"], "update_invite_settings", f"invite_required={required}")
+    return {"invite_required": required}
+
+
 
 @router.get("/api/admin/audit-logs")
 def admin_audit_logs(admin: dict[str, Any] = Depends(require_admin), page: int = 1, page_size: int = 20) -> dict[str, Any]:

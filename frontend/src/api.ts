@@ -313,6 +313,8 @@ export const api = {
   setUserAdmin: (id: number, isAdmin: boolean) => request<{ status: string }>(`/api/admin/users/${id}/set-admin`, { method: 'POST', body: JSON.stringify({ is_admin: isAdmin }) }),
   createInvite: (note: string) => request<{ code: string }>('/api/admin/invite-codes', { method: 'POST', body: JSON.stringify({ note }) }),
   adminInvites: () => request<any[]>('/api/admin/invite-codes'),
+  adminInviteSettings: () => request<{invite_required:boolean}>('/api/admin/invite-settings'),
+  saveAdminInviteSettings: (invite_required: boolean) => request<{invite_required:boolean}>('/api/admin/invite-settings', { method: 'PUT', body: JSON.stringify({ invite_required }) }),
   adminAuditLogs: (page = 1) => request<{items:any[];total:number;page:number;page_size:number}>(`/api/admin/audit-logs?page=${page}&page_size=20`),
   adminFeedback: (page: number = 1, pageSize: number = 20) =>
     request<{ items: any[]; total: number; page: number; page_size: number }>(`/api/admin/feedback?page=${page}&page_size=${pageSize}`),
