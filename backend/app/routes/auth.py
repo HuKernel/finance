@@ -71,7 +71,7 @@ def me(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
 @router.get("/api/auth/capabilities")
 def capabilities(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return {
-        "plan": user.get("plan_code") or "free",
+        "plan": user.get("plan_code") if auth.has_membership(user) else "free",
         "membership_expires_at": user.get("membership_expires_at"),
         "model_usage": auth.get_model_usage(user),
     }

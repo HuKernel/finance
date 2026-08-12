@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import type { LLMConfig, UserProfile } from './types'
 
-type Section = 'llm' | 'profile' | 'analysts' | 'password'
+type Section = 'membership' | 'llm' | 'profile' | 'analysts' | 'password'
 
 export default function ProfilePage() {
-  const [section, setSection] = useState<Section>('llm')
+  const [section, setSection] = useState<Section>('membership')
 
   return (
     <div className="pane profile-page">
@@ -15,6 +15,7 @@ export default function ProfilePage() {
 
       <div className="profile-sections">
         <div className="profile-nav">
+          <button className={section === 'membership' ? 'active' : ''} onClick={() => setSection('membership')}>会员服务</button>
           <button className={section === 'llm' ? 'active' : ''} onClick={() => setSection('llm')}>模型配置</button>
           <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}>用户画像</button>
           <button className={section === 'analysts' ? 'active' : ''} onClick={() => setSection('analysts')}>分析师配置</button>
@@ -22,12 +23,79 @@ export default function ProfilePage() {
         </div>
 
         <div className="profile-content">
+          {section === 'membership' && <MembershipSection />}
           {section === 'llm' && <LLMConfigSection />}
           {section === 'profile' && <UserProfileSection />}
           {section === 'analysts' && <AnalystConfigSection />}
           {section === 'password' && <PasswordSection />}
         </div>
       </div>
+    </div>
+  )
+}
+
+function MembershipSection() {
+  const [config, setConfig] = useState<{plans: {code:string;name:string;amount_fen:number}[];channels: Record<string, boolean>} | null>(null)
+  const [membership, setMembership] = useState<{plan:string;membership_expires_at:string|null;model_usage:{used:number;limit:number|null;remaining:number|null}} | null>(null)
+  const [plan, setPlan] = useState('monthly')
+  const [channel, setChannel] = useState('wechat')
+  const [order, setOrder] = useState<{order_no:string;channel:string;status:string;qr_code?:string;pay_url?:string} | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const orderNo = order?.order_no
+  const orderStatus = order?.status
+
+  const refresh = () => Promise.all([api.getPaymentConfig(), api.getCapabilities()])
+    .then(([payment, capability]) => { setConfig(payment); setMembership(capability) })
+    .catch((e) => setErr(e instanceof Error ? e.message : '加载会员信息失败'))
+
+  useEffect(() => { refresh() }, [])
+
+  useEffect(() => {
+    if (!orderNo || orderStatus === 'paid') return
+    const timer = window.setInterval(() => {
+      api.getPaymentOrder(orderNo).then((next) => {
+        setOrder((current) => current ? { ...current, ...next } : next)
+        if (next.status === 'paid') refresh()
+      }).catch(() => {})
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [orderNo, orderStatus])
+
+  const buy = async () => {
+    setBusy(true); setErr('')
+    try {
+      const next = await api.createPaymentOrder(plan, channel)
+      setOrder(next)
+      if (next.pay_url) window.open(next.pay_url, '_blank', 'noopener,noreferrer')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '创建支付订单失败')
+    } finally { setBusy(false) }
+  }
+
+  if (!config || !membership) return <div className="profile-loading">加载中...</div>
+  const isMember = membership.plan !== 'free'
+  return (
+    <div className="config-section membership-section">
+      <div className="membership-current">
+        <strong>{isMember ? '专业会员' : '免费用户'}</strong>
+        <span>{isMember ? `有效期至 ${membership.membership_expires_at?.slice(0, 10) || '长期'}` : `本月 AI 剩余 ${membership.model_usage.remaining ?? 0} 次`}</span>
+      </div>
+      <div className="plan-cards">
+        {config.plans.map(item => <button key={item.code} className={plan === item.code ? 'active' : ''} onClick={() => setPlan(item.code)}>
+          <strong>{item.name}</strong><span>¥{(item.amount_fen / 100).toFixed(0)}</span>
+        </button>)}
+      </div>
+      <div className="payment-channels">
+        <label><input type="radio" checked={channel === 'wechat'} onChange={() => setChannel('wechat')} />微信支付</label>
+        <label><input type="radio" checked={channel === 'alipay'} onChange={() => setChannel('alipay')} />支付宝</label>
+      </div>
+      {!config.channels[channel] && <p className="hint">该渠道尚未配置商户信息，配置后即可购买。</p>}
+      <button className="btn-primary" disabled={busy || !config.channels[channel]} onClick={buy}>{busy ? '创建订单中...' : '立即购买'}</button>
+      {order?.qr_code && <div className="payment-code"><img src={order.qr_code} alt="微信支付二维码" /><span>请使用微信扫码支付</span></div>}
+      {order?.pay_url && order.status !== 'paid' && <a className="payment-link" href={order.pay_url} target="_blank" rel="noreferrer">重新打开支付宝收银台</a>}
+      {order?.status === 'paid' && <span className="ok-msg">支付成功，会员已开通</span>}
+      {err && <span className="err-msg">{err}</span>}
     </div>
   )
 }
