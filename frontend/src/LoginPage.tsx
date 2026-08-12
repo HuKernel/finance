@@ -67,7 +67,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
         {mode === 'register' && (
           <input aria-label="邀请码" placeholder="邀请码（如需要）" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
         )}
-        {mode === 'register' && <label className="login-remember"><input type="checkbox" checked={agreementsAccepted} onChange={e => setAgreementsAccepted(e.target.checked)} /><span>我已阅读并同意<a href="/terms" target="_blank">用户服务协议</a>和<a href="/privacy" target="_blank">隐私政策</a></span></label>}
+        {mode === 'register' && <label className="login-remember"><input type="checkbox" checked={agreementsAccepted} onChange={e => setAgreementsAccepted(e.target.checked)} /><span>我已阅读并同意<a href="/terms.html" target="_blank">用户服务协议</a>和<a href="/privacy.html" target="_blank">隐私政策</a></span></label>}
         <label className="login-remember">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
           <span>记住用户名</span>

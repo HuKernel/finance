@@ -714,6 +714,10 @@ def list_audit_logs(page: int = 1, page_size: int = 20) -> dict[str, Any]:
 def get_system_stats() -> dict[str, Any]:
     """系统统计信息（管理员面板用）。"""
     _init_db()
+    from . import alert, config, portfolio
+    config._init_db()
+    alert._ensure_table()
+    portfolio._ensure_tables()
     import os
     db_size = os.path.getsize(DB_PATH) if DB_PATH.exists() else 0
     with _connect() as conn:

@@ -106,7 +106,7 @@ function MembershipSection() {
         <label><input type="radio" checked={channel === 'alipay'} onChange={() => setChannel('alipay')} />支付宝</label>
       </div>
       {!config.channels[channel] && <p className="hint">该渠道尚未配置商户信息，配置后即可购买。</p>}
-      <label className="login-remember"><input type="checkbox" checked={paymentAccepted} onChange={e => setPaymentAccepted(e.target.checked)} /><span>我已阅读并同意<a href="/payment-terms" target="_blank">会员与支付协议</a></span></label>
+      <label className="login-remember"><input type="checkbox" checked={paymentAccepted} onChange={e => setPaymentAccepted(e.target.checked)} /><span>我已阅读并同意<a href="/payment-terms.html" target="_blank">会员与支付协议</a></span></label>
       <button className="btn-primary" disabled={busy || !config.channels[channel]} onClick={buy}>{busy ? '创建订单中...' : '立即购买'}</button>
       {order?.qr_code && <div className="payment-code"><img src={order.qr_code} alt="微信支付二维码" /><span>请使用微信扫码支付</span></div>}
       {order?.pay_url && order.status !== 'paid' && <a className="payment-link" href={order.pay_url} target="_blank" rel="noreferrer">重新打开支付宝收银台</a>}
