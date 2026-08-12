@@ -50,15 +50,14 @@ def test_invite_reward_increases_bonus_not_used(isolated_db):
     assert usage["remaining"] == 6
 
 
-def test_delete_invited_user_releases_invite_code(isolated_db):
+def test_delete_invited_user_does_not_reuse_invite_code(isolated_db):
     auth.create_user("inviter", "password")
     code = auth.create_invite_code(1)["code"]
     invited = auth.create_user("invited", "password", code)
 
     assert auth.delete_user(invited["id"])
-    replacement = auth.create_user("replacement", "password", code)
-
-    assert replacement["username"] == "replacement"
+    with pytest.raises(ValueError, match="邀请码无效或已被使用"):
+        auth.create_user("replacement", "password", code)
 
 
 def test_agreement_consent_is_recorded(isolated_db):
