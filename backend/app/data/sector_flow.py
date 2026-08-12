@@ -12,20 +12,10 @@ f204=领涨股票 f205=领涨股票代码
 from __future__ import annotations
 
 import math
-import os
 import time
 from typing import Any, Optional
 
 from curl_cffi import requests as cq
-
-# 国内数据源绕过代理直连
-_CN_DATA_DOMAINS = (
-    "eastmoney.com,push2delay.eastmoney.com,push2his.eastmoney.com,"
-    "datacenter-web.eastmoney.com,10jqka.com.cn,ths.cn,sina.com.cn,"
-    "sse.com.cn,sseinfo.com,cninfo.com.cn,xueqiu.com,gtimg.cn,qq.com"
-)
-os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + "," + _CN_DATA_DOMAINS
-os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
 from ..cache import TTL, cached  # noqa: E402
 

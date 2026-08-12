@@ -109,6 +109,11 @@ def search(q: str) -> dict[str, Any]:
 
 
 
+@router.get("/api/news/flash")
+def flash_news_api(limit: int = 20) -> dict[str, Any]:
+    return {"news": datalayer.get_flash_news(limit=max(1, min(limit, 50))) or []}
+
+
 @router.get("/api/news/{symbol}")
 def news(symbol: str) -> dict[str, Any]:
     """个股新闻（实时快讯过滤 + 东财兜底）。"""

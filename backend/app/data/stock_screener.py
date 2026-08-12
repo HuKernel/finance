@@ -10,20 +10,11 @@ nmc 流通市值(万元) / turnoverratio 换手%
 """
 from __future__ import annotations
 
-import os
 import time
 from typing import Any, Optional
 
 import pandas as pd
 from curl_cffi import requests as cq
-
-# 国内数据源直连
-_CN_DATA_DOMAINS = (
-    "sina.com.cn,finance.sina.com.cn,eastmoney.com,10jqka.com.cn,ths.cn,"
-    "sse.com.cn,sseinfo.com,cninfo.com.cn,gtimg.cn,qq.com"
-)
-os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + "," + _CN_DATA_DOMAINS
-os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
 from ..cache import TTL, cached  # noqa: E402
 

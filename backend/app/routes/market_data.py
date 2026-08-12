@@ -11,7 +11,7 @@ from ..deps import get_current_user, require_admin
 router = APIRouter()
 
 from ..data import fetcher as datalayer
-from ..data import north_flow, sector_flow, stock_screener, margin_data
+from ..data import north_flow, sector_flow, stock_screener, margin_data, market_overview
 from ..cache import cached, TTL
 
 
@@ -90,6 +90,18 @@ def margin_detail_api(symbol: str | None = None, date: str | None = None) -> dic
 def margin_top_api(date: str | None = None, limit: int = 20) -> dict[str, Any]:
     """融资余额 TOP / 融券余量 TOP。date: YYYYMMDD。"""
     return margin_data.get_margin_top(date=date, limit=limit)
+
+
+@router.get("/api/market/sentiment")
+def market_sentiment_api() -> dict[str, Any]:
+    return market_overview.get_market_sentiment()
+
+
+@router.get("/api/market/rankings")
+def market_rankings_api() -> dict[str, Any]:
+    return market_overview.get_market_rankings()
+
+
 
 
 # ==================== 交易后反思学习闭环 ====================

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { api } from './api'
 
 // ============== 类型定义 ==============
-type PageTab = 'sector' | 'screener' | 'margin' | 'north'
+type PageTab = 'sector' | 'sentiment' | 'radar' | 'ranking' | 'screener' | 'margin' | 'north'
 type SectorType = 'concept' | 'industry'
 
 interface Sector {
@@ -80,6 +80,9 @@ export default function MarketDataPage() {
         <h2>市场数据</h2>
         <div className="bt-tabs">
           <button className={tab === 'sector' ? 'active' : ''} onClick={() => setTab('sector')}>板块轮动</button>
+          <button className={tab === 'sentiment' ? 'active' : ''} onClick={() => setTab('sentiment')}>市场情绪</button>
+          <button className={tab === 'radar' ? 'active' : ''} onClick={() => setTab('radar')}>资讯雷达</button>
+          <button className={tab === 'ranking' ? 'active' : ''} onClick={() => setTab('ranking')}>全市场榜单</button>
           <button className={tab === 'screener' ? 'active' : ''} onClick={() => setTab('screener')}>条件选股</button>
           <button className={tab === 'margin' ? 'active' : ''} onClick={() => setTab('margin')}>融资融券</button>
           <button className={tab === 'north' ? 'active' : ''} onClick={() => setTab('north')}>北向资金</button>
@@ -87,11 +90,84 @@ export default function MarketDataPage() {
       </div>
 
       {tab === 'sector' && <SectorTab />}
+      {tab === 'sentiment' && <SentimentTab />}
+      {tab === 'radar' && <RadarTab />}
+      {tab === 'ranking' && <RankingTab />}
       {tab === 'screener' && <ScreenerTab />}
       {tab === 'margin' && <MarginTab />}
       {tab === 'north' && <NorthTab />}
     </div>
   )
+}
+
+function SentimentTab() {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
+    try { setData(await api.get('/api/market/sentiment')) }
+    catch (e: any) { setError(e.message || '市场情绪加载失败') }
+    finally { setLoading(false) }
+  }, [])
+  useEffect(() => { load() }, [load])
+  return <>
+    <div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新'}</button></div>
+    <StatusBar loading={loading} error={error} />
+    {!loading && !error && data && <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+        {(data.pools || []).map((pool: any) => <div key={pool.name} className="backtest-trades">
+          <h4 style={{ margin: '0 0 8px' }}>{pool.name}{!pool.available && '（暂不可用）'}</h4>
+          {(pool.items || []).slice(0, 10).map((item: any) => <div key={item.code} style={{ display: 'flex', gap: 8, padding: '4px 0', fontSize: 13 }}>
+            <span className="pf-code">{item.code}</span><span>{item.name}</span><span className={pctClass(item.change_pct)} style={{ marginLeft: 'auto' }}>{fmtPct(item.change_pct)}</span>
+          </div>)}
+          {!pool.items?.length && <div className="empty">暂无数据</div>}
+        </div>)}</div>
+      <div className="backtest-trades" style={{ marginTop: 16 }}><h4 style={{ margin: '0 0 8px' }}>连板梯队</h4>
+        {(data.ladder || []).map((item: any) => <span key={item.code} className="pf-code" style={{ display: 'inline-block', margin: '0 12px 8px 0' }}>{item.name} {item.boards}板</span>)}
+        {!data.ladder?.length && <div className="empty">暂无连板数据</div>}
+      </div>
+      <div className="backtest-trades" style={{ marginTop: 16 }}><h4 style={{ margin: '0 0 8px' }}>近期龙虎榜</h4><table className="portfolio-table"><thead><tr><th>代码</th><th>名称</th><th>上榜日</th><th>原因</th><th>净买额</th></tr></thead><tbody>
+        {(data.lhb || []).map((item: any) => <tr key={`${item.code}-${item.date}`}><td className="pf-code">{item.code}</td><td>{item.name}</td><td>{item.date}</td><td>{item.reason}</td><td>{item.net_buy?.toLocaleString?.() ?? '—'}</td></tr>)}
+        {!data.lhb?.length && <tr><td className="empty-row" colSpan={5}>暂无数据</td></tr>}</tbody></table></div>
+    </>}
+  </>
+}
+
+function RadarTab() {
+  const [news, setNews] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
+    try { setNews((await api.get<any>('/api/news/flash?limit=30')).news || []) }
+    catch (e: any) { setError(e.message || '资讯雷达加载失败') }
+    finally { setLoading(false) }
+  }, [])
+  useEffect(() => { load() }, [load])
+  return <><div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新快讯'}</button></div><StatusBar loading={loading} error={error} />
+    {!loading && !error && <div className="backtest-trades">{news.map((item, i) => <div key={item.url || i} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>{item.published_at || item.time} · {item.source}</div>
+      {item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : <span>{item.title}</span>}
+    </div>)}{!news.length && <div className="empty">暂无快讯</div>}</div>}</>
+}
+
+function RankingTab() {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const load = useCallback(async () => {
+    setLoading(true); setError('')
+    try { setData(await api.get('/api/market/rankings')) }
+    catch (e: any) { setError(e.message || '全市场榜单加载失败') }
+    finally { setLoading(false) }
+  }, [])
+  useEffect(() => { load() }, [load])
+  const table = (title: string, items: any[]) => <div className="backtest-trades"><h4 style={{ margin: '0 0 8px' }}>{title}</h4><table className="portfolio-table"><thead><tr><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th><th>成交额(元)</th></tr></thead><tbody>
+    {items?.map(item => <tr key={item.code}><td className="pf-code">{item.code}</td><td>{item.name}</td><td>{fmtNum(item.price)}</td><td className={pctClass(item.change_pct)}>{fmtPct(item.change_pct)}</td><td>{item.amount?.toLocaleString?.() ?? '—'}</td></tr>)}
+    {!items?.length && <tr><td className="empty-row" colSpan={5}>暂无数据</td></tr>}</tbody></table></div>
+  return <><div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新榜单'}</button></div><StatusBar loading={loading} error={error} />
+    {!loading && !error && data && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 16 }}>{table('涨幅榜', data.gainers)}{table('跌幅榜', data.losers)}{table('成交额榜', data.turnover)}</div>}</>
 }
 
 // ============== 通用状态条 ==============

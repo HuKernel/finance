@@ -1,6 +1,5 @@
 """数据层通用工具。
 
-- A股数据源域名绕过代理直连（本机代理对国内数据源转发不稳定）
 - akshare 可用性检测（AK_AVAILABLE）
 - 符号归一化 / 数值解析 / 容错包装等基础函数
 
@@ -8,20 +7,9 @@
 """
 from __future__ import annotations
 
-import os
 from typing import Any, Optional
 
 import pandas as pd
-
-# A股数据源域名绕过代理直连（本机代理对国内数据源转发不稳定，
-# 而直连东方财富/腾讯/新浪/同花顺均可达）。
-_CN_DATA_DOMAINS = (
-    "eastmoney.com,push2his.eastmoney.com,10jqka.com.cn,ths.cn,"
-    "sina.com.cn,sse.com.cn,sseinfo.com,cninfo.com.cn,xueqiu.com,"
-    "gtimg.cn,qq.com"
-)
-os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + "," + _CN_DATA_DOMAINS
-os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
 try:
     import akshare as ak

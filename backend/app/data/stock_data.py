@@ -39,7 +39,7 @@ def get_stock_brief(symbol: str, fresh: bool = False) -> Optional[dict[str, Any]
     def _fetch() -> Optional[dict[str, Any]]:
         url = f"https://qt.gtimg.cn/q={_market_prefix(sym)}{sym}"
         try:
-            r = requests.get(url, timeout=10)
+            r = requests.get(url, timeout=5)
             r.encoding = "gbk"
             body = r.text.split('"')[1] if '"' in r.text else ""
             p = body.split("~")
@@ -122,7 +122,7 @@ def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
         code = f"{_market_prefix(sym)}{sym}"
         url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{days},qfq"
         try:
-            r = requests.get(url, timeout=15)
+            r = requests.get(url, timeout=5)
             data = r.json()
             node = data["data"][code]
             key = "qfqday" if "qfqday" in node else "day"
@@ -215,7 +215,7 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
             if period_info["type"] == "fqkline":
                 # 日/周/月K线
                 url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},{period_info['param']},,,{count},qfq"
-                r = requests.get(url, timeout=15)
+                r = requests.get(url, timeout=5)
                 data = r.json()
                 node = data["data"][code]
                 key = f"qfq{period_info['param']}"
