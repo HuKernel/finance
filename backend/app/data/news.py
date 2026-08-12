@@ -22,12 +22,41 @@ def _clean_url(*values: Any) -> str:
     return ""
 
 
+def _ak_flash_news(source: str, function: str) -> list[dict[str, str]]:
+    """通过 AkShare 读取公开财经快讯；版本不支持或源不可达时跳过。"""
+    try:
+        from .utils import AK_AVAILABLE, ak
+        df = getattr(ak, function)() if AK_AVAILABLE else None
+    except Exception:
+        return []
+    if df is None or df.empty:
+        return []
+    out = []
+    for _, row in df.head(30).iterrows():
+        title = str(row.get("标题", row.get("内容", ""))).strip()
+        content = str(row.get("内容", "")).strip()
+        if content and content != title:
+            title = f"{title} {content}".strip()
+        if not title:
+            continue
+        published_at = str(row.get("发布时间", row.get("时间", "")))[:16]
+        out.append({
+            "title": title,
+            "time": published_at,
+            "published_at": published_at,
+            "source": source,
+            "url": _clean_url(row.get("链接"), row.get("url")),
+        })
+    return out
+
+
 def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str, str]]]:
-    """实时财经快讯（新浪 7x24 全球财经直播），缓存 60 秒。
+    """多源财经快讯：新浪、东方财富、财联社，缓存 60 秒。
 
     keyword 非空时按关键词过滤（如个股名称/代码）；否则返回最新快讯。
     """
     def _fetch() -> Optional[list[dict[str, str]]]:
+        out = []
         url = (
             "https://zhibo.sina.com.cn/api/zhibo/feed?"
             "page=1&page_size=30&zhibo_id=152&tag_id=0&dire=f&dpc=1"
@@ -39,7 +68,6 @@ def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str
             })
             d = r.json()
             items = d.get("result", {}).get("data", {}).get("feed", {}).get("list", [])
-            out = []
             for it in items:
                 text = (it.get("rich_text") or "").strip()
                 if not text:
@@ -51,11 +79,20 @@ def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str
                     "source": "新浪财经",
                     "url": _clean_url(it.get("docurl"), it.get("url")),
                 })
-            return out or None
         except Exception:
-            return None
+            pass
+        out.extend(_ak_flash_news("东方财富", "stock_info_global_em"))
+        out.extend(_ak_flash_news("财联社", "stock_info_global_cls"))
+        seen, unique = set(), []
+        for item in out:
+            key = re.sub(r"\s+", "", item["title"])
+            if key and key not in seen:
+                seen.add(key)
+                unique.append(item)
+        unique.sort(key=lambda item: item.get("published_at", ""), reverse=True)
+        return unique or None
 
-    data = cached(f"flash:v2:{keyword or 'all'}", 60, _fetch)
+    data = cached(f"flash:v3:{keyword or 'all'}", 60, _fetch)
     if data is None:
         return None
     if keyword:

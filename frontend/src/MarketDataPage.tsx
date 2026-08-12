@@ -145,7 +145,8 @@ function RadarTab() {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
-  return <><div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新快讯'}</button></div><StatusBar loading={loading} error={error} />
+  const sources = [...new Set(news.map(item => item.source))]
+  return <><div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新快讯'}</button>{sources.map(source => <span key={source} className="pf-code">{source}</span>)}</div><StatusBar loading={loading} error={error} />
     {!loading && !error && <div className="backtest-trades">{news.map((item, i) => <div key={item.url || i} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
       <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>{item.published_at || item.time} · {item.source}</div>
       {item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : <span>{item.title}</span>}
