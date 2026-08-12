@@ -109,13 +109,20 @@ def get_config() -> dict[str, Any]:
     cfg = dict(DEFAULT_CONFIG)
     with _connect() as conn:
         rows = conn.execute("SELECT key, value FROM app_config").fetchall()
+    encrypted_key = ""
     for row in rows:
         key, value = row["key"], row["value"]
+        if key == "llm_api_key_enc":
+            encrypted_key = value
+            continue
         if key in cfg:
             try:
                 cfg[key] = json.loads(value)
             except json.JSONDecodeError:
                 cfg[key] = value
+    if encrypted_key:
+        from .auth import decrypt_key
+        cfg["api_key"] = decrypt_key(encrypted_key)
     return cfg
 
 
@@ -129,12 +136,17 @@ def save_config(new_cfg: dict[str, Any]) -> dict[str, Any]:
     if not cur.get("api_key") and old.get("api_key"):
         cur["api_key"] = old["api_key"]
 
+    from .auth import encrypt_key
+    encrypted_key = encrypt_key(str(cur.pop("api_key", "")))
     with _connect() as conn:
+        conn.execute("DELETE FROM app_config WHERE key='api_key'")
+        conn.execute("INSERT OR REPLACE INTO app_config (key, value) VALUES ('llm_api_key_enc', ?)", (encrypted_key,))
         for k, v in cur.items():
             conn.execute(
                 "INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)",
                 (k, json.dumps(v, ensure_ascii=False)),
             )
+    cur["api_key"] = old.get("api_key", "") if not new_cfg.get("api_key") else new_cfg["api_key"]
     return cur
 
 

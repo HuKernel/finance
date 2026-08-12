@@ -47,10 +47,10 @@ export const api = {
   post: <T = any>(url: string, body?: any) =>
     request<T>(url, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
 
-  getConfig: () => request<LLMConfig>('/api/config'),
+  getConfig: () => request<LLMConfig & { api_key_configured?: boolean }>('/api/config'),
 
   saveConfig: (cfg: LLMConfig) =>
-    request<LLMConfig>('/api/config', { method: 'PUT', body: JSON.stringify(cfg) }),
+    request<LLMConfig & { api_key_configured?: boolean }>('/api/config', { method: 'PUT', body: JSON.stringify(cfg) }),
 
   getProviders: () => request<Record<string, { base_url: string; model: string }>>('/api/providers'),
 

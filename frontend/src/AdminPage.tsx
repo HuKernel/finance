@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
+import type { LLMConfig } from './types'
 
-type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'payment' | 'audit'
+type AdminTab = 'stats' | 'users' | 'invites' | 'feedback' | 'model' | 'payment' | 'audit'
 
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false)
@@ -21,6 +22,7 @@ export default function AdminPage() {
     { key: 'users', label: '用户管理' },
     { key: 'invites', label: '邀请码' },
     { key: 'feedback', label: '用户反馈' },
+    { key: 'model', label: '默认模型' },
     { key: 'payment', label: '支付配置' },
     { key: 'audit', label: '审计日志' },
   ]
@@ -40,11 +42,50 @@ export default function AdminPage() {
         {tab === 'users' && <UsersSection />}
         {tab === 'invites' && <InviteSection />}
         {tab === 'feedback' && <FeedbackSection />}
+        {tab === 'model' && <DefaultModelSection />}
         {tab === 'payment' && <PaymentConfigSection />}
         {tab === 'audit' && <AuditSection />}
       </div>
     </div>
   )
+}
+
+function DefaultModelSection() {
+  const { toast } = useModal()
+  const [cfg, setCfg] = useState<(LLMConfig & {api_key_configured?:boolean}) | null>(null)
+  const [providers, setProviders] = useState<Record<string, {base_url:string;model:string}>>({})
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    Promise.all([api.getConfig(), api.getProviders()]).then(([config, presets]) => {
+      setCfg(config); setProviders(presets)
+    }).catch(() => toast('默认模型配置加载失败', 'error'))
+  }, [toast])
+
+  if (!cfg) return <div className="profile-loading">加载中...</div>
+  const patch = (value: Partial<LLMConfig>) => setCfg(current => current ? {...current, ...value} : current)
+  const pickProvider = (provider: string) => {
+    const preset = providers[provider]
+    patch({provider, base_url: preset?.base_url || '', model: preset?.model || ''})
+  }
+  const save = async () => {
+    setSaving(true)
+    try { setCfg(await api.saveConfig(cfg)); toast('默认模型配置已保存', 'success') }
+    catch (e) { toast(e instanceof Error ? e.message : '保存失败', 'error') }
+    finally { setSaving(false) }
+  }
+  return <div className="payment-admin-config">
+    <p className="hint">未填写个人 API Key 的用户统一使用此模型。API Key 加密保存且不会回显原文，留空表示保留已有 Key。</p>
+    <div className="payment-config-grid">
+      <label>服务商<select value={cfg.provider} onChange={e => pickProvider(e.target.value)}>{Object.keys(providers).map(name => <option key={name}>{name}</option>)}</select></label>
+      <label>接口地址<input value={cfg.base_url} onChange={e => patch({base_url:e.target.value})} /></label>
+      <label>API Key{cfg.api_key_configured && <small>已配置</small>}<input type="password" value={cfg.api_key} placeholder={cfg.api_key_configured ? '已配置，留空保持不变' : ''} onChange={e => patch({api_key:e.target.value})} /></label>
+      <label>模型名称<input value={cfg.model} onChange={e => patch({model:e.target.value})} /></label>
+      <label>温度<input type="number" min="0" max="2" step="0.1" value={cfg.temperature} onChange={e => patch({temperature:Number(e.target.value)})} /></label>
+      <label>最大输出 Token<input type="number" min="1" value={cfg.max_tokens} onChange={e => patch({max_tokens:Number(e.target.value)})} /></label>
+    </div>
+    <button className="btn-primary" disabled={saving} onClick={save}>{saving ? '保存中...' : '保存默认模型'}</button>
+  </div>
 }
 
 const PAYMENT_LABELS: Record<string, string> = {

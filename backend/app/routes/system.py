@@ -26,7 +26,8 @@ def _public_config() -> dict[str, Any]:
     from ..config import get_config
     cfg = get_config()
     out = dict(cfg)
-    out["api_key"] = _mask_key(str(cfg.get("api_key", "")))
+    out["api_key_configured"] = bool(cfg.get("api_key"))
+    out["api_key"] = ""
     return out
 
 
@@ -70,6 +71,8 @@ def write_config(
     admin: dict[str, Any] = Depends(require_admin),
 ) -> dict[str, Any]:
     save_config(cfg.model_dump())
+    from .. import auth
+    auth.audit_log(admin["id"], admin["username"], "update_default_llm_config")
     return _public_config()
 
 
