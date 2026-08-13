@@ -88,7 +88,7 @@ function MembershipSection() {
     } finally { setBusy(false) }
   }
 
-  if (!config || !membership) return <div className="profile-loading">加载中...</div>
+  if (!config || !membership) return <div className="loading loading-center">加载中...</div>
   const isMember = membership.plan !== 'free'
   return (
     <div className="config-section membership-section">
@@ -151,7 +151,7 @@ function LLMConfigSection() {
     } finally { setSaving(false) }
   }
 
-  if (!cfg) return <div className="profile-loading">加载中...</div>
+  if (!cfg) return <div className="loading loading-center">加载中...</div>
 
   return (
     <div className="config-section">

@@ -76,7 +76,6 @@ async function mockApi(page: Page) {
 
 async function gotoChat(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: '展开侧边栏' }).click()
   await page.getByRole('button', { name: '智能对话', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '向 FinanceCrew 提问' })).toBeVisible({ timeout: 10000 })
   await page.getByRole('button', { name: '茅台研究' }).click()

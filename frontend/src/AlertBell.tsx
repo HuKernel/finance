@@ -154,7 +154,7 @@ function AlertPanel({ activeAlerts, triggeredAlerts, notifications, unread, pane
 
       {showForm && <AlertForm onCreated={() => { setShowForm(false); onRefresh() }} />}
 
-      <div className="alert-tabs">
+      <div className="tabs tabs-fill">
         <button className={panelTab === 'notifications' ? 'active' : ''} onClick={() => setPanelTab('notifications')}>
           通知 ({unread})
         </button>

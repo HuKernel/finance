@@ -78,7 +78,7 @@ export default function MarketDataPage() {
     <div className="pane">
       <div className="pane-head">
         <h2>市场数据</h2>
-        <div className="bt-tabs">
+        <div className="tabs">
           <button className={tab === 'sector' ? 'active' : ''} onClick={() => setTab('sector')}>板块轮动</button>
           <button className={tab === 'sentiment' ? 'active' : ''} onClick={() => setTab('sentiment')}>市场情绪</button>
           <button className={tab === 'radar' ? 'active' : ''} onClick={() => setTab('radar')}>资讯雷达</button>
@@ -115,19 +115,19 @@ function SentimentTab() {
     <div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新'}</button></div>
     <StatusBar loading={loading} error={error} />
     {!loading && !error && data && <>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+      <div className="mkt-pools-grid">
         {(data.pools || []).map((pool: any) => <div key={pool.name} className="backtest-trades">
-          <h4 style={{ margin: '0 0 8px' }}>{pool.name}{!pool.available ? '（暂不可用）' : !pool.items?.length ? '（今日暂无）' : ''}</h4>
-          {(pool.items || []).slice(0, 10).map((item: any) => <div key={item.code} style={{ display: 'flex', gap: 8, padding: '4px 0', fontSize: 13 }}>
-            <span className="pf-code">{item.code}</span><span>{item.name}</span><span className={pctClass(item.change_pct)} style={{ marginLeft: 'auto' }}>{fmtPct(item.change_pct)}</span>
+          <h4>{pool.name}{!pool.available ? '（暂不可用）' : !pool.items?.length ? '（今日暂无）' : ''}</h4>
+          {(pool.items || []).slice(0, 10).map((item: any) => <div key={item.code} className="mkt-pool-item">
+            <span className="pf-code">{item.code}</span><span>{item.name}</span><span className={`mkt-pct ${pctClass(item.change_pct)}`}>{fmtPct(item.change_pct)}</span>
           </div>)}
           {!pool.items?.length && <div className="empty">暂无数据</div>}
         </div>)}</div>
-      <div className="backtest-trades" style={{ marginTop: 16 }}><h4 style={{ margin: '0 0 8px' }}>连板梯队</h4>
-        {(data.ladder || []).map((item: any) => <span key={item.code} className="pf-code" style={{ display: 'inline-block', margin: '0 12px 8px 0' }}>{item.name} {item.boards}板</span>)}
+      <div className="backtest-trades mkt-stack"><h4>连板梯队</h4>
+        {(data.ladder || []).map((item: any) => <span key={item.code} className="pf-code mkt-ladder-chip">{item.name} {item.boards}板</span>)}
         {!data.ladder?.length && <div className="empty">暂无连板数据</div>}
       </div>
-      <div className="backtest-trades" style={{ marginTop: 16 }}><h4 style={{ margin: '0 0 8px' }}>近期龙虎榜</h4><table className="portfolio-table"><thead><tr><th>代码</th><th>名称</th><th>上榜日</th><th>原因</th><th>净买额</th></tr></thead><tbody>
+      <div className="backtest-trades mkt-stack"><h4>近期龙虎榜</h4><table className="portfolio-table"><thead><tr><th>代码</th><th>名称</th><th>上榜日</th><th>原因</th><th>净买额</th></tr></thead><tbody>
         {(data.lhb || []).map((item: any) => <tr key={`${item.code}-${item.date}`}><td className="pf-code">{item.code}</td><td>{item.name}</td><td>{item.date}</td><td>{item.reason}</td><td>{item.net_buy?.toLocaleString?.() ?? '—'}</td></tr>)}
         {!data.lhb?.length && <tr><td className="empty-row" colSpan={5}>暂无数据</td></tr>}</tbody></table></div>
     </>}
@@ -147,8 +147,8 @@ function RadarTab() {
   useEffect(() => { load() }, [load])
   const sources = [...new Set(news.map(item => item.source))]
   return <><div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新快讯'}</button>{sources.map(source => <span key={source} className="pf-code">{source}</span>)}</div><StatusBar loading={loading} error={error} />
-    {!loading && !error && <div className="backtest-trades">{news.map((item, i) => <div key={item.url || i} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>{item.published_at || item.time} · {item.source}</div>
+    {!loading && !error && <div className="backtest-trades">{news.map((item, i) => <div key={item.url || i} className="mkt-news-item">
+      <div className="mkt-news-meta">{item.published_at || item.time} · {item.source}</div>
       {item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : <span>{item.title}</span>}
     </div>)}{!news.length && <div className="empty">暂无快讯</div>}</div>}</>
 }
@@ -164,17 +164,17 @@ function RankingTab() {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
-  const table = (title: string, items: any[]) => <div className="backtest-trades"><h4 style={{ margin: '0 0 8px' }}>{title}</h4><table className="portfolio-table"><thead><tr><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th><th>成交额(元)</th></tr></thead><tbody>
+  const table = (title: string, items: any[]) => <div className="backtest-trades"><h4>{title}</h4><table className="portfolio-table"><thead><tr><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th><th>成交额(元)</th></tr></thead><tbody>
     {items?.map(item => <tr key={item.code}><td className="pf-code">{item.code}</td><td>{item.name}</td><td>{fmtNum(item.price)}</td><td className={pctClass(item.change_pct)}>{fmtPct(item.change_pct)}</td><td>{item.amount?.toLocaleString?.() ?? '—'}</td></tr>)}
     {!items?.length && <tr><td className="empty-row" colSpan={5}>暂无数据</td></tr>}</tbody></table></div>
   return <><div className="backtest-controls"><button className="btn-primary" onClick={load} disabled={loading}>{loading ? '刷新中...' : '刷新榜单'}</button></div><StatusBar loading={loading} error={error} />
-    {!loading && !error && data && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 16 }}>{table('涨幅榜', data.gainers)}{table('跌幅榜', data.losers)}{table('成交额榜', data.turnover)}</div>}</>
+    {!loading && !error && data && <div className="mkt-rank-grid">{table('涨幅榜', data.gainers)}{table('跌幅榜', data.losers)}{table('成交额榜', data.turnover)}</div>}</>
 }
 
 // ============== 通用状态条 ==============
 function StatusBar({ loading, error }: { loading: boolean; error: string }) {
-  if (loading) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-2)' }}>加载中...</div>
-  if (error) return <div className="alert-error" style={{ padding: 12 }}>{error}</div>
+  if (loading) return <div className="loading loading-center">加载中...</div>
+  if (error) return <div className="alert-error mkt-error">{error}</div>
   return null
 }
 
@@ -208,10 +208,10 @@ function SectorTab() {
 
   return (
     <>
-      <div className="bt-tabs" style={{ marginBottom: 12 }}>
+      <div className="tabs">
         <button className={type === 'concept' ? 'active' : ''} onClick={() => setType('concept')}>概念板块</button>
         <button className={type === 'industry' ? 'active' : ''} onClick={() => setType('industry')}>行业板块</button>
-        <button className={autoRefresh ? 'active' : ''} onClick={() => setAutoRefresh(v => !v)} style={{ marginLeft: 'auto' }}>
+        <button className={autoRefresh ? 'active tabs-right' : 'tabs-right'} onClick={() => setAutoRefresh(v => !v)}>
           {autoRefresh ? '● 自动刷新' : '○ 自动刷新'}
         </button>
       </div>
@@ -222,7 +222,7 @@ function SectorTab() {
         <table className="portfolio-table">
           <thead>
             <tr>
-              <th style={{ width: 50 }}>排名</th>
+              <th className="mkt-col-rank">排名</th>
               <th>板块名称</th>
               <th>涨跌幅</th>
               <th>换手率</th>
@@ -236,11 +236,11 @@ function SectorTab() {
             )}
             {sectors.map((s, i) => (
               <tr key={s.code || i}>
-                <td style={{ color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>{i + 1}</td>
+                <td className="cell-code">{i + 1}</td>
                 <td className="pf-name">{s.name}<span className="pf-code">{s.code}</span></td>
-                <td className={pctClass(s.change_pct)} style={{ fontFamily: 'var(--mono)' }}>{fmtPct(s.change_pct)}</td>
-                <td style={{ fontFamily: 'var(--mono)' }}>{fmtNum(s.turnover, 2)}%</td>
-                <td style={{ fontFamily: 'var(--mono)' }}>{fmtNum(s.main_net_inflow, 2)}</td>
+                <td className={`cell-mono ${pctClass(s.change_pct)}`}>{fmtPct(s.change_pct)}</td>
+                <td className="cell-mono">{fmtNum(s.turnover, 2)}%</td>
+                <td className="cell-mono">{fmtNum(s.main_net_inflow, 2)}</td>
                 <td>{s.leading_stock || '—'}{s.leading_code && <span className="pf-code">{s.leading_code}</span>}</td>
               </tr>
             ))}
@@ -297,43 +297,43 @@ function ScreenerTab() {
       <div className="backtest-controls">
         <label className="bt-param-item">
           <span>PE</span>
-          <input className="bt-param-input" style={{ width: 60 }} type="number" placeholder="最小" value={peMin} onChange={e => setPeMin(e.target.value)} />
+          <input className="bt-param-input bt-param-input-wide" type="number" placeholder="最小" value={peMin} onChange={e => setPeMin(e.target.value)} />
           <span>~</span>
-          <input className="bt-param-input" style={{ width: 60 }} type="number" placeholder="最大" value={peMax} onChange={e => setPeMax(e.target.value)} />
+          <input className="bt-param-input bt-param-input-wide" type="number" placeholder="最大" value={peMax} onChange={e => setPeMax(e.target.value)} />
         </label>
         <label className="bt-param-item">
           <span>PB</span>
-          <input className="bt-param-input" style={{ width: 60 }} type="number" placeholder="最小" value={pbMin} onChange={e => setPbMin(e.target.value)} />
+          <input className="bt-param-input bt-param-input-wide" type="number" placeholder="最小" value={pbMin} onChange={e => setPbMin(e.target.value)} />
           <span>~</span>
-          <input className="bt-param-input" style={{ width: 60 }} type="number" placeholder="最大" value={pbMax} onChange={e => setPbMax(e.target.value)} />
+          <input className="bt-param-input bt-param-input-wide" type="number" placeholder="最大" value={pbMax} onChange={e => setPbMax(e.target.value)} />
         </label>
         <label className="bt-param-item">
           <span>涨跌幅%</span>
-          <input className="bt-param-input" style={{ width: 60 }} type="number" placeholder="最小" value={chgMin} onChange={e => setChgMin(e.target.value)} />
+          <input className="bt-param-input bt-param-input-wide" type="number" placeholder="最小" value={chgMin} onChange={e => setChgMin(e.target.value)} />
           <span>~</span>
-          <input className="bt-param-input" style={{ width: 60 }} type="number" placeholder="最大" value={chgMax} onChange={e => setChgMax(e.target.value)} />
+          <input className="bt-param-input bt-param-input-wide" type="number" placeholder="最大" value={chgMax} onChange={e => setChgMax(e.target.value)} />
         </label>
-        <select className="alert-select" style={{ flex: '0 0 auto', minWidth: 110 }} value={sortBy} onChange={e => setSortBy(e.target.value)}>
+        <select className="alert-select flex-fix select-sort" value={sortBy} onChange={e => setSortBy(e.target.value)}>
           <option value="change_pct">排序: 涨跌幅</option>
           <option value="turnover">排序: 换手率</option>
           <option value="pe">排序: PE</option>
           <option value="pb">排序: PB</option>
           <option value="market_cap">排序: 市值</option>
         </select>
-        <select className="alert-select" style={{ flex: '0 0 auto', minWidth: 80 }} value={sortDesc ? 'desc' : 'asc'} onChange={e => setSortDesc(e.target.value === 'desc')}>
+        <select className="alert-select flex-fix select-order" value={sortDesc ? 'desc' : 'asc'} onChange={e => setSortDesc(e.target.value === 'desc')}>
           <option value="desc">降序</option>
           <option value="asc">升序</option>
         </select>
         <label className="bt-param-item">
           <span>显示</span>
-          <input className="bt-param-input" style={{ width: 50 }} type="number" value={limit} onChange={e => setLimit(e.target.value)} />
+          <input className="bt-param-input" type="number" value={limit} onChange={e => setLimit(e.target.value)} />
           <span>只</span>
         </label>
         <button className="btn-primary" onClick={screen} disabled={loading}>{loading ? '筛选中...' : '筛选'}</button>
       </div>
 
       {hasResult && (
-        <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 8, fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>
+        <div className="mkt-screen-summary">
           共 {totalMarket ?? '—'} 只 | 筛选出 {matched ?? '—'} 只 | 显示 {stocks.length} 只
         </div>
       )}
@@ -360,14 +360,14 @@ function ScreenerTab() {
             )}
             {stocks.map((s, i) => (
               <tr key={s.code || i}>
-                <td style={{ fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>{s.code}</td>
+                <td className="cell-code">{s.code}</td>
                 <td className="pf-name">{s.name}</td>
-                <td style={{ fontFamily: 'var(--mono)' }}>{fmtNum(s.price, 2)}</td>
-                <td className={pctClass(s.change_pct)} style={{ fontFamily: 'var(--mono)' }}>{fmtPct(s.change_pct)}</td>
-                <td style={{ fontFamily: 'var(--mono)' }}>{fmtNum(s.pe, 2)}</td>
-                <td style={{ fontFamily: 'var(--mono)' }}>{fmtNum(s.pb, 2)}</td>
-                <td style={{ fontFamily: 'var(--mono)' }}>{fmtNum(s.turnover, 2)}%</td>
-                <td style={{ fontFamily: 'var(--mono)' }}>{fmtYiCap(s.market_cap)}</td>
+                <td className="cell-mono">{fmtNum(s.price, 2)}</td>
+                <td className={`cell-mono ${pctClass(s.change_pct)}`}>{fmtPct(s.change_pct)}</td>
+                <td className="cell-mono">{fmtNum(s.pe, 2)}</td>
+                <td className="cell-mono">{fmtNum(s.pb, 2)}</td>
+                <td className="cell-mono">{fmtNum(s.turnover, 2)}%</td>
+                <td className="cell-mono">{fmtYiCap(s.market_cap)}</td>
               </tr>
             ))}
           </tbody>
@@ -409,7 +409,7 @@ function MarginTab() {
       <div className="backtest-controls">
         <label className="bt-param-item">
           <span>日期</span>
-          <input className="alert-input" type="date" value={dateInput} onChange={e => setDateInput(e.target.value)} style={{ flex: '0 0 auto', minWidth: 150 }} />
+          <input className="alert-input flex-fix input-date-fix" type="date" value={dateInput} onChange={e => setDateInput(e.target.value)} />
         </label>
         <button className="btn-primary" onClick={query} disabled={loading}>{loading ? '查询中...' : '查询'}</button>
       </div>
@@ -418,10 +418,10 @@ function MarginTab() {
 
       {!loading && !error && hasResult && (
         <>
-          {actDate && <div style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 8 }}>日期：{actDate}</div>}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {actDate && <div className="mkt-date-note">日期：{actDate}</div>}
+          <div className="mkt-margin-grid">
             <div>
-              <h4 style={{ fontSize: 13, margin: '0 0 8px' }}>融资余额 TOP20</h4>
+              <h4 className="mkt-block-title">融资余额 TOP20</h4>
               <table className="portfolio-table">
                 <thead>
                   <tr>
@@ -436,18 +436,18 @@ function MarginTab() {
                   {marginTop.length === 0 && <tr><td className="empty-row" colSpan={5}>暂无数据</td></tr>}
                   {marginTop.map((r, i) => (
                     <tr key={(r.exchange || '') + r.code + i}>
-                      <td style={{ fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>{r.code}</td>
+                      <td className="cell-code">{r.code}</td>
                       <td className="pf-name">{r.name}</td>
-                      <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtYi(r.margin_balance)}</td>
-                      <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtYi(r.margin_buy)}</td>
-                      <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanGu(r.short_volume)}</td>
+                      <td className="cell-mono">{fmtYi(r.margin_balance)}</td>
+                      <td className="cell-mono">{fmtYi(r.margin_buy)}</td>
+                      <td className="cell-mono">{fmtWanGu(r.short_volume)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div>
-              <h4 style={{ fontSize: 13, margin: '0 0 8px' }}>融券余量 TOP20</h4>
+              <h4 className="mkt-block-title">融券余量 TOP20</h4>
               <table className="portfolio-table">
                 <thead>
                   <tr>
@@ -462,11 +462,11 @@ function MarginTab() {
                   {shortTop.length === 0 && <tr><td className="empty-row" colSpan={5}>暂无数据</td></tr>}
                   {shortTop.map((r, i) => (
                     <tr key={(r.exchange || '') + r.code + i}>
-                      <td style={{ fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>{r.code}</td>
+                      <td className="cell-code">{r.code}</td>
                       <td className="pf-name">{r.name}</td>
-                      <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanGu(r.short_volume)}</td>
-                      <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanGu(r.short_sell)}</td>
-                      <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtYi(r.margin_balance)}</td>
+                      <td className="cell-mono">{fmtWanGu(r.short_volume)}</td>
+                      <td className="cell-mono">{fmtWanGu(r.short_sell)}</td>
+                      <td className="cell-mono">{fmtYi(r.margin_balance)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -514,7 +514,7 @@ function NorthTab() {
   return (
     <>
       <div className="backtest-controls">
-        <button className={`mode-btn ${autoRefresh ? 'active' : ''}`} onClick={() => setAutoRefresh(v => !v)} style={{ flex: '0 0 auto' }}>
+        <button className={`mode-btn flex-fix ${autoRefresh ? 'active' : ''}`} onClick={() => setAutoRefresh(v => !v)}>
           {autoRefresh ? '● 排行自动刷新' : '○ 排行自动刷新'}
         </button>
       </div>
@@ -523,15 +523,15 @@ function NorthTab() {
 
       {!loading && !error && (
         <>
-          <div style={{ padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border)', marginBottom: 16, fontSize: 12, color: 'var(--text-3)' }}>
+          <div className="mkt-note">
             注：2024年8月起港交所停止实时披露北向资金明细，以下为沪深股通成份股实时资金排行数据
           </div>
 
           {/* 北向持股排行 */}
           <div className="backtest-trades">
-            <h4 style={{ margin: '16px 0 8px' }}>
+            <h4 className="mkt-head-gap">
               {market} 北向持股排行（5日资金净流入TOP20）
-              <button className="mode-btn" style={{ marginLeft: 12, padding: '4px 12px', fontSize: 11 }}
+              <button className="mode-btn mkt-switch-btn"
                 onClick={() => { const m = market === '沪股通' ? '深股通' : '沪股通'; setMarket(m); setTimeout(() => query(), 0) }}>
                 切换到{market === '沪股通' ? '深股通' : '沪股通'}
               </button>
@@ -546,12 +546,12 @@ function NorthTab() {
                   <tr key={i}>
                     <td className="pf-code">{s.code}</td>
                     <td>{s.name}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{s.price ?? '—'}</td>
-                    <td className={pctClass(s.change_pct)} style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>
+                    <td className="cell-mono">{s.price ?? '—'}</td>
+                    <td className={`cell-mono ${pctClass(s.change_pct)}`}>
                       {s.change_pct != null ? fmtNum(s.change_pct, 2) + '%' : '—'}
                     </td>
-                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{s.net_inflow != null ? fmtNum(s.net_inflow / 1e8, 2) : '—'}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{s.hold_pct != null ? fmtNum(s.hold_pct, 2) + '%' : '—'}</td>
+                    <td className="cell-mono">{s.net_inflow != null ? fmtNum(s.net_inflow / 1e8, 2) : '—'}</td>
+                    <td className="cell-mono">{s.hold_pct != null ? fmtNum(s.hold_pct, 2) + '%' : '—'}</td>
                   </tr>
                 ))}
               </tbody>

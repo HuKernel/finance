@@ -57,7 +57,7 @@ export default function BacktestAnalysis() {
 
       {error && <div className="alert-error">{error}</div>}
 
-      {loading && <div className="bt-loading">分析中，蒙特卡洛需要几秒...</div>}
+      {loading && <div className="loading loading-center">分析中，蒙特卡洛需要几秒...</div>}
 
       {data && !loading && (
         <div className="bt-result">

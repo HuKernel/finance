@@ -82,14 +82,14 @@ export default function BacktestPage() {
     <div className="pane">
       <div className="pane-head">
         <h2>策略回测</h2>
-        <div className="bt-tabs">
+        <div className="tabs">
           <button className={pageTab === 'basic' ? 'active' : ''} onClick={() => setPageTab('basic')}>基础回测</button>
           <button className={pageTab === 'analysis' ? 'active' : ''} onClick={() => setPageTab('analysis')}>深度分析</button>
         </div>
       </div>
 
       {pageTab === 'analysis' ? (
-        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-2)' }}>加载分析模块...</div>}>
+        <Suspense fallback={<div className="loading loading-center">加载分析模块...</div>}>
           <BacktestAnalysis />
         </Suspense>
       ) : (
@@ -137,8 +137,11 @@ export default function BacktestPage() {
           {result.warnings?.map((warning, i) => (
             <div key={i} className="alert-error">{warning}</div>
           ))}
-          {/* KPI 卡片 - 扩展指标 */}
-          <div className="backtest-summary">
+          {/* KPI 卡片 - 按 收益 / 风险 / 交易 分组 */}
+          <div className="kpi-groups">
+            <div>
+              <div className="kpi-group-label">收益</div>
+              <div className="backtest-summary">
             <div className="kpi-card">
               <span className="kpi-label">策略收益</span>
               <span className={`kpi-value ${result.total_return >= 0 ? 'up' : 'down'}`}>
@@ -163,6 +166,11 @@ export default function BacktestPage() {
                 {(result.annual_return ?? 0) >= 0 ? '+' : ''}{(result.annual_return ?? 0).toFixed(1)}%
               </span>
             </div>
+              </div>
+            </div>
+            <div>
+              <div className="kpi-group-label">风险</div>
+              <div className="backtest-summary">
             <div className="kpi-card">
               <span className="kpi-label">最大回撤</span>
               <span className="kpi-value down">-{result.max_drawdown}%</span>
@@ -184,18 +192,6 @@ export default function BacktestPage() {
               <span className="kpi-value">{(result.annual_volatility ?? 0).toFixed(1)}%</span>
             </div>
             <div className="kpi-card">
-              <span className="kpi-label">交易次数</span>
-              <span className="kpi-value">{result.trades}</span>
-            </div>
-            <div className="kpi-card">
-              <span className="kpi-label">胜率</span>
-              <span className="kpi-value">{result.win_rate}%</span>
-            </div>
-            <div className="kpi-card">
-              <span className="kpi-label">最大连亏</span>
-              <span className="kpi-value">{result.max_consecutive_losses ?? '-'}次</span>
-            </div>
-            <div className="kpi-card">
               <span className="kpi-label">EWMA夏普</span>
               <span className="kpi-value">{(result.ewm_sharpe ?? 0).toFixed(2)}</span>
             </div>
@@ -210,6 +206,25 @@ export default function BacktestPage() {
             <div className="kpi-card">
               <span className="kpi-label">回撤恢复</span>
               <span className="kpi-value">{result.max_dd_duration ?? '-'}天</span>
+            </div>
+              </div>
+            </div>
+            <div>
+              <div className="kpi-group-label">交易</div>
+              <div className="backtest-summary">
+            <div className="kpi-card">
+              <span className="kpi-label">交易次数</span>
+              <span className="kpi-value">{result.trades}</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">胜率</span>
+              <span className="kpi-value">{result.win_rate}%</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">最大连亏</span>
+              <span className="kpi-value">{result.max_consecutive_losses ?? '-'}次</span>
+            </div>
+              </div>
             </div>
           </div>
 

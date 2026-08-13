@@ -56,7 +56,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
           <h1>FinanceCrew</h1>
           <p>金融智能体投研团队</p>
         </div>
-        <div className="login-tabs">
+        <div className="tabs tabs-fill">
           <button className={`ghost ${mode === 'login' ? 'active' : ''}`} onClick={() => { setMode('login'); setError('') }}>登录</button>
           <button className={`ghost ${mode === 'register' ? 'active' : ''}`} onClick={() => { setMode('register'); setError('') }}>注册</button>
         </div>

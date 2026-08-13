@@ -32,7 +32,7 @@ export default function AdminPage() {
   return (
     <div className="pane admin-page">
       <div className="pane-head"><h2>管理后台</h2></div>
-      <div className="admin-tabs">
+      <div className="tabs">
         {tabs.map(t => (
           <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
             {t.label}
@@ -115,7 +115,7 @@ function DefaultModelSection() {
     }).catch(() => toast('默认模型配置加载失败', 'error'))
   }, [toast])
 
-  if (!cfg) return <div className="profile-loading">加载中...</div>
+  if (!cfg) return <div className="loading loading-center">加载中...</div>
   const patch = (value: Partial<LLMConfig>) => setCfg(current => current ? {...current, ...value} : current)
   const pickProvider = (provider: string) => {
     const preset = providers[provider]

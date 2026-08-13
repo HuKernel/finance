@@ -33,7 +33,6 @@ test('游客可浏览行情，受保护功能和反馈会要求登录', async ({
   await page.getByRole('button', { name: '查看实时行情' }).click()
   await expect(page.getByRole('heading', { name: '行情', exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: '展开侧边栏' }).click()
   await page.getByRole('button', { name: '信号诊断' }).click()
   await expect(page.getByRole('dialog', { name: '登录' })).toBeVisible()
   await page.getByRole('button', { name: '暂不登录，继续浏览' }).click()

@@ -114,7 +114,7 @@ async function mockApi(page: Page) {
 }
 
 async function navigateTo(page: Page, label: string) {
-  await page.getByRole('button', { name: '展开侧边栏' }).click()
+  // 桌面端侧边栏默认常驻展开，直接点击导航项
   await page.getByRole('button', { name: label, exact: true }).click()
 }
 

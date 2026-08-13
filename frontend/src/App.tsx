@@ -61,7 +61,16 @@ function useTheme() {
 
 function App() {
   const [tab, setTab] = useState<Tab>('home')
-  const [navOpen, setNavOpen] = useState(false)
+  // 桌面端默认展开侧边栏并记住用户选择；移动端保持抽屉式
+  const [navOpen, setNavOpen] = useState(() => {
+    if (!window.matchMedia('(min-width: 769px)').matches) return false
+    const stored = localStorage.getItem('fc_nav_open')
+    return stored === null ? true : stored === '1'
+  })
+  const persistNav = (open: boolean) => {
+    setNavOpen(open)
+    localStorage.setItem('fc_nav_open', open ? '1' : '0')
+  }
   const [auth, setAuth] = useState<AuthResponse | null>(null)
   const [booted, setBooted] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -99,16 +108,25 @@ function App() {
     return () => document.removeEventListener('keydown', close)
   }, [navOpen])
 
+  // 视口缩小到移动端时自动收起侧边栏（变为抽屉模式）
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    const onChange = () => { if (mq.matches) setNavOpen(false) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
   useEffect(() => {
     const requireAuth = () => setLoginTarget(tab)
     window.addEventListener('financecrew:auth-required', requireAuth)
     return () => window.removeEventListener('financecrew:auth-required', requireAuth)
   }, [tab])
 
-  if (!booted) return <div className="boot-screen">加载中...</div>
+  if (!booted) return <div className="boot-screen"><span className="loading loading-center">加载中...</span></div>
 
   const navigate = (next: Tab) => {
-    setNavOpen(false)
+    // 移动端抽屉模式下导航后收起；桌面常驻模式不受影响
+    if (window.matchMedia('(max-width: 768px)').matches) setNavOpen(false)
     if (!auth && !PUBLIC_TABS.has(next)) {
       setLoginTarget(next)
       return
@@ -164,7 +182,7 @@ function App() {
         <div className="brand">
           <div className="brand-mark"><img src="/favicon.svg" alt="" /></div>
           <h1>FinanceCrew<small>个人投研工作台</small></h1>
-          <button className="sidebar-close" aria-label="收起侧边栏" onClick={() => setNavOpen(false)}><PanelLeftClose aria-hidden="true" size={18} strokeWidth={1.8} /></button>
+          <button className="sidebar-close" aria-label="收起侧边栏" onClick={() => persistNav(false)}><PanelLeftClose aria-hidden="true" size={18} strokeWidth={1.8} /></button>
         </div>
         <nav aria-label="主导航" className="side-nav">
           {visibleGroups.map(group => (
@@ -176,29 +194,45 @@ function App() {
             </div>
           ))}
         </nav>
+        <div className="sidebar-footer">
+          {auth ? (
+            <>
+              <div className="sidebar-user">
+                <span className="sidebar-avatar" aria-hidden="true">{auth.user.username[0]?.toUpperCase() || '?'}</span>
+                <span className="sidebar-username">{auth.user.username}</span>
+              </div>
+              <div className="sidebar-actions">
+                <button className="ghost" onClick={toggle}>{theme === 'dark' ? '亮色' : '暗色'}</button>
+                <button className="ghost" onClick={logout}>退出</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <button className="sidebar-login" onClick={() => setLoginTarget(tab)}>登录</button>
+              <div className="sidebar-actions">
+                <button className="ghost" onClick={toggle}>{theme === 'dark' ? '亮色' : '暗色'}</button>
+              </div>
+            </>
+          )}
+        </div>
       </aside>
       <button className={`nav-backdrop${navOpen ? ' open' : ''}`} aria-hidden="true" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <div className="workspace">
         <header className="workspace-header">
-          {!navOpen && <button className="sidebar-trigger" aria-label="展开侧边栏" aria-controls="main-navigation" aria-expanded="false" onClick={() => setNavOpen(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>}
+          {!navOpen && <button className="sidebar-trigger" aria-label="展开侧边栏" aria-controls="main-navigation" aria-expanded="false" onClick={() => persistNav(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>}
           <div className="workspace-title">
             <div className="workspace-eyebrow">FinanceCrew / {activeLabel}</div>
             <h2>{activeLabel}</h2>
           </div>
-        <div className="user-menu">
-          {auth && <AlertBell />}
-          <button className="ghost" onClick={toggle} title="切换主题">{theme === 'dark' ? '亮色' : '暗色'}</button>
-          {auth ? (
-            <>
-              <span className="user-name">{auth.user.username}</span>
-              <button className="ghost" onClick={logout}>退出</button>
-            </>
-          ) : <button className="ghost" onClick={() => setLoginTarget(tab)}>登录</button>}
-        </div>
+        {auth && (
+          <div className="user-menu">
+            <AlertBell />
+          </div>
+        )}
         </header>
       <main id="main-content" className="workspace-main" tabIndex={-1}>
         <ErrorBoundary>
-        <Suspense fallback={<div style={{padding:'40px',textAlign:'center',color:'var(--text-2)'}}>加载中...</div>}>
+        <Suspense fallback={<div className="loading loading-center">加载中...</div>}>
           {activePage}
         </Suspense>
         </ErrorBoundary>

@@ -99,7 +99,7 @@ export default function PortfolioPage() {
       )}
       {eventsError && <div className="hint">公司事件日历暂不可用：{eventsError}</div>}
 
-      <div className="portfolio-tabs">
+      <div className="tabs">
         <button className={view === 'holdings' ? 'active' : ''} onClick={() => setView('holdings')}>持仓</button>
         <button className={view === 'history' ? 'active' : ''} onClick={() => setView('history')}>交易记录</button>
       </div>
