@@ -197,7 +197,8 @@ def get_north_flow_top_stocks(market: str = "沪股通", period: str = "5日排�
             d = r.json()
         except Exception:
             return None
-        items = d.get("data", {}).get("diff", [])
+        # 东财无数据时返回 {"data": null}，.get 默认值不生效
+        items = (d.get("data") or {}).get("diff") or []
         if not items:
             return None
         top = []

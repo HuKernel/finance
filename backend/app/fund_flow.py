@@ -11,8 +11,10 @@ from .cache import cached, TTL
 
 
 def _em_secid(symbol: str) -> str:
-    """东财secid：沪市1.xxx 深市0.xxx"""
+    """东财secid：沪市1.xxx 深市0.xxx 港股116.xxx"""
     sym = symbol.replace("sh", "").replace("sz", "").replace("us", "").replace("hk", "")
+    if symbol.startswith("hk"):
+        return f"116.{sym}"
     if symbol.startswith("sh") or sym.startswith("6") or sym.startswith("9"):
         return f"1.{sym}"
     return f"0.{sym}"
@@ -55,7 +57,8 @@ def get_fund_flow(symbol: str, days: int = 10) -> Optional[dict[str, Any]]:
         data = _fetch_with_retry(url)
         if data is None:
             return None
-        klines = data.get("data", {}).get("klines", [])
+        # 东财对无数据的标的返回 {"data": null}，此时 .get("data") 是 None 而非 {}
+        klines = (data.get("data") or {}).get("klines") or []
         if not klines:
             return None
 
