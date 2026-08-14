@@ -1828,16 +1828,17 @@ body { min-width: 320px; }
 
 .app-shell {
   display: grid;
-  grid-template-columns: 0 minmax(0, 1fr);
+  grid-template-columns: 56px minmax(0, 1fr);
   min-height: 100vh;
   transition: grid-template-columns 0.2s ease;
 }
 .app-shell.nav-open { grid-template-columns: 220px minmax(0, 1fr); }
 
+/* 桌面端：收起后保持 56px 图标栏（icon rail），移动端覆盖为抽屉 */
 .sidebar {
   position: sticky;
   top: 0;
-  width: 220px;
+  min-width: 0;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -1845,19 +1846,18 @@ body { min-width: 320px; }
   background: var(--surface-2);
   border-right: 1px solid var(--border);
   overflow-y: auto;
-  visibility: hidden;
-  transform: translateX(-100%);
-  transition: transform 0.2s ease, visibility 0.2s;
   z-index: 20;
 }
-.sidebar.open { visibility: visible; transform: translateX(0); }
 
-.sidebar-trigger,
-.sidebar-close { display: inline-grid; flex: 0 0 auto; width: 34px; height: 34px; padding: 0; place-items: center; color: var(--text-2); background: transparent; border: 1px solid transparent; }
-.sidebar-trigger { background: var(--surface); border-color: var(--border); }
-.sidebar-trigger:hover,
-.sidebar-close:hover { color: var(--text); background: var(--surface-hover); border-color: var(--border); }
+.sidebar-close,
+.sidebar-expand { display: inline-grid; flex: 0 0 auto; width: 34px; height: 34px; padding: 0; place-items: center; color: var(--text-2); background: transparent; border: 1px solid transparent; }
+.sidebar-close:hover,
+.sidebar-expand:hover { color: var(--text); background: var(--surface-hover); border-color: var(--border); }
 .sidebar-close { margin-left: auto; }
+.sidebar-expand { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: 0 auto; cursor: pointer; }
+/* 移动端抽屉的展开触发按钮（header 内，仅移动端渲染） */
+.sidebar-trigger { display: inline-grid; flex: 0 0 auto; width: 34px; height: 34px; padding: 0; place-items: center; color: var(--text-2); background: var(--surface); border: 1px solid var(--border); }
+.sidebar-trigger:hover { color: var(--text); background: var(--surface-hover); border-color: var(--border); }
 .nav-backdrop { display: none; position: fixed; inset: 0; z-index: 19; width: 100%; height: 100%; padding: 0; border: 0; background: rgba(15, 23, 42, 0.42); }
 .sidebar .brand { padding: 0 8px 22px; }
 .sidebar .brand-mark { background: transparent; }
@@ -1902,6 +1902,9 @@ body { min-width: 320px; }
 }
 .side-nav button {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 9px 11px;
   color: var(--text-2);
   background: transparent;
@@ -1910,8 +1913,22 @@ body { min-width: 320px; }
   text-align: left;
   font-size: 13px;
 }
+.side-nav button svg { flex-shrink: 0; }
 .side-nav button:hover { color: var(--text); background: var(--surface-hover); }
 .side-nav button.active { color: var(--accent); background: var(--accent-soft); font-weight: 650; }
+
+/* rail 收起态：只显示图标，文字用原生 title 提示 */
+@media (min-width: 769px) {
+  .sidebar:not(.open) { padding: 22px 10px; }
+  .sidebar:not(.open) .brand { justify-content: center; padding: 0 0 22px; }
+  .sidebar:not(.open) .brand h1 { display: none; }
+  .sidebar:not(.open) .side-nav { gap: 14px; }
+  .sidebar:not(.open) .nav-group { gap: 2px; }
+  .sidebar:not(.open) .nav-group-label { display: none; }
+  .sidebar:not(.open) .side-nav button { justify-content: center; padding: 10px 0; }
+  .sidebar:not(.open) .side-nav button span { display: none; }
+  .sidebar:not(.open) .sidebar-footer { padding: 14px 0 0; }
+}
 
 .workspace { min-width: 0; }
 .workspace-header {
@@ -2033,4 +2050,9 @@ button.ghost:hover { background: var(--surface-hover); }
   .feedback-trigger { right: 12px; bottom: 12px; }
   .feedback-panel { right: 12px; bottom: 62px; }
   .login-card { width: min(360px, 100%); padding: 30px 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell { transition: none; }
+  .sidebar { transition: none; }
 }

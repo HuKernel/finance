@@ -1,5 +1,9 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import {
+  Activity, Briefcase, CalendarClock, CandlestickChart, FileSearch, FlaskConical,
+  Globe, History, Home, MessageSquare, PanelLeftClose, PanelLeftOpen,
+  ScrollText, Shield, User, type LucideIcon,
+} from 'lucide-react'
 import { api, getToken, setToken } from './api'
 import type { AuthResponse } from './types'
 import LoginPage from './LoginPage'
@@ -26,6 +30,22 @@ const ThesisPage = lazy(() => import('./ThesisPage'))
 type Tab = 'home' | 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'signal' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
 
 const PUBLIC_TABS = new Set<Tab>(['home', 'quote', 'market'])
+
+const NAV_ICONS: Record<Tab, LucideIcon> = {
+  home: Home,
+  analyze: FileSearch,
+  chat: MessageSquare,
+  thesis: ScrollText,
+  quote: CandlestickChart,
+  market: Globe,
+  portfolio: Briefcase,
+  backtest: FlaskConical,
+  signal: Activity,
+  scheduler: CalendarClock,
+  history: History,
+  profile: User,
+  admin: Shield,
+}
 
 const NAV_GROUPS: { label: string; items: { tab: Tab; label: string }[] }[] = [
   { label: '开始', items: [{ tab: 'home', label: '产品首页' }] },
@@ -108,10 +128,11 @@ function App() {
     return () => document.removeEventListener('keydown', close)
   }, [navOpen])
 
-  // 视口缩小到移动端时自动收起侧边栏（变为抽屉模式）
+  // 视口状态：≤768px 为抽屉模式（自动收起），桌面为 rail/常驻模式
+  const [isCompact, setIsCompact] = useState(() => window.matchMedia('(max-width: 768px)').matches)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)')
-    const onChange = () => { if (mq.matches) setNavOpen(false) }
+    const onChange = () => { setIsCompact(mq.matches); if (mq.matches) setNavOpen(false) }
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
   }, [])
@@ -182,20 +203,28 @@ function App() {
         <div className="brand">
           <div className="brand-mark"><img src="/favicon.svg" alt="" /></div>
           <h1>FinanceCrew<small>个人投研工作台</small></h1>
-          <button className="sidebar-close" aria-label="收起侧边栏" onClick={() => persistNav(false)}><PanelLeftClose aria-hidden="true" size={18} strokeWidth={1.8} /></button>
+          {navOpen && <button className="sidebar-close" aria-label="收起侧边栏" title="收起侧边栏" onClick={() => persistNav(false)}><PanelLeftClose aria-hidden="true" size={18} strokeWidth={1.8} /></button>}
         </div>
         <nav aria-label="主导航" className="side-nav">
           {visibleGroups.map(group => (
             <div className="nav-group" key={group.label}>
               <div className="nav-group-label">{group.label}</div>
-              {group.items.map(item => (
-                <button key={item.tab} aria-current={tab === item.tab ? 'page' : undefined} className={tab === item.tab ? 'active' : ''} onClick={() => navigate(item.tab)}>{item.label}</button>
-              ))}
+              {group.items.map(item => {
+                const Icon = NAV_ICONS[item.tab]
+                return (
+                  <button key={item.tab} aria-current={tab === item.tab ? 'page' : undefined} title={item.label} className={tab === item.tab ? 'active' : ''} onClick={() => navigate(item.tab)}>
+                    <Icon aria-hidden="true" size={16} strokeWidth={1.8} />
+                    <span>{item.label}</span>
+                  </button>
+                )
+              })}
             </div>
           ))}
         </nav>
         <div className="sidebar-footer">
-          {auth ? (
+          {!navOpen && !isCompact ? (
+            <button className="sidebar-expand" aria-label="展开侧边栏" title="展开侧边栏" onClick={() => persistNav(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>
+          ) : auth ? (
             <>
               <div className="sidebar-user">
                 <span className="sidebar-avatar" aria-hidden="true">{auth.user.username[0]?.toUpperCase() || '?'}</span>
@@ -219,7 +248,7 @@ function App() {
       <button className={`nav-backdrop${navOpen ? ' open' : ''}`} aria-hidden="true" tabIndex={-1} onClick={() => setNavOpen(false)} />
       <div className="workspace">
         <header className="workspace-header">
-          {!navOpen && <button className="sidebar-trigger" aria-label="展开侧边栏" aria-controls="main-navigation" aria-expanded="false" onClick={() => persistNav(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>}
+          {!navOpen && isCompact && <button className="sidebar-trigger" aria-label="展开侧边栏" aria-controls="main-navigation" aria-expanded="false" onClick={() => persistNav(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>}
           <div className="workspace-title">
             <div className="workspace-eyebrow">FinanceCrew / {activeLabel}</div>
             <h2>{activeLabel}</h2>
