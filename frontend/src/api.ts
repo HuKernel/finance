@@ -293,6 +293,7 @@ export const api = {
       method: 'POST', body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
     }),
   setupMFA: () => request<{secret:string;otpauth:string}>('/api/auth/mfa/setup', { method: 'POST' }),
+  getSecurity: () => request<{email:string|null; email_verified:number; mfa_enabled:number}>('/api/auth/security'),
   enableMFA: (code: string) => request<{status:string}>('/api/auth/mfa/enable', { method: 'POST', body: JSON.stringify({code}) }),
   disableMFA: (code: string) => request<{status:string}>('/api/auth/mfa/disable', { method: 'POST', body: JSON.stringify({code}) }),
 

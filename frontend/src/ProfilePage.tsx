@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import type { LLMConfig, UserProfile } from './types'
 
-type Section = 'membership' | 'invite' | 'llm' | 'profile' | 'analysts' | 'password'
+type Section = 'membership' | 'invite' | 'llm' | 'profile' | 'analysts' | 'password' | 'security'
 
 export default function ProfilePage() {
   const [section, setSection] = useState<Section>('membership')
@@ -24,6 +24,7 @@ export default function ProfilePage() {
           <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}>用户画像</button>
           <button className={section === 'analysts' ? 'active' : ''} onClick={() => setSection('analysts')}>分析师配置</button>
           <button className={section === 'password' ? 'active' : ''} onClick={() => setSection('password')}>修改密码</button>
+          <button className={section === 'security' ? 'active' : ''} onClick={() => setSection('security')}>安全设置</button>
         </div>
 
         <div className="profile-content">
@@ -33,6 +34,7 @@ export default function ProfilePage() {
           {section === 'profile' && <UserProfileSection />}
           {section === 'analysts' && <AnalystConfigSection />}
           {section === 'password' && <PasswordSection />}
+          {section === 'security' && <MFASection />}
         </div>
       </div>
     </div>
@@ -288,6 +290,108 @@ function PasswordSection() {
         {msg && <span className="ok-msg">{msg}</span>}
         {err && <span className="err-msg">{err}</span>}
       </div>
+    </div>
+  )
+}
+
+/* ---------------- 安全设置（MFA 两步验证） ---------------- */
+
+function MFASection() {
+  const [enabled, setEnabled] = useState<boolean | null>(null)
+  // 开启流程：setup 返回密钥 → 用户在验证器 App 中添加 → 输入 6 位码启用
+  const [setup, setSetup] = useState<{ secret: string; otpauth: string } | null>(null)
+  const [code, setCode] = useState('')
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const loadStatus = () => {
+    api.getSecurity()
+      .then((s) => setEnabled(Boolean(s.mfa_enabled)))
+      .catch(() => setEnabled(null))
+  }
+  useEffect(() => { loadStatus() }, [])
+
+  const startSetup = async () => {
+    setBusy(true); setMsg(''); setErr('')
+    try {
+      setSetup(await api.setupMFA())
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '初始化失败')
+    } finally { setBusy(false) }
+  }
+
+  const confirmEnable = async () => {
+    if (!/^\d{6}$/.test(code.trim())) { setErr('请输入 6 位验证码'); return }
+    setBusy(true); setMsg(''); setErr('')
+    try {
+      await api.enableMFA(code.trim())
+      setEnabled(true); setSetup(null); setCode('')
+      setMsg('两步验证已开启，下次登录需输入验证码')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '验证码不正确')
+    } finally { setBusy(false) }
+  }
+
+  const disable = async () => {
+    if (!/^\d{6}$/.test(code.trim())) { setErr('请输入 6 位验证码以确认关闭'); return }
+    setBusy(true); setMsg(''); setErr('')
+    try {
+      await api.disableMFA(code.trim())
+      setEnabled(false); setCode('')
+      setMsg('两步验证已关闭')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '验证码不正确')
+    } finally { setBusy(false) }
+  }
+
+  if (enabled === null) return <div className="config-section"><p className="hint">加载中...</p></div>
+
+  return (
+    <div className="config-section">
+      <p className="hint">
+        两步验证（TOTP）：开启后登录需额外输入验证器 App 生成的 6 位动态码，
+        即使密码泄露账号也无法被登录。支持 Google Authenticator、Microsoft Authenticator、1Password 等。
+      </p>
+
+      {enabled ? (
+        <>
+          <p className="hint"><strong style={{ color: 'var(--accent)' }}>✔ 两步验证已开启</strong></p>
+          <label>关闭需验证
+            <input inputMode="numeric" placeholder="输入当前 6 位验证码" value={code}
+              onChange={(e) => setCode(e.target.value)} />
+          </label>
+          <div className="config-actions">
+            <button onClick={disable} disabled={busy}>{busy ? '验证中...' : '关闭两步验证'}</button>
+          </div>
+        </>
+      ) : setup ? (
+        <>
+          <p className="hint">1. 打开验证器 App → 添加账户 → 扫码或手动输入以下密钥：</p>
+          <p style={{ fontFamily: 'var(--mono)', wordBreak: 'break-all', background: 'var(--bg-2, var(--bg-1))', padding: '8px 10px', border: '1px solid var(--border)' }}>
+            {setup.secret}
+          </p>
+          <p className="hint" style={{ fontSize: 11, wordBreak: 'break-all' }}>
+            otpauth 链接：<a href={setup.otpauth}>{setup.otpauth}</a>
+          </p>
+          <p className="hint">2. 输入 App 显示的 6 位验证码完成开启：</p>
+          <label>验证码
+            <input inputMode="numeric" placeholder="6 位数字" value={code}
+              onChange={(e) => setCode(e.target.value)} />
+          </label>
+          <div className="config-actions">
+            <button className="btn-primary" onClick={confirmEnable} disabled={busy}>{busy ? '验证中...' : '开启两步验证'}</button>
+            <button onClick={() => { setSetup(null); setCode('') }} disabled={busy}>取消</button>
+          </div>
+        </>
+      ) : (
+        <div className="config-actions">
+          <button className="btn-primary" onClick={startSetup} disabled={busy}>{busy ? '初始化中...' : '开启两步验证'}</button>
+        </div>
+      )}
+
+      {msg && <span className="ok-msg">{msg}</span>}
+      {err && <span className="err-msg">{err}</span>}
     </div>
   )
 }
