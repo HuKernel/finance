@@ -371,7 +371,10 @@ def admin_list_users(admin: dict[str, Any] = Depends(require_admin), page: int =
 def admin_delete_user(user_id: int, admin: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
     if user_id == admin["id"]:
         raise HTTPException(400, "不能删除当前登录管理员")
-    ok = auth.delete_user(user_id)
+    try:
+        ok = auth.delete_user(user_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     auth.audit_log(admin["id"], admin["username"], "delete_user", f"target_id={user_id}")
     return {"status": "ok" if ok else "not_found"}
 
@@ -379,7 +382,10 @@ def admin_delete_user(user_id: int, admin: dict[str, Any] = Depends(require_admi
 
 @router.post("/api/admin/users/{user_id}/toggle-active")
 def admin_toggle_user(user_id: int, admin: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
-    ok = auth.toggle_user_active(user_id)
+    try:
+        ok = auth.toggle_user_active(user_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     auth.audit_log(admin["id"], admin["username"], "toggle_user", f"target_id={user_id}")
     return {"status": "ok" if ok else "not_found"}
 
@@ -388,7 +394,10 @@ def admin_toggle_user(user_id: int, admin: dict[str, Any] = Depends(require_admi
 @router.post("/api/admin/users/{user_id}/set-admin")
 async def admin_set_admin(user_id: int, request: Request, admin: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
     body = await request.json()
-    ok = auth.set_user_admin(user_id, bool(body.get("is_admin", False)))
+    try:
+        ok = auth.set_user_admin(user_id, bool(body.get("is_admin", False)))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     auth.audit_log(admin["id"], admin["username"], "set_admin", f"target_id={user_id} value={body.get('is_admin')}")
     return {"status": "ok" if ok else "not_found"}
 

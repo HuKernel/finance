@@ -22,7 +22,7 @@ def list_all_users(page: int = 1, page_size: int = 20) -> dict[str, Any]:
     with _connect() as conn:
         total = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
         rows = conn.execute(
-            "SELECT u.id, u.username, u.created_at, u.is_admin, u.is_active, u.is_invited, u.plan_code, u.membership_expires_at, "
+            "SELECT u.id, u.username, u.created_at, u.is_admin, u.is_super, u.is_active, u.is_invited, u.plan_code, u.membership_expires_at, "
             "(SELECT COUNT(*) FROM analyses WHERE analyses.user_id = u.id) as analysis_count "
             "FROM users u ORDER BY u.id LIMIT ? OFFSET ?", (page_size, (page - 1) * page_size)
         ).fetchall()
@@ -32,9 +32,11 @@ def list_all_users(page: int = 1, page_size: int = 20) -> dict[str, Any]:
 def delete_user(user_id: int) -> bool:
     _init_db()
     with _connect() as conn:
-        row = conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone()
+        row = conn.execute("SELECT id, is_super FROM users WHERE id=?", (user_id,)).fetchone()
         if not row:
             return False
+        if row["is_super"]:
+            raise ValueError("超级管理员不可删除")
         # 邀请奖励属于已删除用户的关系记录，也一并清理。
         conn.execute(
             "DELETE FROM invite_rewards WHERE inviter_id=? OR invited_user_id=?",
@@ -55,17 +57,23 @@ def toggle_user_active(user_id: int) -> bool:
     """启用/禁用用户。"""
     _init_db()
     with _connect() as conn:
-        row = conn.execute("SELECT is_active FROM users WHERE id=?", (user_id,)).fetchone()
+        row = conn.execute("SELECT is_active, is_super FROM users WHERE id=?", (user_id,)).fetchone()
         if row is None:
             return False
+        if row["is_super"]:
+            raise ValueError("超级管理员不可禁用")
         conn.execute("UPDATE users SET is_active=? WHERE id=?", (1 - row["is_active"], user_id))
     return True
 
 
 def set_user_admin(user_id: int, is_admin_val: bool) -> bool:
-    """设置/取消管理员。"""
+    """设置/取消管理员（超级管理员恒为管理员，不可取消）。"""
     _init_db()
     with _connect() as conn:
+        if not is_admin_val:
+            row = conn.execute("SELECT is_super FROM users WHERE id=?", (user_id,)).fetchone()
+            if row and row["is_super"]:
+                raise ValueError("超级管理员的管理员身份不可取消")
         cur = conn.execute("UPDATE users SET is_admin=? WHERE id=?", (1 if is_admin_val else 0, user_id))
         return cur.rowcount > 0
 

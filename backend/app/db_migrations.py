@@ -56,5 +56,6 @@ def run_migrations() -> None:
                 except Exception as e:
                     logger.debug("索引跳过(可能表不存在): %s -> %s", sql[:50], e)
         logger.info("数据库索引迁移完成: %d 条", len(_INDEXES))
+        _ensure_super_admin(conn)
     except Exception as e:
         logger.warning("索引迁移失败(不阻塞启动): %s", e)

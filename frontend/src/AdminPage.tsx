@@ -325,14 +325,23 @@ function UsersSection() {
             <td>{(u.created_at || '').slice(0, 10)}</td>
             <td>{u.plan_code && u.plan_code !== 'free' ? `有效至 ${(u.membership_expires_at || '长期').slice(0, 10)}` : '免费用户'}</td>
             <td>
-              <label className="admin-toggle">
-                <input type="checkbox" checked={!!u.is_admin} onChange={e => setAdmin(u.id, e.target.checked)} />
-                <span>{u.is_admin ? '管理员' : '普通'}</span>
-              </label>
+              {u.is_super ? (
+                <span className="up" title="超级管理员：不可删除、不可禁用">超管</span>
+              ) : (
+                <label className="admin-toggle">
+                  <input type="checkbox" checked={!!u.is_admin} onChange={e => setAdmin(u.id, e.target.checked)} />
+                  <span>{u.is_admin ? '管理员' : '普通'}</span>
+                </label>
+              )}
             </td>
             <td className={u.is_active ? 'up' : 'down'}>{u.is_active ? '正常' : '禁用'}</td>
             <td>{u.analysis_count}</td>
-            <td><button className="admin-action-btn" onClick={() => toggleActive(u.id)}>{u.is_active ? '禁用' : '启用'}</button> <button className="admin-action-btn danger" onClick={() => remove(u.id, u.username)}>删除</button></td>
+            <td>{u.is_super ? <span className="text-3">受保护</span> : (
+              <>
+                <button className="admin-action-btn" onClick={() => toggleActive(u.id)}>{u.is_active ? '禁用' : '启用'}</button>{' '}
+                <button className="admin-action-btn danger" onClick={() => remove(u.id, u.username)}>删除</button>
+              </>
+            )}</td>
           </tr>
         ))}
       </tbody>

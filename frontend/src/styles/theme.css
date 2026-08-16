@@ -121,7 +121,14 @@ body { min-width: 320px; }
   font-weight: 650;
 }
 .sidebar-username { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-actions { display: flex; gap: 8px; }
+/* 暗色/退出按钮：默认淡出，悬浮账号区（或键盘聚焦）时浮现 */
+.sidebar-actions {
+  display: flex; gap: 8px;
+  opacity: 0; max-height: 0; overflow: hidden;
+  transition: opacity .18s ease, max-height .18s ease;
+}
+.sidebar-footer:hover .sidebar-actions,
+.sidebar-footer:focus-within .sidebar-actions { opacity: 1; max-height: 64px; }
 .sidebar-actions button { flex: 1; padding: 6px 0; font-size: 12px; }
 .sidebar-login { padding: 8px 0; font-size: 13px; }
 .nav-group { display: flex; flex-direction: column; gap: 3px; }
