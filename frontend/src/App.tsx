@@ -70,11 +70,8 @@ const NAV_GROUPS: { label: string; items: { tab: Tab; label: string }[] }[] = [
     { tab: 'signal', label: '信号诊断' },
     { tab: 'scheduler', label: '定时分析' },
   ] },
-  { label: '我的', items: [
-    { tab: 'history', label: '历史记录' },
-    { tab: 'profile', label: '个人中心' },
-  ] },
 ]
+// 个人中心/管理后台保持独立页面，入口在头像菜单；历史记录走抽屉
 
 function useTheme() {
   const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme_v3') || 'light')
@@ -101,6 +98,8 @@ function App() {
   const [booted, setBooted] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [loginTarget, setLoginTarget] = useState<Tab | null>(null)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedbackAfterLogin, setFeedbackAfterLogin] = useState(false)
   const { theme, toggle } = useTheme()
@@ -131,6 +130,18 @@ function App() {
     document.addEventListener('keydown', close)
     return () => document.removeEventListener('keydown', close)
   }, [navOpen])
+
+  // 头像菜单：点击外部或 Escape 关闭
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.sidebar-footer')) setUserMenuOpen(false)
+    }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setUserMenuOpen(false)
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc) }
+  }, [userMenuOpen])
 
   // 视口状态：≤768px 为抽屉模式（自动收起），桌面为 rail/常驻模式
   const [isCompact, setIsCompact] = useState(() => window.matchMedia('(max-width: 768px)').matches)
@@ -200,11 +211,10 @@ function App() {
     setTab('home')
   }
 
-  const userGroups = auth ? NAV_GROUPS : NAV_GROUPS.filter(group => group.label !== '我的')
-  const visibleGroups = isAdmin
-    ? [...userGroups, { label: '系统', items: [{ tab: 'admin' as Tab, label: '管理后台' }] }]
-    : userGroups
+  // 游客可见全部主导航（受保护页面点击时才弹登录）；原「我的」分组已并入头像菜单
+  const visibleGroups = NAV_GROUPS
   const activeLabel = visibleGroups.flatMap(group => group.items).find(item => item.tab === tab)?.label
+    ?? (tab === 'profile' ? '个人中心' : tab === 'admin' ? '管理后台' : undefined)
   const activePage = (() => {
     switch (tab) {
       case 'home': return <LandingPage onAnalyze={() => navigate('analyze')} onQuote={() => navigate('quote')} />
@@ -217,7 +227,6 @@ function App() {
       case 'signal': return <MLSignalPage />
       case 'scheduler': return <SchedulerPage />
       case 'thesis': return <ThesisPage />
-      case 'history': return <HistoryPane onPick={() => navigate('analyze')} />
       case 'profile': return <ProfilePage />
       case 'admin': return isAdmin ? <AdminPage /> : null
     }
@@ -256,14 +265,38 @@ function App() {
         <div className="sidebar-footer">
           {!navOpen && !isCompact ? null : auth ? (
             <>
-              <div className="sidebar-user">
+              <button
+                className="sidebar-user"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                onClick={() => setUserMenuOpen(v => !v)}
+              >
                 <span className="sidebar-avatar" aria-hidden="true">{auth.user.username[0]?.toUpperCase() || '?'}</span>
                 <span className="sidebar-username">{auth.user.username}</span>
-              </div>
-              <div className="sidebar-actions">
-                <button className="ghost" onClick={toggle}>{theme === 'dark' ? '亮色' : '暗色'}</button>
-                <button className="ghost" onClick={logout}>退出</button>
-              </div>
+                <span className={`sidebar-user-caret${userMenuOpen ? ' open' : ''}`} aria-hidden="true">▴</span>
+              </button>
+              {userMenuOpen && (
+                <div className="user-popover" role="menu">
+                  <button role="menuitem" onClick={() => { setUserMenuOpen(false); navigate('profile') }}>
+                    <User aria-hidden="true" size={14} strokeWidth={1.8} /><span>个人中心</span>
+                  </button>
+                  <button role="menuitem" onClick={() => { setUserMenuOpen(false); setHistoryOpen(true) }}>
+                    <History aria-hidden="true" size={14} strokeWidth={1.8} /><span>历史记录</span>
+                  </button>
+                  {isAdmin && (
+                    <button role="menuitem" onClick={() => { setUserMenuOpen(false); navigate('admin') }}>
+                      <Shield aria-hidden="true" size={14} strokeWidth={1.8} /><span>管理后台</span>
+                    </button>
+                  )}
+                  <div className="user-popover-divider" />
+                  <button role="menuitem" onClick={toggle}>
+                    <span>{theme === 'dark' ? '切换亮色' : '切换暗色'}</span>
+                  </button>
+                  <button role="menuitem" className="danger" onClick={() => { setUserMenuOpen(false); logout() }}>
+                    <span>退出登录</span>
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -297,6 +330,21 @@ function App() {
         </ErrorBoundary>
       </main>
       </div>
+      {historyOpen && (
+        <div className="drawer-overlay" role="dialog" aria-modal="true" aria-label="历史记录" onClick={() => setHistoryOpen(false)}>
+          <div className="drawer-panel" onClick={e => e.stopPropagation()}>
+            <div className="drawer-head">
+              <h3>历史记录</h3>
+              <button className="ghost" aria-label="关闭" onClick={() => setHistoryOpen(false)}>✕</button>
+            </div>
+            <div className="drawer-body">
+              <Suspense fallback={<div className="loading loading-center">加载中...</div>}>
+                <HistoryPane onPick={() => { setHistoryOpen(false); navigate('analyze') }} />
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
       <FeedbackWidget
         open={feedbackOpen}
         page={activeLabel || tab}

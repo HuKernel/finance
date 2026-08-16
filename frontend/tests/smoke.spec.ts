@@ -118,6 +118,11 @@ async function navigateTo(page: Page, label: string) {
   await page.getByRole('button', { name: label, exact: true }).click()
 }
 
+// 个人中心/历史记录/管理后台入口在侧边栏底部头像菜单里
+async function openUserMenu(page: Page) {
+  await page.getByRole('button', { name: /e2e/ }).click()
+}
+
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
   await page.goto('/')
@@ -181,8 +186,9 @@ test('策略回测入口提交用户选择的参数', async ({ page }) => {
 })
 
 test('历史报告可以查看持久化运行追踪', async ({ page }) => {
-  await navigateTo(page, '历史记录')
-  await page.getByRole('button', { name: '查看' }).click()
+  await openUserMenu(page)
+  await page.getByRole('menuitem', { name: '历史记录' }).click()
+  await page.getByRole('dialog', { name: '历史记录' }).getByRole('button', { name: '查看', exact: true }).click()
   await expect(page.getByText(/运行追踪 · deepseek\/deepseek-chat/)).toBeVisible()
   await page.getByText(/运行追踪 · deepseek\/deepseek-chat/).click()
   await expect(page.getByText('Run ID: run-e2e-42')).toBeVisible()
@@ -216,7 +222,8 @@ test('投资论文可追溯分析、回测数据指纹和 Reflection', async ({ 
 })
 
 test('管理员可以查看用户反馈记录', async ({ page }) => {
-  await navigateTo(page, '管理后台')
+  await openUserMenu(page)
+  await page.getByRole('menuitem', { name: '管理后台' }).click()
   await page.getByRole('button', { name: '用户反馈' }).click()
 
   await expect(page.getByText('visitor')).toBeVisible()
