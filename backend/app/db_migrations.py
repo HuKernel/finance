@@ -46,6 +46,14 @@ _INDEXES = [
 ]
 
 
+def _ensure_super_admin(conn) -> None:
+    """超级管理员账号 lh：不可删除、不可禁用（幂等）。"""
+    try:
+        conn.execute("UPDATE users SET is_super=1, is_admin=1 WHERE username='lh'")
+    except Exception as e:
+        logger.warning("设置超级管理员失败: %s", e)
+
+
 def run_migrations() -> None:
     """执行所有索引迁移（幂等，可安全重复调用）。"""
     try:

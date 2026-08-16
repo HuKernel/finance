@@ -23,7 +23,7 @@ from .prompts import SYSTEM_PROMPT
 
 
 def _connect() -> sqlite3.Connection:
-    from .db import connect
+    from ..db import connect
     return connect(DB_PATH)
 
 
