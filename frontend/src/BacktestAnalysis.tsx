@@ -185,7 +185,7 @@ function SensitivityView({ data }: { data: AnyRecord }) {
         </div>
       )}
       <table className="portfolio-table">
-        <thead><tr><th>快线</th><th>慢线</th><th>收益%</th><th>回撤%</th><th>交易数</th><th>PF</th></tr></thead>
+        <thead><tr><th>{data.p1_label || '参数1'}</th><th>{data.p2_label || '参数2'}</th><th>收益%</th><th>回撤%</th><th>交易数</th><th>PF</th></tr></thead>
         <tbody>
           {(data.results || []).map((r: AnyRecord, i: number) => (
             <tr key={i}>

@@ -4,7 +4,7 @@ import secrets
 import base64
 from urllib.parse import quote
 from typing import Any
-import requests
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse, StreamingResponse
 
@@ -192,7 +192,7 @@ def github_callback(request: Request, code: str = "", state: str = "") -> Redire
         token = auth.create_token(user["id"], user["username"])
         auth.audit_log(user["id"], user["username"], "login_github", ip=request.client.host if request.client else "")
         response = RedirectResponse(site_url + "/#oauth_token=" + token)
-    except (ValueError, PermissionError, requests.RequestException) as exc:
+    except (ValueError, PermissionError, httpx.HTTPError) as exc:
         auth.audit_log(None, "", "login_github_failed", type(exc).__name__ + ": " + str(exc)[:200], request.client.host if request.client else "")
         response = RedirectResponse(site_url + "/?oauth_error=github")
     except Exception as exc:

@@ -31,6 +31,9 @@ logger = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # 同步路由跑在线程池里（外部行情请求耗时较长），调大缺省 40 线程上限
+    import anyio.to_thread
+    anyio.to_thread.current_default_thread_limiter().total_tokens = 100
     # 数据库索引迁移
     try:
         from .db_migrations import run_migrations
@@ -54,13 +57,15 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="FinanceCrew API", version="0.4.0", lifespan=lifespan)
 
 
-# CORS: 只允许本机和局域网（收紧安全）
+# CORS: 环境变量 CORS_ORIGINS（逗号分隔）可覆盖，默认只允许本机和局域网
+_default_origins = [
+    "http://localhost:8000", "http://127.0.0.1:8000",
+    "http://localhost:5173", "http://127.0.0.1:5173",
+]
+_extra_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8000", "http://127.0.0.1:8000",
-        "http://localhost:5173", "http://127.0.0.1:5173",
-    ],
+    allow_origins=_default_origins + _extra_origins,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -69,22 +74,50 @@ app.add_middleware(
 # ---------- 请求频率限制中间件（反爬） ----------
 
 _rate_map: dict[str, list[float]] = defaultdict(list)
-RATE_WINDOW = 60  # 60秒窗口
-RATE_MAX = 200    # 每窗口最多200次请求
+RATE_WINDOW = 60      # 60秒窗口
+RATE_MAX = 200        # 每窗口最多200次请求
+RATE_MAX_AUTH = 20    # 登录/注册类接口每窗口最多20次（防爆破）
+RATE_CLEANUP_EVERY = 600  # 至少每600秒全量清理一次惰性访问不到的IP
+_last_cleanup = 0.0
+
+_AUTH_PATHS = {
+    "/api/auth/login", "/api/auth/register", "/api/auth/forgot-password",
+    "/api/auth/reset-password", "/api/auth/verify-email",
+    "/api/auth/mfa/setup", "/api/auth/mfa/enable", "/api/auth/mfa/disable",
+}
+
+
+def _client_ip(request: Request) -> str:
+    """反代场景优先取 X-Forwarded-For 第一个地址。"""
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    """全局频率限制：每IP每60秒最多200次请求，超过返回429。"""
-    if request.url.path == "/api/health":
+    """全局频率限制：每IP每60秒最多200次请求；登录类接口单独 20次/60秒。"""
+    global _last_cleanup
+    path = request.url.path
+    if path == "/api/health":
         return await call_next(request)
 
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _client_ip(request)
     now = time.time()
-    _rate_map[client_ip] = [t for t in _rate_map[client_ip] if now - t < RATE_WINDOW]
-    if len(_rate_map[client_ip]) >= RATE_MAX:
+    # 周期性全量清理，避免长期运行时 _rate_map 无界增长
+    if now - _last_cleanup > RATE_CLEANUP_EVERY:
+        stale = [ip for ip, ts in _rate_map.items() if not ts or now - ts[-1] >= RATE_WINDOW]
+        for ip in stale:
+            _rate_map.pop(ip, None)
+        _last_cleanup = now
+
+    limit = RATE_MAX_AUTH if path in _AUTH_PATHS else RATE_MAX
+    bucket = _rate_map[client_ip]
+    bucket[:] = [t for t in bucket if now - t < RATE_WINDOW]
+    if len(bucket) >= limit:
         return JSONResponse(status_code=429, content={"detail": "请求过于频繁，请稍后再试"})
-    _rate_map[client_ip].append(now)
+    bucket.append(now)
     return await call_next(request)
 
 

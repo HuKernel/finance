@@ -7,7 +7,7 @@ def test_top_turnover_stock_uses_full_market_snapshot(monkeypatch):
         def json():
             return {"data": {"rank_list": [{"code": "sz300308", "name": "中际旭创", "turnover": "4576439"}]}}
 
-    monkeypatch.setattr(market.requests, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(market.http_client, "get", lambda *_args, **_kwargs: Response())
     monkeypatch.setattr(market, "cached", lambda _key, _ttl, fn: fn())
 
     result = market.get_top_turnover_stock()

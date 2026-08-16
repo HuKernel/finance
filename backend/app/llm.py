@@ -9,6 +9,7 @@ Ollama(本地)、vLLM 等。
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -50,22 +51,38 @@ class LLMClient:
         return ChatOpenAI(**kwargs)
 
     def chat(self, system: str, user: str, temperature: float | None = None) -> str:
-        """调用 LLM 返回文本；无 api_key 时返回模拟输出。"""
+        """调用 LLM 返回文本；无 api_key 时返回模拟输出。
+
+        网络类异常自动重试（最多 3 次，指数退避），全部失败才返回错误占位。
+        """
         model = self._build_model()
         if model is None:
             return self._mock(system, user)
-        try:
-            resp = model.invoke(
-                [SystemMessage(content=system), HumanMessage(content=user)]
-            )
-            return resp.content or ""
-        except Exception as e:
-            return f"[LLM调用失败: {e}]"
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = model.invoke(
+                    [SystemMessage(content=system), HumanMessage(content=user)]
+                )
+                return resp.content or ""
+            except Exception as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+        return f"[LLM调用失败: {last_err}]"
 
     def chat_json(self, system: str, user: str) -> dict[str, Any]:
-        """调用 LLM 并解析 JSON 输出。"""
+        """调用 LLM 并解析 JSON 输出；解析失败自动追问一次。"""
         text = self.chat(system, user)
-        return self._parse_json(text)
+        data = self._parse_json(text)
+        if "error" not in data:
+            return data
+        # JSON 解析失败：把原始输出回传给模型要求修正（一次机会）
+        retry = self.chat(
+            system + " 你只能输出一个合法的 JSON 对象，不要有任何其他文字。",
+            f"你之前的输出不是合法JSON：\n{text[:800]}\n\n请重新输出正确的JSON。",
+        )
+        return self._parse_json(retry)
 
     @staticmethod
     def _parse_json(text: str) -> dict[str, Any]:

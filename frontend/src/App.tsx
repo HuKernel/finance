@@ -10,7 +10,6 @@ import LoginPage from './LoginPage'
 import AlertBell from './AlertBell'
 import FeedbackWidget from './FeedbackWidget'
 import { ErrorBoundary } from './ErrorBoundary'
-import './App.css'
 
 // 懒加载页面组件 - 只挂载当前页面，避免隐藏页面消耗行情接口额度
 const ChatPage = lazy(() => import('./ChatPage'))
@@ -30,6 +29,13 @@ const ThesisPage = lazy(() => import('./ThesisPage'))
 type Tab = 'home' | 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'signal' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
 
 const PUBLIC_TABS = new Set<Tab>(['home', 'quote', 'market'])
+const ALL_TABS: Tab[] = ['home', 'chat', 'quote', 'market', 'analyze', 'portfolio', 'backtest', 'signal', 'scheduler', 'thesis', 'history', 'profile', 'admin']
+
+// hash 路由：#/quote 形式，刷新/分享链接/浏览器前进后退均可恢复页面
+function tabFromHash(): Tab | null {
+  const h = window.location.hash.replace(/^#\/?/, '').split('?')[0]
+  return (ALL_TABS as string[]).includes(h) ? (h as Tab) : null
+}
 
 const NAV_ICONS: Record<Tab, LucideIcon> = {
   home: Home,
@@ -80,7 +86,7 @@ function useTheme() {
 }
 
 function App() {
-  const [tab, setTab] = useState<Tab>('home')
+  const [tab, setTab] = useState<Tab>(() => tabFromHash() ?? 'home')
   // 桌面端默认展开侧边栏并记住用户选择；移动端保持抽屉式
   const [navOpen, setNavOpen] = useState(() => {
     if (!window.matchMedia('(min-width: 769px)').matches) return false
@@ -113,7 +119,10 @@ function App() {
     api.me()
       .then((r) => {
         setAuth({ token: getToken()!, user: r.user, profile: r.profile })
-        setTab('analyze')
+        // replaceState 不触发 hashchange，避免与下方监听器竞争
+        const initial = tabFromHash()
+        if (!initial) window.history.replaceState({}, '', '#/analyze')
+        setTab(initial ?? 'analyze')
         // 检查管理员权限
         api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
       })
@@ -143,6 +152,22 @@ function App() {
     return () => window.removeEventListener('financecrew:auth-required', requireAuth)
   }, [tab])
 
+  // 浏览器前进/后退时同步 tab
+  useEffect(() => {
+    const onHashChange = () => {
+      const next = tabFromHash()
+      if (!next || next === tab) return
+      if (!auth && !PUBLIC_TABS.has(next)) {
+        setLoginTarget(next)
+        window.history.replaceState({}, '', `#/${tab}`)
+        return
+      }
+      setTab(next)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [tab, auth])
+
   if (!booted) return <div className="boot-screen"><span className="loading loading-center">加载中...</span></div>
 
   const navigate = (next: Tab) => {
@@ -152,12 +177,17 @@ function App() {
       setLoginTarget(next)
       return
     }
+    // pushState 不触发 hashchange，避免与监听器闭包中的旧 auth 状态竞争
+    window.history.pushState({}, '', `#/${next}`)
     setTab(next)
   }
 
   const handleLogin = (result: AuthResponse) => {
     setAuth(result)
-    if (loginTarget) setTab(loginTarget)
+    if (loginTarget) {
+      window.history.pushState({}, '', `#/${loginTarget}`)
+      setTab(loginTarget)
+    }
     setLoginTarget(null)
     if (feedbackAfterLogin) {
       setFeedbackAfterLogin(false)
@@ -170,6 +200,7 @@ function App() {
     setToken(null)
     setAuth(null)
     setIsAdmin(false)
+    window.history.pushState({}, '', '#/home')
     setTab('home')
   }
 
@@ -201,7 +232,12 @@ function App() {
       <a className="skip-link" href="#main-content">跳到主要内容</a>
       <aside id="main-navigation" className={`sidebar${navOpen ? ' open' : ''}`}>
         <div className="brand">
-          <div className="brand-mark"><img src="/favicon.svg" alt="" /></div>
+          {/* 收起态：品牌图标位置换成展开按钮，操作点固定不动 */}
+          {!navOpen && !isCompact ? (
+            <button className="brand-mark brand-expand" aria-label="展开侧边栏" title="展开侧边栏" onClick={() => persistNav(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>
+          ) : (
+            <div className="brand-mark"><img src="/favicon.svg" alt="" /></div>
+          )}
           <h1>FinanceCrew<small>个人投研工作台</small></h1>
           {navOpen && <button className="sidebar-close" aria-label="收起侧边栏" title="收起侧边栏" onClick={() => persistNav(false)}><PanelLeftClose aria-hidden="true" size={18} strokeWidth={1.8} /></button>}
         </div>
@@ -222,9 +258,7 @@ function App() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          {!navOpen && !isCompact ? (
-            <button className="sidebar-expand" aria-label="展开侧边栏" title="展开侧边栏" onClick={() => persistNav(true)}><PanelLeftOpen aria-hidden="true" size={18} strokeWidth={1.8} /></button>
-          ) : auth ? (
+          {!navOpen && !isCompact ? null : auth ? (
             <>
               <div className="sidebar-user">
                 <span className="sidebar-avatar" aria-hidden="true">{auth.user.username[0]?.toUpperCase() || '?'}</span>

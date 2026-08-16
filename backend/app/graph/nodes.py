@@ -58,9 +58,67 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
             "fetched_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         },
     }
-    history = None
+    # 各外部数据源互相独立，并发拉取（原串行是分析耗时的主要来源）
+    from concurrent.futures import ThreadPoolExecutor
+    from ..chat import get_user_memories
+    from .. import reflection_engine
+    from ..knowledge_base import build_knowledge_context
+
+    def _safe(fn, default):
+        try:
+            return fn()
+        except Exception:
+            return default
+
+    def _get_history():
+        h = datalayer.get_history(ticker)
+        if h is None:
+            raise RuntimeError("history unavailable")
+        return h
+
+    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="collect") as pool:
+        fut_history = pool.submit(_get_history)
+        fut_financials = pool.submit(lambda: _safe(lambda: datalayer.get_financials(ticker) or {}, {}))
+        fut_lhb = pool.submit(lambda: _safe(lambda: datalayer.get_lhb(ticker), None))
+        fut_news = pool.submit(lambda: _safe(lambda: datalayer.get_news(ticker) or [], []))
+        fut_industry = pool.submit(lambda: _safe(lambda: datalayer.get_industry_compare(ticker) or None, None))
+        fut_sentiment = pool.submit(lambda: _safe(lambda: datalayer.get_social_sentiment(ticker) or None, None))
+        # 宏观背景（让宏观分析师基于真实市场数据而非凭空推断；仅A股相关）
+        def _macro_block() -> dict[str, Any] | None:
+            if ticker.lower().startswith(("hk", "us")):
+                return None
+            macro: dict[str, Any] = {}
+            try:
+                from ..data.market_overview import get_market_sentiment
+                macro["market_sentiment"] = get_market_sentiment()
+            except Exception:
+                pass
+            try:
+                from ..data.north_flow import get_north_flow_overview
+                macro["north_flow"] = get_north_flow_overview()
+            except Exception:
+                pass
+            return macro or None
+        fut_macro = pool.submit(_macro_block)
+        fut_memories = pool.submit(lambda: _safe(
+            (lambda: get_user_memories(user_id)) if user_id else (lambda: []), []))
+        fut_reflection = pool.submit(lambda: _safe(
+            (lambda: reflection_engine.build_memory_block(ticker, user_id)) if user_id else (lambda: ""), ""))
+        fut_knowledge = pool.submit(lambda: _safe(
+            (lambda: build_knowledge_context(user_id, ticker)) if user_id else (lambda: ""), ""))
+
+        history = _safe(fut_history.result, None)
+        ctx["financials"] = fut_financials.result()
+        ctx["lhb"] = fut_lhb.result()
+        ctx["news"] = fut_news.result()
+        ctx["industry"] = fut_industry.result()
+        ctx["sentiment"] = fut_sentiment.result()
+        ctx["macro"] = fut_macro.result()
+        ctx["user_memories"] = fut_memories.result()
+        ctx["reflection_memory"] = fut_reflection.result()
+        ctx["knowledge_context"] = fut_knowledge.result()
+
     try:
-        history = datalayer.get_history(ticker)
         ctx["tech"] = datalayer.compute_tech_signals(history) if history is not None else {"error": "行情数据不可用"}
         if history is not None:
             ctx["source_meta"]["history"] = {
@@ -68,29 +126,6 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
             }
     except Exception:
         ctx["tech"] = {"error": "技术指标计算失败"}
-    # 财务/龙虎榜仅支持A股，港股美股自动跳过不报错
-    try:
-        ctx["financials"] = datalayer.get_financials(ticker) or {}
-    except Exception:
-        ctx["financials"] = {}
-    try:
-        ctx["lhb"] = datalayer.get_lhb(ticker)
-    except Exception:
-        ctx["lhb"] = None
-    try:
-        ctx["news"] = datalayer.get_news(ticker) or []
-    except Exception:
-        ctx["news"] = []
-    # 行业对比数据（让分析师有横向参照）
-    try:
-        ctx["industry"] = datalayer.get_industry_compare(ticker) or None
-    except Exception:
-        ctx["industry"] = None
-    # 社交情绪数据（东财人气榜+雪球关注+主力资金流，仅A股）
-    try:
-        ctx["sentiment"] = datalayer.get_social_sentiment(ticker) or None
-    except Exception:
-        ctx["sentiment"] = None
     # 历史趋势摘要（让分析师有纵向参照，不只是最新快照）
     try:
         hist = history.tail(120) if history is not None else None
@@ -110,28 +145,6 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
                 }
     except Exception:
         ctx["trend"] = None
-    # 注入用户长期记忆（反哺分析师：偏好影响评分方向）
-    if user_id:
-        try:
-            from ..chat import get_user_memories
-            ctx["user_memories"] = get_user_memories(user_id)
-        except Exception:
-            ctx["user_memories"] = []
-    else:
-        ctx["user_memories"] = []
-    # 注入历史决策反思记忆（反哺分析师：过往判断的复盘经验）
-    try:
-        from ..reflection_engine import build_memory_block
-
-        ctx["reflection_memory"] = build_memory_block(ticker, user_id) if user_id else ""
-    except Exception:
-        ctx["reflection_memory"] = ""
-    try:
-        from ..knowledge_base import build_knowledge_context
-
-        ctx["knowledge_context"] = build_knowledge_context(user_id, ticker) if user_id else ""
-    except Exception:
-        ctx["knowledge_context"] = ""
     return {"context": ctx}
 
 
@@ -243,46 +256,63 @@ def run_debate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     ticker = state.get('ticker', '')
     topic = state.get('topic') or '常规投研'
     other_views = ', '.join(v.title + '(' + str(v.score) + ')' for v in views if v.role not in (bear.role, bull.role))
-    prev_bear_arg = bear.summary
-    prev_bull_arg = bull.summary
-    
-    # 多轮辩论：第1轮初始辩论 + 第2轮反驳（最多2轮）
+
+    def _evidence_block(v, limit: int = 3) -> str:
+        ev = [str(e) for e in (getattr(v, "evidence", None) or [])][:limit]
+        return "；".join(ev) if ev else "（未提供具体证据）"
+
+    prev_bear_arg = f"{bear.summary} 证据: {_evidence_block(bear)}"
+    prev_bull_arg = f"{bull.summary} 证据: {_evidence_block(bull)}"
+
+    # 多轮辩论：双方各自独立调用 LLM 陈述/反驳（真实对抗，而非主持人一人分饰两角），
+    # 每轮结束后由主席调用一次总结交锋
     for rnd in range(2):
         label = "第一轮辩论" if rnd == 0 else "第二轮反驳"
-        system = (
-            f"你是辩论主持人。请组织看空方与看多方围绕标的展开{label}。"
-            "双方各陈述论据并反驳对方。只输出JSON: "
-            '{"topic": "辩论主题", "positions": ["看空方论点", "看多方论点", "交锋结论"]}'
+        bear_system = (
+            f"你是看空分析师（{bear.title}）。围绕标的与看多方辩论，第{rnd + 1}轮{label}。"
+            "必须引用具体数据反驳对方，不得泛泛而谈。只输出JSON: "
+            '{"argument": "你的本轮论点（120字内，需含数据）"}'
         )
-        if rnd == 0:
-            user = (
-                f"标的: {ticker}  主题: {topic}\n"
-                f"看空方（{bear.title} 评分{bear.score}）: {prev_bear_arg}\n"
-                f"看多方（{bull.title} 评分{bull.score}）: {prev_bull_arg}\n"
-                f"其他观点: {other_views}"
-            )
-        else:
-            user = (
-                f"标的: {ticker}  主题: {topic}（第二轮反驳）\n"
-                f"上一轮看空方论点: {prev_bear_arg}\n"
-                f"上一轮看多方论点: {prev_bull_arg}\n"
-                f"其他观点: {other_views}\n"
-                "请双方针对对方上一轮论点进行反驳，提出新证据。"
-            )
-        data = llm.chat_json(system, user)
-        positions = [str(p) for p in data.get("positions", [])][:5]
+        bull_system = (
+            f"你是看多分析师（{bull.title}）。围绕标的与看空方辩论，第{rnd + 1}轮{label}。"
+            "必须引用具体数据反驳对方，不得泛泛而谈。只输出JSON: "
+            '{"argument": "你的本轮论点（120字内，需含数据）"}'
+        )
+        common = (
+            f"标的: {ticker}  主题: {topic}\n"
+            f"己方初始观点: {bear.summary if rnd == 0 else prev_bear_arg}\n"
+            f"对方论点: {prev_bull_arg}\n"
+            f"其他观点: {other_views}\n"
+        )
+        common_bull = (
+            f"标的: {ticker}  主题: {topic}\n"
+            f"己方初始观点: {bull.summary if rnd == 0 else prev_bull_arg}\n"
+            f"对方论点: {prev_bear_arg}\n"
+            f"其他观点: {other_views}\n"
+        )
+        bear_data = llm.chat_json(bear_system, common)
+        bull_data = llm.chat_json(bull_system, common_bull)
+        bear_arg = str(bear_data.get("argument") or prev_bear_arg)[:300]
+        bull_arg = str(bull_data.get("argument") or prev_bull_arg)[:300]
+
+        # 主席总结本轮交锋
+        clash = llm.chat_json(
+            "你是辩论主席。总结本轮多空交锋：双方最强论据各是什么、哪些点被有效反驳、分歧是否缩小。"
+            '只输出JSON: {"conclusion": "交锋结论（80字内）"}',
+            f"看空方: {bear_arg}\n看多方: {bull_arg}",
+        )
+        conclusion = str(clash.get("conclusion") or "")[:200]
+
         rounds.append(DebateRound(
-            topic=f"[{label}] " + str(data.get("topic", "多空辩论")),
-            positions=positions,
+            topic=f"[{label}] {ticker} 多空辩论",
+            positions=[
+                f"看空方({bear.title}): {bear_arg}",
+                f"看多方({bull.title}): {bull_arg}",
+                conclusion,
+            ],
         ))
-        # 更新论点为最新反驳
-        if len(positions) >= 2:
-            prev_bear_arg = positions[0]
-            prev_bull_arg = positions[1]
-        # 如果交锋结论显示分歧缩小则提前结束
-        if len(positions) >= 3 and any(k in positions[2] for k in ("一致", "趋同", "共识")):
-            break
-    
+        prev_bear_arg, prev_bull_arg = bear_arg, bull_arg
+
     return {"debate": rounds}
 
 
@@ -316,7 +346,7 @@ def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     )
     verdict = _get_llm(config).chat(system, user)
 
-    # 投票统计：根据评分自动判定
+    # 投票统计：根据评分自动判定（仅展示，不参与计分）
     votes = {"bull": 0, "bear": 0, "neutral": 0}
     for v in views:
         if v.score >= 3:
@@ -326,9 +356,13 @@ def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         else:
             votes["neutral"] += 1
 
-    # 投票结果调整评分（看多票多则加分，看空票多则减分）
-    vote_adjustment = (votes["bull"] - votes["bear"]) * 0.3
-    adjusted_score = round(max(-10, min(10, score + vote_adjustment)), 2)
+    # 分歧度折减（替代旧的"投票再加分"——那是对同一信号的双重计分）：
+    # 分析师评分标准差越大，共识越不可信，分数向中性收缩；分歧小则保留原分。
+    scores = [v.score for v in views]
+    dispersion = round(float(__import__("statistics").pstdev(scores)), 2) if len(scores) > 1 else 0.0
+    shrink = 1.0 - min(dispersion, 5.0) / 10.0  # 分歧5分以上最多打5折
+    adjusted_score = round(max(-10, min(10, score * shrink)), 2)
+    vote_adjustment = round(adjusted_score - score, 2)
 
     # 记录综合共识决策（供交易后反思）
     try:
@@ -351,15 +385,23 @@ def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         "consensus_verdict": verdict,
         "votes": votes,
         "raw_score": score,
-        "vote_adjustment": round(vote_adjustment, 2),
+        "dispersion": dispersion,
+        "vote_adjustment": vote_adjustment,
     }
 
 
 # ---------- 5. 风控 ----------
 
 def run_risk(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    # 把辩论交锋与共识结论一并交给风控（后段流程不再丢信息）
+    debate_block = ""
+    if state.get("debate"):
+        last = state["debate"][-1]
+        debate_block = "\n".join(p for p in last.positions[:2])
     review = RiskManager(_get_llm(config)).review(
-        state.get("context", {}), state["views"], state["consensus_score"]
+        state.get("context", {}), state["views"], state["consensus_score"],
+        debate_summary=debate_block or None,
+        consensus_verdict=state.get("consensus_verdict"),
     )
     return {"risk_review": review}
 

@@ -386,14 +386,14 @@ def _fetch_csi300_history(days: int):
     datalayer.get_history 对 000300 会错误地用 sz 前缀（首位 0 → sz），
     指数实际需要 sh，所以这里单独请求。
     """
-    import requests
+    from . import http_client
 
     code = f"sh{_CSI300_SYMBOL}"
     url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{days},qfq"
     try:
         import pandas as pd
 
-        r = requests.get(url, timeout=15)
+        r = http_client.get(url, timeout=15)
         data = r.json()
         node = data["data"][code]
         key = "qfqday" if "qfqday" in node else "day"

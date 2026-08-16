@@ -62,10 +62,25 @@ export default function BacktestPage() {
           numParams[p.key] = val
         }
       }
-      const r = await api.getBacktest(symbol.trim(), strategy, days, enableCost ? 1 : 0, numParams)
+      const r = await api.getBacktest(symbol.trim(), strategy, days, enableCost ? 1 : 0, { ...numParams, ...riskNumParams })
       setResult(r)
     } catch (e: any) { setError(e.message || '回测失败') }
     finally { setLoading(false) }
+  }
+
+  // 风控退出参数（止损/止盈/ATR追踪，0=关闭）
+  const riskParams = [
+    { key: 'stop_loss_pct', label: '止损%', default: 0 },
+    { key: 'take_profit_pct', label: '止盈%', default: 0 },
+    { key: 'atr_trailing_mult', label: 'ATR追踪倍数', default: 0 },
+  ]
+  const riskNumParams: Record<string, any> = {}
+  for (const p of riskParams) {
+    const val = parseFloat(params[`risk_${p.key}`] ?? '0')
+    if (val > 0) riskNumParams[p.key] = val
+  }
+  const REASON_LABEL: Record<string, string> = {
+    signal: '策略信号', stop_loss: '止损', take_profit: '止盈', eod_liquidation: '期末平仓',
   }
 
   const downloadRun = () => {
@@ -129,6 +144,19 @@ export default function BacktestPage() {
           ))}
         </div>
       )}
+
+      {/* 风控退出参数（对所有策略生效） */}
+      <div className="bt-params">
+        <span className="bt-params-label">风控退出（0=关闭）：</span>
+        {riskParams.map(p => (
+          <label key={p.key} className="bt-param-item">
+            <span>{p.label}</span>
+            <input type="number" className="bt-param-input"
+              value={params[`risk_${p.key}`] ?? p.default}
+              onChange={e => setParams(prev => ({ ...prev, [`risk_${p.key}`]: e.target.value }))} />
+          </label>
+        ))}
+      </div>
 
       {error && <span className="alert-error">{error}</span>}
 
@@ -227,6 +255,36 @@ export default function BacktestPage() {
               </div>
             </div>
           </div>
+
+          {/* 逐笔交易明细（买入→卖出配对，含成本与净盈亏） */}
+          {(result as any).round_trips?.length > 0 && (
+            <details className="bt-round-trips">
+              <summary>逐笔交易明细（{(result as any).round_trips.length} 笔）</summary>
+              <table className="portfolio-table">
+                <thead><tr>
+                  <th>买入日</th><th>卖出日</th><th>持股天数</th><th>买入价</th><th>卖出价</th>
+                  <th>股数</th><th>毛利</th><th>费用</th><th>净盈亏</th><th>收益率</th><th>退出原因</th>
+                </tr></thead>
+                <tbody>
+                  {(result as any).round_trips.map((rt: any, i: number) => (
+                    <tr key={i}>
+                      <td>{rt.entry_date}</td>
+                      <td>{rt.exit_date}</td>
+                      <td>{rt.holding_days}</td>
+                      <td>{rt.entry_price}</td>
+                      <td>{rt.exit_price}</td>
+                      <td>{rt.shares}</td>
+                      <td className={rt.gross_pnl >= 0 ? 'up' : 'down'}>{rt.gross_pnl}</td>
+                      <td>{rt.costs}</td>
+                      <td className={rt.net_pnl >= 0 ? 'up' : 'down'}>{rt.net_pnl}</td>
+                      <td className={rt.return_pct >= 0 ? 'up' : 'down'}>{rt.return_pct}%</td>
+                      <td>{REASON_LABEL[rt.reason] || rt.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </details>
+          )}
 
           <div className="backtest-period">
             期间: {result.period} | 初始资金: {result.initial_capital.toLocaleString()} | 终值: {result.final_value.toLocaleString()}

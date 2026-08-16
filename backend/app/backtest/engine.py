@@ -221,16 +221,69 @@ def _execute_signals(
     pct = max(min(float(percentage), 100.0), 0.0) / 100.0
     strat_name = getattr(generator, "name", "")
 
+    # 风控退出参数（百分比）：止损/止盈按买入价，ATR追踪按持仓期最高收盘价
+    stop_loss_pct = float(opts.get("stop_loss_pct") or 0)
+    take_profit_pct = float(opts.get("take_profit_pct") or 0)
+    atr_trailing_mult = float(opts.get("atr_trailing_mult") or 0)
+
     shares = 0.0
     cash = capital
     buy_price = 0.0
     buy_cost = 0.0
+    entry_date = ""
+    highest_close = 0.0
     trades_log: list[dict] = []
+    round_trips: list[dict] = []
     equity_curve: list[dict] = []
     wins = 0
     total_sells = 0
     peak_value = capital
     max_dd = 0.0
+
+    def _close_round_trip(exit_date: str, exit_px: float, n_shares: float, sell_cost: float, reason: str) -> None:
+        """把一次完整的 买入→卖出 配对成 round-trip 记录（含成本与净盈亏）。"""
+        gross = (exit_px - buy_price) * n_shares
+        net = gross - buy_cost - sell_cost
+        days = 0
+        try:
+            from datetime import datetime as _dt
+            days = (_dt.strptime(exit_date, "%Y-%m-%d") - _dt.strptime(entry_date, "%Y-%m-%d")).days
+        except Exception:
+            pass
+        round_trips.append({
+            "entry_date": entry_date,
+            "exit_date": exit_date,
+            "shares": int(n_shares),
+            "entry_price": round(buy_price, 4),
+            "exit_price": round(exit_px, 4),
+            "gross_pnl": round(gross, 2),
+            "costs": round(buy_cost + sell_cost, 2),
+            "net_pnl": round(net, 2),
+            "return_pct": round(net / (buy_price * n_shares) * 100, 2) if buy_price > 0 and n_shares > 0 else 0,
+            "holding_days": days,
+            "reason": reason,
+        })
+
+    def _do_sell(i: int, row, raw_px: float, reason: str) -> None:
+        """执行卖出（含滑点/成本/日志/round-trip），raw_px 为无滑点成交价。"""
+        nonlocal shares, cash, buy_price, buy_cost, entry_date, highest_close, wins, total_sells
+        sell_px = _sell_price(raw_px, slippage)
+        total_sells += 1
+        if enable_cost:
+            cash, sell_cost = apply_sell_cost(cash, sell_px, int(shares))
+        else:
+            cash += shares * sell_px
+            sell_cost = 0.0
+        if (sell_px - buy_price) * shares - buy_cost - sell_cost > 0:
+            wins += 1
+        exit_date = row["date"].strftime("%Y-%m-%d")
+        _close_round_trip(exit_date, sell_px, shares, sell_cost, reason)
+        trades_log.append({"date": exit_date, "action": "SELL", "price": round(sell_px, 4), "shares": int(shares), "reason": reason})
+        shares = 0
+        buy_price = 0.0
+        buy_cost = 0.0
+        entry_date = ""
+        highest_close = 0.0
 
     for i in range(1, len(df)):
         row = df.iloc[i]
@@ -241,6 +294,36 @@ def _execute_signals(
         prev_close = float(prev["close"])
 
         position = shares > 0
+
+        # ---- 风控退出（先于策略信号；触发价基于已知信息，无前视） ----
+        if position and (stop_loss_pct > 0 or take_profit_pct > 0 or atr_trailing_mult > 0):
+            day_open = float(row.get("open", close))
+            day_low = float(row.get("low", close))
+            day_high = float(row.get("high", close))
+            stop_price = buy_price * (1 - stop_loss_pct / 100) if stop_loss_pct > 0 else 0.0
+            tp_price = buy_price * (1 + take_profit_pct / 100) if take_profit_pct > 0 else float("inf")
+            if atr_trailing_mult > 0:
+                atr = df["atr"].iloc[i - 1] if "atr" in df.columns and i - 1 >= 0 else None
+                try:
+                    atr = float(atr)
+                except (TypeError, ValueError):
+                    atr = None
+                if atr and atr > 0:
+                    trail_stop = highest_close - atr_trailing_mult * atr
+                    stop_price = min(stop_price, trail_stop) if stop_price > 0 else trail_stop
+            # 止损优先于止盈（保守假设）
+            if stop_price > 0 and (day_open <= stop_price or day_low <= stop_price):
+                if not (apply_limit_filter and not _can_sell(row, prev_close, symbol)):
+                    px = min(day_open, stop_price) if day_open <= stop_price else stop_price
+                    _do_sell(i, row, px, "stop_loss")
+            elif day_high >= tp_price:
+                if not (apply_limit_filter and not _can_sell(row, prev_close, symbol)):
+                    px = max(day_open, tp_price) if day_open >= tp_price else tp_price
+                    _do_sell(i, row, px, "take_profit")
+
+        position = shares > 0
+        if position:
+            highest_close = max(highest_close, close)
         try:
             sig = generator.generate(df, i - 1, position)
         except Exception:
@@ -268,6 +351,8 @@ def _execute_signals(
                         cash -= shares * buy_px
                         buy_cost = 0.0
                     buy_price = buy_px
+                    entry_date = date
+                    highest_close = close
                     trades_log.append({"date": date, "action": "BUY", "price": round(buy_px, 4), "shares": int(shares)})
 
         # ---- SELL ----
@@ -281,19 +366,7 @@ def _execute_signals(
                     feat = build_signal_features(df, i - 1, symbol, -1, strat_name)
                     if feat:
                         signal_log.append(feat)
-                sell_px = _sell_price(execution_price, slippage)
-                total_sells += 1
-                if enable_cost:
-                    cash, sell_cost = apply_sell_cost(cash, sell_px, int(shares))
-                else:
-                    cash += shares * sell_px
-                    sell_cost = 0.0
-                if (sell_px - buy_price) * shares - buy_cost - sell_cost > 0:
-                    wins += 1
-                trades_log.append({"date": date, "action": "SELL", "price": round(sell_px, 4), "shares": int(shares)})
-                shares = 0
-                buy_price = 0.0
-                buy_cost = 0.0
+                _do_sell(i, row, execution_price, "signal")
 
         # ---- 权益 & 回撤 ----
         value = cash + shares * close
@@ -307,18 +380,7 @@ def _execute_signals(
     # ---- 期末平仓 ----
     final_price = float(df.iloc[-1]["close"])
     if shares > 0:
-        sell_px = _sell_price(final_price, slippage)
-        total_sells += 1
-        if enable_cost:
-            cash, sell_cost = apply_sell_cost(cash, sell_px, int(shares))
-        else:
-            cash += shares * sell_px
-            sell_cost = 0.0
-        if (sell_px - buy_price) * shares - buy_cost - sell_cost > 0:
-            wins += 1
-        trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL",
-                           "price": round(sell_px, 4), "shares": int(shares)})
-        shares = 0
+        _do_sell(len(df) - 1, df.iloc[-1], final_price, "eod_liquidation")
         equity_curve[-1]["value"] = round(cash, 2)
         dd = (peak_value - cash) / peak_value * 100.0 if peak_value > 0 else 0.0
         max_dd = max(max_dd, dd)
@@ -331,5 +393,6 @@ def _execute_signals(
         "trades": total_sells,
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
         "trades_log": trades_log,
+        "round_trips": round_trips,
         "equity_curve": equity_curve,
     }

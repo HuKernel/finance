@@ -9,6 +9,10 @@
 from __future__ import annotations
 
 import logging
+import os
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from .analysis_trace import AnalysisTrace, attach_trace
@@ -20,6 +24,20 @@ logger = logging.getLogger(__name__)
 
 # 编译一次，全局复用（LangGraph 图可被多次 invoke）
 _GRAPH = build_graph()
+
+# 同时运行的投研分析上限：每个分析要占一个线程 + 5 路 LLM 调用，
+# 无限并发会把线程池和 LLM 配额同时打爆
+ANALYSIS_MAX_CONCURRENT = int(os.environ.get("ANALYSIS_MAX_CONCURRENT", "3"))
+# 单次分析的总超时（秒）：任一 LLM 供应商卡死时不再无限挂起
+ANALYSIS_TIMEOUT = int(os.environ.get("ANALYSIS_TIMEOUT_SECONDS", "900"))
+
+_analysis_semaphore = threading.BoundedSemaphore(ANALYSIS_MAX_CONCURRENT)
+# 超时后后台图执行线程的宿主：与请求线程解耦，避免占死线程池
+_deadline_executor = ThreadPoolExecutor(max_workers=ANALYSIS_MAX_CONCURRENT, thread_name_prefix="analysis-run")
+
+
+class AnalysisTimeoutError(RuntimeError):
+    """投研流水线总耗时超过 ANALYSIS_TIMEOUT。"""
 
 
 def run_analysis(
@@ -55,7 +73,16 @@ def run_analysis(
             "run_id": trace.run_id,
             "trace": trace,
         }
-        state = _GRAPH.invoke(state, config=config)
+        with _analysis_semaphore:
+            started = time.monotonic()
+            future = _deadline_executor.submit(_GRAPH.invoke, state, config=config)
+            try:
+                state = future.result(timeout=ANALYSIS_TIMEOUT)
+            except TimeoutError as exc:
+                future.cancel()
+                raise AnalysisTimeoutError(
+                    f"分析超过 {ANALYSIS_TIMEOUT} 秒未完成（已耗时 {time.monotonic() - started:.0f}s）"
+                ) from exc
         trace.step("pipeline", "完整投研流水线")
         trace.finish()
         result = attach_trace(state["result"], trace)

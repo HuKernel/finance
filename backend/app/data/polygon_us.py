@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-import requests
+from .. import http_client
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ def polygon_get_history(symbol: str, days: int = 250) -> Optional[list[dict[str,
         return None
 
     try:
-        r = requests.get(url, params=params, timeout=15)
+        r = http_client.get(url, params=params, timeout=15)
         if r.status_code != 200:
             logger.warning("Polygon daily %s: %s", ticker, r.status_code)
             return None
@@ -124,7 +124,7 @@ def polygon_get_minute(symbol: str) -> Optional[dict[str, Any]]:
         return None
 
     try:
-        r = requests.get(url, params=params, timeout=15)
+        r = http_client.get(url, params=params, timeout=15)
         if r.status_code != 200:
             logger.warning("Polygon 5min %s: %s", ticker, r.status_code)
             return None
@@ -181,7 +181,7 @@ def _polygon_prev(ticker: str) -> Optional[dict[str, Any]]:
         return None
     try:
         url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev"
-        r = requests.get(url, params=params, timeout=10)
+        r = http_client.get(url, params=params, timeout=10)
         if r.status_code != 200:
             return None
         results = r.json().get("results", [])
@@ -203,7 +203,7 @@ def _tencent_realtime_price(symbol: str) -> Optional[float]:
     """腾讯接口获取实时价格（Polygon snapshot不支持）。"""
     try:
         url = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={symbol}"
-        r = requests.get(url, timeout=8)
+        r = http_client.get(url, timeout=8)
         d = r.json()
         node = d.get("data", {}).get(symbol, {})
         qt = node.get("qt", {})

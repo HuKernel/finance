@@ -31,13 +31,32 @@ class MacroAnalyst(Agent):
 
     def analyze(self, context: dict[str, Any]) -> AnalystView:
         brief = context.get("brief") or {}
+        macro = context.get("macro") or {}
+        macro_lines = []
+        if macro.get("market_sentiment"):
+            ms = macro["market_sentiment"]
+            # 展平展示：涨跌家数/涨停跌停/北向等键值
+            for k, v in list(ms.items())[:12]:
+                if isinstance(v, (int, float, str)):
+                    macro_lines.append(f"{k}: {v}")
+        if macro.get("north_flow"):
+            nf = macro["north_flow"]
+            for k, v in list(nf.items())[:8]:
+                if isinstance(v, (int, float, str)):
+                    macro_lines.append(f"北向-{k}: {v}")
+        macro_block = (
+            "市场宏观数据:\n" + "\n".join("- " + l for l in macro_lines[:16]) + "\n"
+            if macro_lines else ""
+        )
         data_block = (
             f"标的: {brief.get('name', context.get('ticker'))} ({context.get('ticker')})\n"
             f"行业: {brief.get('industry', '未知')}\n"
             f"当前价: {brief.get('price', 'N/A')}  涨跌幅: {brief.get('change_pct', 'N/A')}%\n"
             f"总市值: {brief.get('market_cap', 'N/A')}\n"
             f"换手率: {brief.get('turnover', 'N/A')}%\n"
-            "注：宏观数据源暂缺时，基于标的所处行业的景气度做合理推断。"
+            f"{macro_block}"
+            "注：以上宏观数据为当前真实市场快照；仅当某维度确实缺失时，才基于行业景气度做推断，"
+            "并在证据中明确标注'推断'。不得编造具体数值。"
         )
         return self._call_structured(
             "请分析以下标的当前所处的市场环境（宏观与行业层面）：\n" + data_block,

@@ -20,7 +20,7 @@ class StubLLM:
 
 @pytest.mark.parametrize(
     ("score", "vote", "expected"),
-    [(3, "bull", 3.3), (-3, "bear", -3.3)],
+    [(3, "bull", 3.0), (-3, "bear", -3.0)],
 )
 def test_consensus_preserves_direction(monkeypatch, score, vote, expected):
     monkeypatch.setattr(reflection_engine, "record_decision", lambda *args, **kwargs: 1)

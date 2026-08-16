@@ -8,7 +8,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-import requests
+import httpx
+from .. import http_client
 
 from .utils import TTL, _norm_symbol, cached
 
@@ -108,7 +109,7 @@ def get_top_turnover_stock() -> dict[str, Any] | None:
     """A 股当日成交额第一；全市场快照失败时明确降级到现有候选池。"""
     def _fetch() -> dict[str, Any] | None:
         try:
-            response = requests.get(
+            response = http_client.get(
                 "https://proxy.finance.qq.com/cgi/cgi-bin/rank/hs/getBoardRankList",
                 params={"_appver": "11.17.0", "board_code": "aStock", "sort_type": "turnover", "direct": "down", "offset": "0", "count": "1"},
                 timeout=15,
@@ -119,7 +120,7 @@ def get_top_turnover_stock() -> dict[str, Any] | None:
                 "amount": float(row["turnover"]) * 10_000, "unit": "CNY",
                 "scope": "a_share_full_market", "as_of": date.today().isoformat(),
             }
-        except (KeyError, IndexError, TypeError, ValueError, requests.RequestException):
+        except (KeyError, IndexError, TypeError, ValueError, httpx.HTTPError):
             pass
 
         from .a_stock import get_stock_brief

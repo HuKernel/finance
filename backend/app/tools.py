@@ -219,12 +219,12 @@ def search_stock(query: str) -> str:
 def web_search(query: str) -> str:
     """联网搜索最新信息。当用户问到训练数据之外的内容（如新上市公司、最新政策、今日新闻）时使用。
     参数 query: 搜索关键词。"""
-    import requests
+    from . import http_client
     import re
 
     try:
         # 优先用搜狗搜索（国内可达，结果质量好）
-        r = requests.get(
+        r = http_client.get(
             "https://www.sogou.com/web",
             params={"query": query, "ie": "utf8"},
             timeout=10,
@@ -246,7 +246,7 @@ def web_search(query: str) -> str:
 
     # 降级：Bing
     try:
-        r2 = requests.get(
+        r2 = http_client.get(
             "https://www.bing.com/search",
             params={"q": query},
             timeout=10,

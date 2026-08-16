@@ -10,7 +10,7 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
+from .. import http_client
 
 
 def _beijing_to_new_york(value: str) -> datetime:
@@ -33,7 +33,7 @@ def _fetch_us_kline(sym: str, days: int) -> Optional[dict[str, Any]]:
         f"var%20_=/US_MinKService.getDailyK?symbol={ticker}"
     )
     try:
-        r = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn"})
+        r = http_client.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn"})
         text = r.text
         start, end = text.find("(["), text.rfind("]")
         if start == -1 or end == -1:
@@ -146,10 +146,19 @@ def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
     返回与A股分时相同格式: {points, last_close, data_date, is_today}
     时间统一转换为北京时间，并自动处理美股夏令时。
     """
+    import time as _time
+
+    from ..logger import get_logger
+    log = get_logger("hk_us_stock")
+
+    started = _time.monotonic()
+    deadline = 25.0  # fallback 全链路总耗时上限，避免串行超时叠加接近50秒
+
     # 接口1：东财trends2（curl_cffi）— 原始时间已是北京时间
     result = _us_minute_eastmoney(symbol)
     if result and result.get("points") and len(result["points"]) > 5:
         return result
+    log.warning("us_minute fallback: eastmoney failed for %s (%.1fs)", symbol, _time.monotonic() - started)
 
     # 接口2：Polygon.io（5分钟K线聚合，稳定但延迟15分钟，转换为北京时间）
     try:
@@ -157,25 +166,30 @@ def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
         result = polygon_get_minute(symbol)
         if result and result.get("points"):
             return result
-    except Exception:
-        pass
+    except Exception as e:
+        log.warning("us_minute fallback: polygon error for %s: %s", symbol, e)
 
     # 接口3：腾讯分时（requests直连）— 美东时间转换为北京时间
-    result = _us_minute_tencent(symbol)
-    if result and result.get("points"):
-        session_date = result.get("data_date") or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
-        for point in result["points"]:
-            point["time"] = _new_york_time_to_beijing(point["time"], session_date)
-        return result
+    if _time.monotonic() - started < deadline:
+        result = _us_minute_tencent(symbol)
+        if result and result.get("points"):
+            session_date = result.get("data_date") or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+            for point in result["points"]:
+                point["time"] = _new_york_time_to_beijing(point["time"], session_date)
+            return result
+        log.warning("us_minute fallback: tencent failed for %s (%.1fs)", symbol, _time.monotonic() - started)
 
     # 接口4：新浪5分钟K线聚合（requests）— 美东时间转换为北京时间
-    result = _us_minute_sina(symbol)
-    if result and result.get("points"):
-        session_date = result.get("data_date") or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
-        for point in result["points"]:
-            point["time"] = _new_york_time_to_beijing(point["time"], session_date)
-        return result
+    if _time.monotonic() - started < deadline:
+        result = _us_minute_sina(symbol)
+        if result and result.get("points"):
+            session_date = result.get("data_date") or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+            for point in result["points"]:
+                point["time"] = _new_york_time_to_beijing(point["time"], session_date)
+            return result
+        log.warning("us_minute fallback: sina failed for %s (%.1fs)", symbol, _time.monotonic() - started)
 
+    log.warning("us_minute fallback: all sources failed for %s in %.1fs", symbol, _time.monotonic() - started)
     return None
 
 
@@ -185,31 +199,34 @@ def _us_minute_eastmoney(symbol: str) -> Optional[dict[str, Any]]:
     nasdaq = {"AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "TSLA", "NVDA", "META", "NFLX",
               "AMD", "INTC", "CSCO", "ADBE", "PEP", "COST", "AVGO", "TXN", "QCOM",
               "TMUS", "CMCSA", "SBUX", "PYPL"}
-    market = "105" if sym.upper() in {s.upper() for s in nasdaq} else "106"
-    secid = f"{market}.{sym}"
+    # 名单外的纳斯达克股票会被误判为 NYSE(106)，因此失败后尝试另一个市场 secid
+    first = "105" if sym.upper() in {s.upper() for s in nasdaq} else "106"
+    secid_candidates = [f"{first}.{sym}", f"{'106' if first == '105' else '105'}.{sym}"]
 
     params = {
         "fields1": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13",
         "fields2": "f51,f52,f53,f54,f55,f56,f57,f58",
         "iscr": "0",
         "ndays": "1",
-        "secid": secid,
     }
     try:
         from curl_cffi import requests as cffi_req
         d = None
         trends = []
-        # 先试push2his，被封则fallback到push2delay
-        for host in ("push2his.eastmoney.com", "push2delay.eastmoney.com"):
-            try:
-                r = cffi_req.get(f"https://{host}/api/qt/stock/trends2/get",
-                                 params=params, impersonate="chrome", timeout=10)
-                d = r.json()
-                trends = d.get("data", {}).get("trends", [])
-                if trends:
-                    break
-            except Exception:
-                continue
+        # 先试push2his，被封则fallback到push2delay；再换另一个市场的secid
+        for secid in secid_candidates:
+            if trends:
+                break
+            for host in ("push2his.eastmoney.com", "push2delay.eastmoney.com"):
+                try:
+                    r = cffi_req.get(f"https://{host}/api/qt/stock/trends2/get",
+                                     params={**params, "secid": secid}, impersonate="chrome", timeout=10)
+                    d = r.json()
+                    trends = d.get("data", {}).get("trends", [])
+                    if trends:
+                        break
+                except Exception:
+                    continue
         if not trends:
             return None
 
@@ -252,7 +269,7 @@ def _us_minute_tencent(symbol: str) -> Optional[dict[str, Any]]:
     """腾讯分时接口（requests直连，美股us前缀）。"""
     try:
         url = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={symbol}"
-        r = requests.get(url, timeout=12)
+        r = http_client.get(url, timeout=12)
         d = r.json()
         node = d.get("data", {}).get(symbol, {})
         points_raw = node.get("data", {}).get("data", [])
@@ -290,12 +307,18 @@ def _us_minute_tencent(symbol: str) -> Optional[dict[str, Any]]:
         if not out:
             return None
 
-        # 计算分时均价
+        # 计算分时均价：腾讯美股分时无成交额，用逐分钟成交量差分做 VWAP 近似
         cum_vol = 0.0
-        for pt in out:
-            v = pt.get("vol") or 0
-            cum_vol += v
-            pt["avg"] = round(pt["price"], 2)  # 腾讯美股分时无成交额，均价用当前价近似
+        prev_cum = 0.0
+        vwap_amount = 0.0
+        for i, pt in enumerate(out):
+            cum = pt.get("vol") or 0
+            # 腾讯返回的是累计成交量；首点或出现非累计数据时退化为当前分钟量
+            minute_vol = max(cum - prev_cum, 0) if i > 0 and cum >= prev_cum else cum
+            prev_cum = max(cum, prev_cum)
+            cum_vol += minute_vol
+            vwap_amount += pt["price"] * minute_vol
+            pt["avg"] = round(vwap_amount / cum_vol, 2) if cum_vol > 0 else round(pt["price"], 2)
 
         return {
             "points": out,
@@ -313,7 +336,7 @@ def _us_minute_sina(symbol: str) -> Optional[dict[str, Any]]:
     sym = symbol.replace("us", "")
     try:
         url = f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol={sym}&scale=5&ma=no&datalen=48"
-        r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        r = http_client.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         if not r.text.strip() or r.text.strip() == "null":
             return None
         data = _json.loads(r.text)

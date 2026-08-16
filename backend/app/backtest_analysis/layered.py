@@ -36,9 +36,9 @@ def run_layered_test(
 
     # 计算各层指标
     df["ema_trend"] = df["ma5"] > df["ma20"]  # 趋势方向
-    # ADX简化：用ATR/价格比代理
+    # ADX简化：用日均绝对涨跌幅*10代理（非标准ADX，阈值20仅表示"日均波动约2%"）
     df["atr_pct"] = df["close"].pct_change().abs().rolling(14).mean() * 100
-    df["adx_proxy"] = df["atr_pct"] * 10  # 粗略ADX代理
+    df["adx_proxy"] = df["atr_pct"] * 10
     # 布林带位置
     df["bb_mid"] = df["ma20"]
     df["bb_std"] = df["close"].rolling(20).std()
@@ -84,7 +84,6 @@ def _simulate_layered(df: pd.DataFrame, layer: str, capital: float) -> list[dict
     for i in range(1, len(df)):
         row = df.iloc[i]
         prev = df.iloc[i - 1]
-        price = float(row["close"])
 
         # MA金叉
         golden_cross = prev["ma5"] <= prev["ma20"] and row["ma5"] > row["ma20"]
@@ -117,18 +116,22 @@ def _simulate_layered(df: pd.DataFrame, layer: str, capital: float) -> list[dict
             if direction > 0 and bb_pos > 0.8:
                 continue  # 接近上轨不追高
 
-        # 模拟交易
+        # 模拟交易：信号在 day i 收盘确认，次日开盘成交（与主引擎口径一致，避免前视）
+        exec_i = i + 1
+        if exec_i >= len(df):
+            continue
+        price = float(df.iloc[exec_i]["open"])
         if direction > 0 and shares == 0:
             buy_shares = cash // price
             if buy_shares > 0:
                 shares = buy_shares
                 cash -= shares * price
                 buy_price = price
-                trades.append({"action": "BUY", "price": price, "shares": int(shares), "date": i})
+                trades.append({"action": "BUY", "price": price, "shares": int(shares), "date": exec_i})
 
         elif direction < 0 and shares > 0:
             cash += shares * price
-            trades.append({"action": "SELL", "price": price, "shares": int(shares), "date": i})
+            trades.append({"action": "SELL", "price": price, "shares": int(shares), "date": exec_i})
             shares = 0
 
     return trades
@@ -159,17 +162,17 @@ def _calc_layer_stats(trades: list[dict], capital: float, df: pd.DataFrame) -> d
             if t["action"] == "BUY":
                 shares = t["shares"]
                 buy_price = t["price"]
-                cash -= shares * price
+                cash -= shares * t["price"]
                 trades_count += 1
             elif t["action"] == "SELL":
-                pnl = (price - buy_price) * shares if shares > 0 else 0
+                pnl = (t["price"] - buy_price) * shares if shares > 0 else 0
                 if pnl > 0:
                     wins += 1
                     gross_profit += pnl
                 else:
                     gross_loss += abs(pnl)
                 total_sells += 1
-                cash += shares * price
+                cash += shares * t["price"]
                 shares = 0
 
         value = cash + shares * price

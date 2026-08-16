@@ -164,11 +164,15 @@ def backtest_api(
     rsi_overbought: int = 0,
     slippage: float = 0,
     position_pct: float = 0,
+    stop_loss_pct: float = 0,
+    take_profit_pct: float = 0,
+    atr_trailing_mult: float = 0,
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """策略回测：在历史K线上模拟交易策略。
     strategy: ma_cross / dual_ma / macd / kdj / boll / rsi / grid / hold / ai
     可选参数: fast_period, slow_period, grid_pct, boll_period, rsi_period, rsi_oversold, rsi_overbought, slippage, position_pct
+    风控退出: stop_loss_pct(固定止损%), take_profit_pct(固定止盈%), atr_trailing_mult(ATR追踪倍数)
     record_signals: 1=记录ML信号特征快照
     enable_cost: 1=含A股交易成本
     """
@@ -186,6 +190,9 @@ def backtest_api(
     if rsi_overbought > 0: kwargs["rsi_overbought"] = rsi_overbought
     if slippage > 0: kwargs["slippage"] = slippage / 1000  # 前端传1表示0.1%
     if position_pct > 0: kwargs["percentage"] = position_pct  # 前端传100表示满仓
+    if stop_loss_pct > 0: kwargs["stop_loss_pct"] = stop_loss_pct
+    if take_profit_pct > 0: kwargs["take_profit_pct"] = take_profit_pct
+    if atr_trailing_mult > 0: kwargs["atr_trailing_mult"] = atr_trailing_mult
 
     result = backtest.run_backtest(sym, strategy=strategy, days=days,
                                    record_signals=bool(record_signals), enable_cost=bool(enable_cost), **kwargs)

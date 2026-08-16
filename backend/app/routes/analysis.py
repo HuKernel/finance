@@ -68,10 +68,16 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
         return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
 
     def _generate():
+        from ..pipeline import _analysis_semaphore, ANALYSIS_TIMEOUT, AnalysisTimeoutError
         llm = LLMClient(user_id=user["id"])
         trace = AnalysisTrace(ticker, req.mode, llm)
         analysis_id: int | None = None
         final_result: dict[str, Any] | None = None
+        # 并发上限：与同步分析共用全局信号量，防止同时跑过多流水线
+        if not _analysis_semaphore.acquire(timeout=5):
+            yield _sse({"type": "error", "message": f"当前分析任务已满，请稍后再试（同时最多运行有限个分析）", "run_id": trace.run_id})
+            return
+        started = time.monotonic()
         try:
             initial = attach_trace({"ticker": ticker, "status": "running", "raw": {"topic": req.topic or ""}}, trace)
             analysis_id = memory.save_analysis(ticker, initial, status="running", user_id=user["id"])
@@ -89,6 +95,9 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
             }
 
             for chunk in _GRAPH.stream(state, config=config, stream_mode="updates"):
+                # 总超时守卫：任一 LLM 供应商卡死时终止流水线而不是永久挂起
+                if time.monotonic() - started > ANALYSIS_TIMEOUT:
+                    raise AnalysisTimeoutError(f"分析超过 {ANALYSIS_TIMEOUT} 秒未完成")
                 for node_name, node_output in chunk.items():
                     label = _NODE_LABELS.get(node_name, node_name)
                     detail = None
@@ -152,6 +161,7 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
                 memory.update_analysis(analysis_id, final_result, status="error")
             yield _sse({"type": "error", "message": str(e), "run_id": trace.run_id})
         finally:
+            _analysis_semaphore.release()
             if not trace.finished and analysis_id is not None:
                 trace.finish("interrupted", "客户端连接中断")
                 interrupted = attach_trace(final_result or {

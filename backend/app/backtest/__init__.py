@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import hashlib
+import pandas as pd
 import json
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -237,6 +238,12 @@ def run_backtest(
         boll:   boll_period/boll_std (默认20/2)
         rsi:    rsi_period/rsi_oversold/rsi_overbought (默认14/30/70)
 
+    风控退出参数（通过 kwargs 透传，对所有策略生效，0=关闭）：
+        stop_loss_pct:     固定止损百分比（相对买入价，如 8 表示 -8% 止损）
+        take_profit_pct:   固定止盈百分比（相对买入价，如 15 表示 +15% 止盈）
+        atr_trailing_mult: ATR 追踪止损倍数（需 df 含 atr 列；如 2 表示
+                           持仓期最高收盘价 - 2*ATR 作为移动止损）
+
     返回 dict 包含原有 key（strategy/symbol/period/initial_capital/final_value/
     total_return/benchmark_return/excess_return/max_drawdown/trades/win_rate/
     trades_log/equity_curve）以及新增 key（annual_return/annual_volatility/
@@ -251,6 +258,14 @@ def run_backtest(
     # 计算 ma5/ma20（兼容老逻辑与AI策略）
     df["ma5"] = df["close"].rolling(5).mean()
     df["ma20"] = df["close"].rolling(20).mean()
+    # ATR（供 atr_trailing 移动止损使用）
+    _prev_close = df["close"].shift(1)
+    _tr = pd.concat([
+        df["high"] - df["low"],
+        (df["high"] - _prev_close).abs(),
+        (df["low"] - _prev_close).abs(),
+    ], axis=1).max(axis=1)
+    df["atr"] = _tr.rolling(14).mean()
 
     # 不同策略需要不同的最小可用长度；统一以 ma20 是否就绪做下限
     df = df.dropna(subset=["ma5", "ma20"]).reset_index(drop=True)
@@ -298,7 +313,7 @@ def run_backtest(
                 if custom is not None:
                     result = custom
                 else:
-                    # 统一执行器
+                    # 统一执行器（风控退出参数透传：止损/止盈/ATR追踪）
                     result = _execute_signals(
                         generator, df_prepared, initial_capital,
                         symbol=symbol,
@@ -307,6 +322,9 @@ def run_backtest(
                         enable_cost=enable_cost,
                         percentage=percentage,
                         slippage=slippage,
+                        stop_loss_pct=kwargs.get("stop_loss_pct", 0),
+                        take_profit_pct=kwargs.get("take_profit_pct", 0),
+                        atr_trailing_mult=kwargs.get("atr_trailing_mult", 0),
                     )
         except Exception:
             # 不回退到旧的同K线成交实现，避免静默产生带未来偏差的结果
@@ -315,66 +333,11 @@ def run_backtest(
     if generator is not None and result is None:
         return None
 
-    # ---- Fallback：原 _backtest_* 函数（完全向后兼容）----
+    # ---- Fallback：仅 ai 策略（无信号生成器）走专用实现 ----
+    # 其余策略的旧 _backtest_* 同K线成交实现存在前视偏差（当日收盘信号+当日收盘成交），
+    # 已全部改走上方"前收盘信号+次日开盘成交"的统一执行器，不再提供回退。
     if result is None:
-        if strategy in ("ma_cross", "dual_ma"):
-            result = _backtest_ma_cross(
-                df, initial_capital,
-                symbol=symbol,
-                record_signals=record_signals,
-                signal_log=signal_log,
-                fast_period=fast_period,
-                slow_period=slow_period,
-                **common,
-            )
-        elif strategy == "macd":
-            result = _backtest_macd(
-                df, initial_capital,
-                symbol=symbol,
-                record_signals=record_signals,
-                signal_log=signal_log,
-                fastperiod=kwargs.get("fastperiod", 12),
-                slowperiod=kwargs.get("slowperiod", 26),
-                signalperiod=kwargs.get("signalperiod", 9),
-                **common,
-            )
-        elif strategy == "kdj":
-            result = _backtest_kdj(
-                df, initial_capital,
-                symbol=symbol,
-                record_signals=record_signals,
-                signal_log=signal_log,
-                k_period=kwargs.get("k_period", 9),
-                d_period=kwargs.get("d_period", 3),
-                **common,
-            )
-        elif strategy == "boll":
-            result = _backtest_boll(
-                df, initial_capital,
-                symbol=symbol,
-                record_signals=record_signals,
-                signal_log=signal_log,
-                boll_period=kwargs.get("boll_period", 20),
-                boll_std=kwargs.get("boll_std", 2.0),
-                **common,
-            )
-        elif strategy == "rsi":
-            result = _backtest_rsi(
-                df, initial_capital,
-                symbol=symbol,
-                record_signals=record_signals,
-                signal_log=signal_log,
-                rsi_period=kwargs.get("rsi_period", 14),
-                rsi_oversold=kwargs.get("rsi_oversold", 30),
-                rsi_overbought=kwargs.get("rsi_overbought", 70),
-                **common,
-            )
-        elif strategy == "grid":
-            grid_pct = kwargs.get("grid_pct", 0.05)
-            result = _backtest_grid(df, initial_capital, grid_pct, symbol=symbol, **common)
-        elif strategy == "hold":
-            result = _backtest_hold(df, initial_capital, **common)
-        elif strategy == "ai":
+        if strategy == "ai":
             result = _backtest_ai(
                 df, initial_capital,
                 sym=sym,

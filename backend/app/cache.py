@@ -5,11 +5,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
+import threading
 import time
 from typing import Any, Optional
 
 from .config import DB_PATH
+from .db import connect as _db_connect  # noqa: E402  (db 延迟导入 config，此处顺序安全)
 
 # 各数据类型 TTL（秒）
 TTL = {
@@ -21,28 +22,51 @@ TTL = {
     "news": 900,        # 新闻 15 分钟
 }
 
+CLEANUP_INTERVAL = 3600  # 每小时物理清理一次过期缓存
+_init_lock = threading.Lock()
+_initialized = False
+_last_cleanup = 0.0
 
-def _connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+
+def _connect():
+    return _db_connect(DB_PATH)
 
 
 def _init_db() -> None:
-    with _connect() as conn:
-        conn.execute(
-            """CREATE TABLE IF NOT EXISTS data_cache (
-                cache_key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                expires_at REAL NOT NULL,
-                created_at REAL NOT NULL
-            )"""
-        )
+    global _initialized
+    with _init_lock:
+        if _initialized:
+            return
+        with _connect() as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS data_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    expires_at REAL NOT NULL,
+                    created_at REAL NOT NULL
+                )"""
+            )
+        _initialized = True
+
+
+def _maybe_cleanup() -> None:
+    """周期性物理删除已过期缓存，防止库文件持续膨胀。"""
+    global _last_cleanup
+    now = time.time()
+    if now - _last_cleanup < CLEANUP_INTERVAL:
+        return
+    _last_cleanup = now
+    try:
+        with _connect() as conn:
+            conn.execute("DELETE FROM data_cache WHERE expires_at < ?", (now,))
+    except Exception:
+        pass
 
 
 def get_cached(cache_key: str) -> Optional[Any]:
     """读取缓存；不存在或已过期返回 None。"""
     _init_db()
+    _maybe_cleanup()
     with _connect() as conn:
         row = conn.execute(
             "SELECT value, expires_at FROM data_cache WHERE cache_key=?", (cache_key,)

@@ -52,7 +52,7 @@ def test_norm_symbol():
 
 def test_polygon_is_disabled_without_api_key(monkeypatch):
     monkeypatch.delenv("POLYGON_API_KEY", raising=False)
-    monkeypatch.setattr(polygon_us.requests, "get", lambda *_args, **_kwargs: pytest.fail("不应发起请求"))
+    monkeypatch.setattr(polygon_us.http_client, "get", lambda *_args, **_kwargs: pytest.fail("不应发起请求"))
 
     assert polygon_us.polygon_get_history("usAAPL") is None
     assert polygon_us.polygon_get_minute("usAAPL") is None
@@ -71,7 +71,7 @@ def test_polygon_minute_uses_beijing_display_time(monkeypatch):
             }]}
 
     monkeypatch.setenv("POLYGON_API_KEY", "test")
-    monkeypatch.setattr(polygon_us.requests, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(polygon_us.http_client, "get", lambda *_args, **_kwargs: Response())
     monkeypatch.setattr(polygon_us, "_polygon_prev", lambda _ticker: {"close": 219.0})
 
     result = polygon_us.polygon_get_minute("usAAPL")
@@ -131,7 +131,9 @@ def test_flash_news_includes_source_and_original_url(monkeypatch):
             }]}}}}
 
     monkeypatch.setattr(news_data, "cached", lambda _key, _ttl, fetch: fetch())
-    monkeypatch.setattr(news_data.requests, "get", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(news_data.http_client, "get", lambda *_args, **_kwargs: Response())
+    # akshare 源走真实外网，结果随日期变化，测试中屏蔽保证确定性
+    monkeypatch.setattr(news_data, "_ak_flash_news", lambda *_a, **_k: [])
 
     assert news_data.get_flash_news() == [{
         "title": "测试快讯",

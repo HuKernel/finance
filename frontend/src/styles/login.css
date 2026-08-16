@@ -1,0 +1,15 @@
+/* ---------- 登录页 ---------- */
+.boot-screen { text-align: center; padding: 80px; color: var(--text-3); }
+.login-wrap { min-height: 100vh; display: grid; place-items: center; background: var(--bg); }
+.login-card { width: 360px; background: var(--surface); border: 1px solid var(--border); padding: 40px 32px; display: flex; flex-direction: column; gap: 16px; }
+.login-brand { text-align: center; margin-bottom: 12px; }
+.login-brand .brand-mark { margin: 0 auto 12px; width: 48px; height: 48px; font-size: 20px; }
+.login-brand h1 { font-size: 22px; font-weight: 700; }
+.login-brand p { font-size: 13px; color: var(--text-3); margin-top: 4px; }
+.login-btn { padding: 12px; font-size: 14px; margin-top: 8px; }
+.login-divider { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 11px; }
+.login-divider::before, .login-divider::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
+.github-login { padding: 11px; border: 1px solid var(--border-strong); background: var(--text); color: var(--bg); }
+.github-login span { margin-right: 8px; font-weight: 700; }
+.login-remember { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-3); cursor: pointer; user-select: none; }
+.login-remember input { width: 14px; height: 14px; accent-color: var(--accent); }

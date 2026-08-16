@@ -69,6 +69,8 @@ def test_compare_api_reports_parallel_wall_time(monkeypatch):
             return {"prompt": "比较", "models": [{"model": "a"}, {"model": "b"}]}
 
     monkeypatch.setattr(system, "compare_models", lambda prompt, models: [{"name": "a"}, {"name": "b"}])
+    # 不消耗真实开发库里的月度免费额度
+    monkeypatch.setattr(system, "consume_model_access", lambda _user: None)
     result = asyncio.run(system.llm_compare_api(Request(), user={"id": 1}))
 
     assert result["execution"]["mode"] == "parallel"

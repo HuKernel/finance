@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-import requests
+from . import http_client
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
@@ -259,7 +259,7 @@ def _create_wechat_order(order: dict[str, Any]) -> dict[str, Any]:
     timestamp, nonce = str(int(time.time())), secrets.token_hex(16)
     signature = _rsa_sign(f"POST\n{path}\n{timestamp}\n{nonce}\n{body}\n", "WECHAT_PRIVATE_KEY_PATH")
     token = f'mchid="{_setting("WECHAT_MCH_ID")}",nonce_str="{nonce}",timestamp="{timestamp}",serial_no="{_setting("WECHAT_CERT_SERIAL_NO")}",signature="{signature}"'
-    response = requests.post(
+    response = http_client.post(
         "https://api.mch.weixin.qq.com" + path,
         data=body.encode(),
         headers={"Authorization": "WECHATPAY2-SHA256-RSA2048 " + token, "Accept": "application/json", "Content-Type": "application/json"},

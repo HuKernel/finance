@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 import numpy as np
 from .full_analysis import _run_strategy_on_df
-from .walk_forward import _CPCV_PARAM_GRID
+from .walk_forward import _CPCV_PARAM_GRID, param_grid_for_strategy
 from .full_analysis import _sharpe_from_equity
 from ..data import fetcher as datalayer
 
@@ -141,7 +141,7 @@ def run_cpcv(
     from itertools import combinations
 
     sym = datalayer._norm_symbol(symbol)
-    param_grid = kwargs.pop("param_grid", None) or _CPCV_PARAM_GRID
+    param_grid = kwargs.pop("param_grid", None) or param_grid_for_strategy(strategy) or _CPCV_PARAM_GRID
     enable_cost = kwargs.pop("enable_cost", True)
     percentage = kwargs.pop("percentage", 100.0)
     slippage = kwargs.pop("slippage", 0.001)

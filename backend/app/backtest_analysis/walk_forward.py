@@ -112,7 +112,9 @@ def run_walk_forward(
         }
     """
     sym = datalayer._norm_symbol(symbol)
-    param_grid = kwargs.pop("param_grid", None) or _WF_PARAM_GRID
+    param_grid = kwargs.pop("param_grid", None) or param_grid_for_strategy(strategy)
+    if param_grid is None:
+        return {"error": f"策略 {strategy} 不支持 Walk-Forward 参数优化（无可调参数网格）"}
     enable_cost = kwargs.pop("enable_cost", True)
     percentage = kwargs.pop("percentage", 100.0)
     slippage = kwargs.pop("slippage", 0.001)
@@ -265,5 +267,37 @@ _CPCV_PARAM_GRID = [
     {"fast_period": 20, "slow_period": 50},
     {"fast_period": 20, "slow_period": 60},
 ]
+
+
+def param_grid_for_strategy(strategy: str) -> Optional[list[dict]]:
+    """按策略返回真实生效的参数网格。
+
+    参数名必须与 strategies.py 的构造参数一致；网格里的参数若不被策略
+    读取会被静默忽略，导致"不同参数"产出完全相同的结果。
+    不支持的策略返回 None，调用方应显式报错。
+    """
+    if strategy in ("ma_cross", "dual_ma"):
+        return _CPCV_PARAM_GRID
+    if strategy == "macd":
+        return [
+            {"fastperiod": f, "slowperiod": s}
+            for f, s in [(6, 13), (8, 17), (8, 21), (10, 20), (12, 26), (12, 32), (15, 30), (19, 39)]
+        ]
+    if strategy == "kdj":
+        return [
+            {"k_period": k, "d_period": d}
+            for k, d in [(5, 2), (5, 3), (6, 3), (9, 2), (9, 3), (9, 4), (12, 3), (14, 3), (18, 3), (20, 5)]
+        ]
+    if strategy == "boll":
+        return [
+            {"boll_period": p, "boll_std": s}
+            for p, s in [(10, 1.5), (10, 2.0), (15, 1.5), (15, 2.0), (20, 1.5), (20, 2.0), (20, 2.5), (26, 2.0), (26, 2.5)]
+        ]
+    if strategy == "rsi":
+        return [
+            {"rsi_period": p, "rsi_oversold": o, "rsi_overbought": 100 - o}
+            for p, o in [(7, 25), (7, 30), (10, 30), (14, 25), (14, 30), (14, 35), (21, 30), (21, 35)]
+        ]
+    return None
 
 

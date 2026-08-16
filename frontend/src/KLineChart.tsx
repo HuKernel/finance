@@ -108,6 +108,10 @@ export default function KLineChart({
     const text = color('--text-2', '#64748b')
     const border = color('--border', '#dbe1e8')
     const surface = color('--surface', '#ffffff')
+    const cMa5 = color('--chart-ma5', '#d69e00')
+    const cMa20 = color('--chart-ma20', '#0891b2')
+    const cMacd = color('--chart-macd', '#f59e0b')
+    const cMacdSignal = color('--chart-macd-signal', '#10b981')
     const chart = createChart(container, {
       autoSize: true,
       height: fullscreen ? Math.max(window.innerHeight - 110, 520) : 460,
@@ -129,8 +133,8 @@ export default function KLineChart({
       candleSeries.setData(bars.map(bar => ({
         time: chartTime(bar.date), open: bar.open, high: bar.high, low: bar.low, close: bar.close,
       })) as CandlestickData<Time>[])
-      const ma5 = chart.addSeries(LineSeries, { color: '#d69e00', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
-      const ma20 = chart.addSeries(LineSeries, { color: '#0891b2', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
+      const ma5 = chart.addSeries(LineSeries, { color: cMa5, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
+      const ma20 = chart.addSeries(LineSeries, { color: cMa20, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
       ma5.setData(asLineData(bars, calculated.ma5))
       ma20.setData(asLineData(bars, calculated.ma20))
 
@@ -144,8 +148,8 @@ export default function KLineChart({
         histogram.setData(calculated.macd.flatMap((value, index) => value == null ? [] : [{
           time: chartTime(bars[index].date), value, color: value >= 0 ? up : down,
         }]) as HistogramData<Time>[])
-        const dif = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
-        const dea = chart.addSeries(LineSeries, { color: '#10b981', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
+        const dif = chart.addSeries(LineSeries, { color: cMacd, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
+        const dea = chart.addSeries(LineSeries, { color: cMacdSignal, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 2)
         dif.setData(asLineData(bars, calculated.dif)); dea.setData(asLineData(bars, calculated.dea))
       } else {
         const colors = ['#a855f7', '#10b981', '#f59e0b']
@@ -177,7 +181,7 @@ export default function KLineChart({
       })
       const price = chart.addSeries(LineSeries, { color: up, lineWidth: 2, priceLineVisible: true }, 0)
       price.setData(points.map(({ point, time }) => ({ time, value: point.price })))
-      const average = chart.addSeries(LineSeries, { color: '#f59e0b', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
+      const average = chart.addSeries(LineSeries, { color: cMacd, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }, 0)
       average.setData(points.flatMap(({ point, time }) => point.avg == null ? [] : [{ time, value: point.avg }]))
       const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceLineVisible: false, lastValueVisible: false }, 1)
       volume.setData(points.flatMap(({ point, time }, index) => point.volume == null ? [] : [{

@@ -9,7 +9,7 @@ import json
 import re
 from typing import Any, Optional
 
-import requests
+from .. import http_client
 
 from .utils import TTL, _norm_symbol, cached
 
@@ -62,7 +62,7 @@ def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str
             "page=1&page_size=30&zhibo_id=152&tag_id=0&dire=f&dpc=1"
         )
         try:
-            r = requests.get(url, timeout=12, headers={
+            r = http_client.get(url, timeout=12, headers={
                 "User-Agent": "Mozilla/5.0",
                 "Referer": "https://finance.sina.com.cn",
             })
@@ -150,7 +150,7 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
                                "pageIndex": 1, "pageSize": 15, "preTag": "", "postTag": ""}}
                 }, ensure_ascii=False)
                 url = f"https://search-api-web.eastmoney.com/search/jsonp?cb=jQuery&param={urllib.parse.quote(param)}"
-                r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                r = http_client.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
                 m = re.search(r"jQuery\((.+)\)", r.text, re.S)
                 if not m:
                     return None

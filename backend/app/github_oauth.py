@@ -8,7 +8,7 @@ import secrets
 from typing import Any
 from urllib.parse import urlencode
 
-import requests
+from . import http_client
 
 from . import auth
 
@@ -69,7 +69,7 @@ def authorize_url() -> tuple[str, str, str]:
 
 
 def exchange_identity(code: str, verifier: str) -> dict[str, Any]:
-    token_response = requests.post(
+    token_response = http_client.post(
         "https://github.com/login/oauth/access_token",
         json={"client_id": _get("client_id"), "client_secret": _get("client_secret"), "code": code, "redirect_uri": callback_url(), "code_verifier": verifier},
         headers={"Accept": "application/json"}, timeout=15,
@@ -78,7 +78,7 @@ def exchange_identity(code: str, verifier: str) -> dict[str, Any]:
     access_token = token_response.json().get("access_token")
     if not access_token:
         raise ValueError("GitHub 未返回访问令牌")
-    user_response = requests.get(
+    user_response = http_client.get(
         "https://api.github.com/user",
         headers={"Accept": "application/vnd.github+json", "Authorization": "Bearer " + access_token, "X-GitHub-Api-Version": "2022-11-28"},
         timeout=15,

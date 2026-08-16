@@ -6,7 +6,7 @@ import numpy as np
 
 from ..data import fetcher as datalayer
 from .cpcv import _cpcv_split_groups, _evaluate_on_blocks
-from .walk_forward import _CPCV_PARAM_GRID
+from .walk_forward import _CPCV_PARAM_GRID, param_grid_for_strategy
 
 
 def run_pbo(
@@ -49,7 +49,7 @@ def run_pbo(
     from itertools import combinations
 
     sym = datalayer._norm_symbol(symbol)
-    param_grid = kwargs.pop("param_grid", None) or _CPCV_PARAM_GRID
+    param_grid = kwargs.pop("param_grid", None) or param_grid_for_strategy(strategy) or _CPCV_PARAM_GRID
     enable_cost = kwargs.pop("enable_cost", True)
     percentage = kwargs.pop("percentage", 100.0)
     slippage = kwargs.pop("slippage", 0.001)

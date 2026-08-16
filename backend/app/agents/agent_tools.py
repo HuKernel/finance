@@ -115,11 +115,15 @@ def get_lhb(ticker: str) -> str:
         lhb = dl.get_lhb(ticker)
         if not lhb:
             return "无龙虎榜数据"
-        # 兼容 dict（带 details）和 list 两种形态
-        details = lhb.get("details", []) if isinstance(lhb, dict) else []
-        lines = [f"龙虎榜上榜{len(details)}次"]
-        for d in (details or [])[:3]:
-            lines.append(f"- {d.get('date', '')}: {d.get('reason', '')}")
+        # 数据层返回单次上榜的扁平 dict（date/reason/net_buy/buy_total/sell_total）
+        lines = [f"龙虎榜最近上榜: {lhb.get('date', '')}"]
+        lines.append(f"上榜原因: {lhb.get('reason', '')}")
+        if lhb.get("net_buy") is not None:
+            lines.append(f"净买额: {lhb['net_buy']}")
+        if lhb.get("buy_total") is not None:
+            lines.append(f"买入额: {lhb['buy_total']}")
+        if lhb.get("sell_total") is not None:
+            lines.append(f"卖出额: {lhb['sell_total']}")
         return "\n".join(lines)
     except Exception as e:
         return f"龙虎榜获取失败: {e}"
@@ -143,11 +147,7 @@ def get_industry_compare(ticker: str) -> str:
 @tool("web_search", "联网搜索最新新闻/政策/行业动态/公司公告(实时信息)")
 def web_search(query: str) -> str:
     """联网搜索 -- 用LangChain DuckDuckGoSearchRun。
-    需要FiClash代理7890(环境变量HTTPS_PROXY)。
-    query: 搜索关键词（如'贵州茅台 2024年业绩'或'A股降准政策'）"""
-    import os
-    os.environ.setdefault("HTTPS_PROXY", "http://127.0.0.1:7890")
-    os.environ.setdefault("HTTP_PROXY", "http://127.0.0.1:7890")
+    代理通过环境变量 HTTPS_PROXY/HTTP_PROXY 外部配置，不在此硬编码。"""
     try:
         from langchain_community.tools import DuckDuckGoSearchRun
         search = DuckDuckGoSearchRun()
@@ -163,10 +163,11 @@ def get_reflection(ticker: str) -> str:
 # ==================== 角色工具映射 ====================
 
 # 每个分析师角色对应可用的工具集（最小权限原则）
+# key 与 analysts.py 中的 role 值一致（注意技术面是 "technical"）
 ANALYST_TOOLS: dict[str, list[str]] = {
     "macro": ["get_quote", "get_news", "get_industry_compare", "web_search"],
     "fundamental": ["get_quote", "get_financials", "get_industry_compare", "web_search"],
-    "tech": ["get_quote", "get_kline", "web_search"],
+    "technical": ["get_quote", "get_kline", "web_search"],
     "sentiment": ["get_quote", "get_news", "get_lhb", "get_reflection", "web_search"],
     "capital": ["get_quote", "get_kline", "get_lhb", "get_reflection", "web_search"],
 }

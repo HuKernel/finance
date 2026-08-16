@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-import requests
+from .. import http_client
 
 from .utils import cached
 
@@ -32,7 +32,7 @@ def search_stocks(q: str, limit: int = 8) -> Optional[list[dict[str, str]]]:
         import urllib.parse
         url = f"https://smartbox.gtimg.cn/s3/?v=2&q={urllib.parse.quote(search_q)}&t=all"
         try:
-            r = requests.get(url, timeout=8)
+            r = http_client.get(url, timeout=8)
             r.encoding = "gbk"
             body = r.text.split('"')[1] if '"' in r.text else ""
             items = []

@@ -259,18 +259,3 @@ def patterns_api(symbol: str) -> dict[str, Any]:
 
 
 
-@router.get("/api/em-proxy")
-def em_proxy(url: str) -> Any:
-    """东财接口代理（解决前端CORS跨域问题）"""
-    from curl_cffi import requests as cffi_req
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://quote.eastmoney.com/",
-    }
-    try:
-        r = cffi_req.get(url, impersonate="chrome", timeout=10, headers=headers)
-        return r.json()
-    except Exception:
-        return {"error": "proxy failed"}
-
-

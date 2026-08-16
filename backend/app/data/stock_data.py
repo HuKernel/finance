@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import pandas as pd
-import requests
+from .. import http_client
 
 from .utils import (
     TTL,
@@ -39,7 +39,7 @@ def get_stock_brief(symbol: str, fresh: bool = False) -> Optional[dict[str, Any]
     def _fetch() -> Optional[dict[str, Any]]:
         url = f"https://qt.gtimg.cn/q={_market_prefix(sym)}{sym}"
         try:
-            r = requests.get(url, timeout=5)
+            r = http_client.get(url, timeout=5)
             r.encoding = "gbk"
             body = r.text.split('"')[1] if '"' in r.text else ""
             p = body.split("~")
@@ -122,7 +122,7 @@ def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
         code = f"{_market_prefix(sym)}{sym}"
         url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{days},qfq"
         try:
-            r = requests.get(url, timeout=5)
+            r = http_client.get(url, timeout=5)
             data = r.json()
             node = data["data"][code]
             key = "qfqday" if "qfqday" in node else "day"
@@ -215,7 +215,7 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
             if period_info["type"] == "fqkline":
                 # 日/周/月K线
                 url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},{period_info['param']},,,{count},qfq"
-                r = requests.get(url, timeout=5)
+                r = http_client.get(url, timeout=5)
                 data = r.json()
                 node = data["data"][code]
                 key = f"qfq{period_info['param']}"
@@ -225,7 +225,7 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
             else:
                 # 分钟级K线
                 url = f"https://ifzq.gtimg.cn/appstock/app/kline/mkline?param={code},{period_info['param']},,{count}"
-                r = requests.get(url, timeout=15)
+                r = http_client.get(url, timeout=15)
                 data = r.json()
                 node = data["data"][code]
                 rows = node.get(period_info["param"], {})
@@ -308,7 +308,7 @@ def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
     def _fetch() -> Optional[dict[str, Any]]:
         try:
             url = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={code}"
-            r = requests.get(url, timeout=12)
+            r = http_client.get(url, timeout=12)
             d = r.json()
             node = d.get("data", {}).get(code, {})
             points = node.get("data", {}).get("data", [])

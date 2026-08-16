@@ -18,3 +18,5 @@ requests>=2.32
 curl_cffi>=0.7
 cryptography>=43
 qrcode[pil]>=8.0
+httpx
+alembic

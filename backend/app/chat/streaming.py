@@ -5,7 +5,6 @@ stream_chat/_chunk_text/_sse/chat
 from __future__ import annotations
 
 import json
-import time
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -120,12 +119,29 @@ def stream_chat(session_id: int, user_id: int, message: str):
 
     reply = ""
     try:
-        for event in agent.stream(
+        # stream_mode 组合：updates 提供完整工具调用事件（含参数），
+        # messages 提供 LLM token 级增量 —— 真流式，不做伪打字机
+        for mode, payload in agent.stream(
             {"messages": [HumanMessage(content=message_for_agent)]},
             config={"configurable": {"thread_id": str(session_id)}},
+            stream_mode=["updates", "messages"],
         ):
-            for _node, value in event.items():
-                msgs = value.get("messages", [])
+            if mode == "messages":
+                chunk, _meta = payload
+                if getattr(chunk, "type", "") != "ai":
+                    continue
+                piece = chunk.content
+                if isinstance(piece, list):  # 多模态内容块取文本
+                    piece = "".join(
+                        b.get("text", "") for b in piece if isinstance(b, dict)
+                    )
+                if piece:
+                    reply += piece
+                    yield _sse({"type": "chunk", "content": piece})
+                continue
+            # mode == "updates"：节点级事件，用于工具调用追踪
+            for _node, value in payload.items():
+                msgs = value.get("messages", []) if isinstance(value, dict) else []
                 if not msgs:
                     continue
                 # 并行工具调用时 tools 节点可能含多个消息，逐个处理
@@ -140,18 +156,11 @@ def stream_chat(session_id: int, user_id: int, message: str):
                     elif getattr(m, "type", "") == "tool":
                         # 工具执行完成（ToolMessage）：标记对应步骤 done
                         yield _sse({"type": "tool_end", "name": "", "preview": str(m.content)[:120]})
-                    elif getattr(m, "type", "") == "ai" and m.content:
-                        # 最终回复（无工具调用的 AIMessage）：先存，循环结束后分块输出
-                        reply = str(m.content)
     except Exception as e:
-        reply = f"对话处理失败: {e}"
+        reply = reply or f"对话处理失败: {e}"
         yield _sse({"type": "error", "message": str(e)})
 
-    # 回复分块流式输出（打字机效果）：chunk 逐块，msg 为完整回复
     if reply:
-        for chunk in _chunk_text(reply):
-            yield _sse({"type": "chunk", "content": chunk})
-            time.sleep(0.03)  # 30ms/块，打字机节奏
         yield _sse({"type": "msg", "content": reply})
 
     save_message(session_id, "assistant", reply, tool_calls)

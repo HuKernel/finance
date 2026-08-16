@@ -22,24 +22,28 @@ def run_parameter_sensitivity(
     """
     sym = datalayer._norm_symbol(symbol)
 
-    # 测试MA周期组合
-    ma_combos = [
-        (3, 10), (3, 15), (3, 20),
-        (5, 10), (5, 15), (5, 20), (5, 25),
-        (7, 15), (7, 20), (7, 25), (7, 30),
-        (10, 20), (10, 25), (10, 30), (10, 40),
-        (12, 26), (15, 30), (15, 40), (20, 40), (20, 60),
-    ]
+    # 按策略选择真实生效的参数轴与网格（参数名必须与 strategies.py 的构造参数一致，
+    # 否则网格会被静默忽略，20 组"不同参数"实际产出完全相同的结果）
+    grid = _param_grid_for(strategy)
+    if grid is None:
+        return {"error": f"策略 {strategy} 无可调参数（或不支持敏感性分析）"}
+
+    p1_name, p2_name, p1_label, p2_label, combos = grid
 
     results = []
-    for fast, slow in ma_combos:
-        r = bt.run_backtest(sym, strategy=strategy, days=days, initial_capital=initial_capital,
-                           fast_period=fast, slow_period=slow)
+    for p1, p2 in combos:
+        kwargs: dict[str, Any] = {p1_name: p1}
+        if p2_name:
+            kwargs[p2_name] = p2
+        if strategy == "rsi":
+            kwargs["rsi_overbought"] = 100 - p1  # 对称阈值：超卖30 ↔ 超买70
+        r = bt.run_backtest(sym, strategy=strategy, days=days,
+                            initial_capital=initial_capital, **kwargs)
         if r and r.get("trades_log"):
             pf = calc_profit_factor(r["trades_log"])
             results.append({
-                "fast": fast,
-                "slow": slow,
+                "fast": p1,  # 兼容前端字段名：fast/slow 泛指参数1/参数2
+                "slow": p2,
                 "total_return": r["total_return"],
                 "max_drawdown": r["max_drawdown"],
                 "trades": r["trades"],
@@ -65,7 +69,10 @@ def run_parameter_sensitivity(
 
     return {
         "symbol": sym,
-        "param_grid": "MA快线 x MA慢线",
+        "strategy": strategy,
+        "param_grid": f"{p1_label} x {p2_label}" if p2_label else p1_label,
+        "p1_label": p1_label,
+        "p2_label": p2_label,
         "combos_tested": len(results),
         "results": results,
         "median_return": round(median_return, 2),
@@ -75,6 +82,40 @@ def run_parameter_sensitivity(
         "worst": worst,
         "stability_verdict": _verdict_stability(returns, dds, pfs),
     }
+
+
+def _param_grid_for(strategy: str):
+    """返回 (参数1名, 参数2名|None, 参数1标签, 参数2标签|None, 组合列表)。"""
+    if strategy in ("ma_cross", "dual_ma"):
+        return "fast_period", "slow_period", "MA快线", "MA慢线", [
+            (3, 10), (3, 15), (3, 20),
+            (5, 10), (5, 15), (5, 20), (5, 25),
+            (7, 15), (7, 20), (7, 25), (7, 30),
+            (10, 20), (10, 25), (10, 30), (10, 40),
+            (12, 26), (15, 30), (15, 40), (20, 40), (20, 60),
+        ]
+    if strategy == "macd":
+        return "fastperiod", "slowperiod", "DIF快线", "DEA慢线", [
+            (6, 13), (6, 19), (8, 17), (8, 21), (10, 20), (10, 26),
+            (12, 26), (12, 32), (15, 30), (16, 34), (19, 39),
+        ]
+    if strategy == "kdj":
+        return "k_period", "d_period", "K周期", "D周期", [
+            (5, 2), (5, 3), (6, 3), (9, 2), (9, 3), (9, 4),
+            (12, 3), (14, 3), (18, 3), (20, 5),
+        ]
+    if strategy == "boll":
+        return "boll_period", "boll_std", "布林周期", "标准差倍数", [
+            (10, 1.5), (10, 2.0), (15, 1.5), (15, 2.0), (15, 2.5),
+            (20, 1.5), (20, 2.0), (20, 2.5), (26, 2.0), (26, 2.5),
+        ]
+    if strategy == "rsi":
+        # 对称阈值：overbought = 100 - oversold
+        return "rsi_oversold", "rsi_period", "超卖阈值", "RSI周期", [
+            (25, 7), (25, 14), (30, 7), (30, 10), (30, 14), (30, 21),
+            (35, 10), (35, 14), (35, 21), (40, 14),
+        ]
+    return None
 
 
 

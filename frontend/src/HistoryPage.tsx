@@ -3,12 +3,13 @@ import { api } from './api'
 import type { AnalysisResult, HistoryItem } from './types'
 import { ReportView } from './AnalyzePage'
 import { useModal } from './Modal'
+import { EmptyState, ErrorState, Skeleton } from './States'
 
 /* ---------------- 历史记录 ---------------- */
 
 function HistoryPane({ onPick }: { onPick: () => void }) {
   const { confirm, toast } = useModal()
-  const [items, setItems] = useState<HistoryItem[]>([])
+  const [items, setItems] = useState<HistoryItem[] | null>(null)
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<AnalysisResult | null>(null)
   const [loadingId, setLoadingId] = useState<number | null>(null)
@@ -44,10 +45,12 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
 
   return (
     <div className="pane">
-      {error && <div className="error-box">{error}</div>}
-      {items.length === 0 ? (
-        <div className="empty">暂无分析记录，去"投研分析"页跑一次</div>
-      ) : (
+      {error && <ErrorState message={error} onRetry={load} />}
+      {!error && items === null && <Skeleton variant="table" lines={5} />}
+      {items?.length === 0 && (
+        <EmptyState title="暂无分析记录" hint="去「投研分析」页跑一次，结果会自动保存到这里" />
+      )}
+      {items && items.length > 0 && (
         <table className="history-table">
           <thead>
             <tr><th>ID</th><th>代码</th><th>时间</th><th>状态</th><th></th></tr>
@@ -66,14 +69,14 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
                   <button onClick={onPick}>再分析</button>
                   <button className="ghost hist-del-btn" onClick={async () => {
                     if (!await confirm(`确定删除记录 #${it.id}？`, { danger: true, confirmText: '删除' })) return
-                    try { await api.deleteHistory(it.id); setItems(prev => prev.filter(x => x.id !== it.id)) } catch { toast('删除失败', 'error') }
+                    try { await api.deleteHistory(it.id); setItems(prev => (prev ?? []).filter(x => x.id !== it.id)) } catch { toast('删除失败', 'error') }
                   }}>删除</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-    )}
+      )}
     </div>
   )
 }
