@@ -22,7 +22,7 @@ def test_github_oauth_secret_is_encrypted(tmp_path, monkeypatch):
 
 def test_oauth_user_is_stable_and_username_collision_is_safe(tmp_path, monkeypatch):
     setup_db(tmp_path, monkeypatch)
-    auth.create_user("octocat", "password")
+    auth.create_user("octocat", "Str0ngPassw0rd")
     first = auth.get_or_create_oauth_user("github", "123", "octocat")
     second = auth.get_or_create_oauth_user("github", "123", "renamed")
     assert first["id"] == second["id"]

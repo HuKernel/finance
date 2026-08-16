@@ -16,8 +16,15 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
+// 登录态内存标记：启动时由 /api/auth/me 确认，登录/登出时更新
+let _loggedIn = false
+export function setLoggedIn(v: boolean) {
+  _loggedIn = v
+  if (!v) setToken(null)
+}
+
 export function requireLogin(): boolean {
-  if (getToken()) return true
+  if (_loggedIn) return true
   window.dispatchEvent(new Event('financecrew:auth-required'))
   return false
 }
@@ -26,7 +33,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const resp = await fetch(url, { headers, ...options })
+  const resp = await fetch(url, { credentials: 'same-origin', headers, ...options })
   if (!resp.ok) {
     let detail = `HTTP ${resp.status}`
     try {
@@ -40,7 +47,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
       }
     } catch { /* ignore */ }
     if (resp.status === 401 && !url.includes('/auth/')) {
-      setToken(null)
+      setLoggedIn(false)
     }
     throw new Error(detail)
   }
@@ -73,6 +80,7 @@ export const api = {
   ): Promise<void> => {
     const token = getToken()
     const resp = await fetch('/api/analysis/stream', {
+      credentials: 'same-origin',
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
       body: JSON.stringify({ ticker, topic: topic || null, mode }),
@@ -167,6 +175,8 @@ export const api = {
 
   searchChat: (q: string) => request<{ id: number; session_id: number; role: string; content: string; created_at: string; session_title: string }[]>(`/api/chat/search?q=${encodeURIComponent(q)}`),
 
+  logout: () => request<{ status: string }>('/api/auth/logout', { method: 'POST' }),
+
   sendChat: (message: string, sessionId?: number) =>
     request<ChatReply>(`/api/chat`, { method: 'POST', body: JSON.stringify({ message, session_id: sessionId }) }),
 
@@ -174,6 +184,7 @@ export const api = {
   streamChat: async (message: string, sessionId: number | undefined, onEvent: (ev: any) => void): Promise<string> => {
     const token = getToken()
     const resp = await fetch('/api/chat/stream', {
+      credentials: 'same-origin',
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
       body: JSON.stringify({ message, session_id: sessionId }),

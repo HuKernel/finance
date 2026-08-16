@@ -41,9 +41,11 @@
 
 ### 安全
 - **per-user LLM Key**：每个用户独立 API Key，使用 Fernet 认证加密存储，前端永远脱敏
-- **登录安全**：频率限制（5次失败锁定15分钟）、密码 PBKDF2-SHA256 哈希
+- **密钥分离存储**：JWT secret 与 Fernet 密钥存放在数据库外的密钥文件（`data/.secret_keys.json`）或环境变量（`FC_JWT_SECRET`/`FC_ENC_KEY`），拿到数据库文件也无法解密 API Key 或伪造 token
+- **HttpOnly Cookie 认证**：网页端登录态由服务端写入 HttpOnly Cookie（`FC_COOKIE_SECURE=1` 在 HTTPS 下启用 Secure 标记），XSS 无法窃取；改密码后旧 token 立即失效（pwd_version 校验）
+- **登录安全**：频率限制（5次失败锁定15分钟）、密码 PBKDF2-SHA256 哈希、密码策略（8位+字母数字+弱密码黑名单）、可选 TOTP 两步验证（MFA 密钥加密存储）
 - **游客访问**：行情和市场数据无需登录；分析、诊断、回测、对话及反馈提交按需登录
-- **反爬限流**：全局请求频率限制（200次/分钟），CORS 白名单
+- **反爬限流**：全局请求频率限制（200次/分钟）、登录接口独立限流（20次/分钟）、CORS 白名单（`CORS_ORIGINS` 环境变量追加）、可选 TrustedHost（`TRUSTED_HOSTS`）
 - **数据隔离**：所有用户数据（对话/组合/预警/分析/记忆）按 user_id 隔离
 
 ### UI/UX

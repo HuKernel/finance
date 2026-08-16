@@ -1,12 +1,13 @@
 """路由模块: auth"""
 from __future__ import annotations
+import os
 import secrets
 import base64
 from urllib.parse import quote
 from typing import Any
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
 from ..auth import get_profile
 from ..config import get_config, save_config, PROVIDER_PRESETS
@@ -55,12 +56,24 @@ def register(body: dict[str, Any], request: Request) -> dict[str, Any]:
     token = auth.create_token(user["id"], user["username"])
     auth.record_login_success(f"register:{client_ip}")
     auth.audit_log(user["id"], username, "register", f"invite_code={invite_code}", client_ip)
-    return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
+    resp = JSONResponse({"token": token, "user": user, "profile": auth.get_profile(user["id"])})
+    _set_auth_cookie(resp, token)
+    return resp
 
+
+
+def _set_auth_cookie(response, token: str):
+    """登录成功后写入 HttpOnly Cookie（网页端主认证方式，防 XSS 窃取 token）。"""
+    from ..deps import COOKIE_NAME, COOKIE_MAX_AGE
+    secure = os.environ.get("FC_COOKIE_SECURE", "") == "1"  # HTTPS 部署时置 1
+    response.set_cookie(
+        COOKIE_NAME, token, max_age=COOKIE_MAX_AGE, httponly=True,
+        samesite="lax", secure=secure, path="/",
+    )
 
 
 @router.post("/api/auth/login")
-def login(body: dict[str, str], request: Request) -> dict[str, Any]:
+def login(body: dict[str, str], request: Request) -> Response:
     client_ip = request.client.host if request.client else "unknown"
     username = (body.get("username") or "").strip()
     for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
@@ -85,7 +98,9 @@ def login(body: dict[str, str], request: Request) -> dict[str, Any]:
     for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
         auth.record_login_success(ident)
     auth.audit_log(user["id"], username, "login", ip=client_ip)
-    return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
+    resp = JSONResponse({"token": token, "user": user, "profile": auth.get_profile(user["id"])})
+    _set_auth_cookie(resp, token)
+    return resp
 
 
 @router.post("/api/auth/verify-email")
@@ -157,6 +172,15 @@ def mfa_disable(body: dict[str, str], user: dict[str, Any] = Depends(get_current
     return {"status": "ok"}
 
 
+@router.post("/api/auth/logout")
+def logout_api() -> dict[str, str]:
+    """退出登录：清除认证 Cookie（token 本身随 pwd_version/过期自然失效）。"""
+    from ..deps import COOKIE_NAME
+    resp = JSONResponse({"status": "ok"})
+    resp.delete_cookie(COOKIE_NAME, path="/")
+    return resp
+
+
 @router.get("/api/auth/providers")
 def auth_providers() -> dict[str, bool]:
     from ..github_oauth import configured
@@ -191,7 +215,8 @@ def github_callback(request: Request, code: str = "", state: str = "") -> Redire
         user = auth.get_or_create_oauth_user("github", str(profile["id"]), str(profile["login"]))
         token = auth.create_token(user["id"], user["username"])
         auth.audit_log(user["id"], user["username"], "login_github", ip=request.client.host if request.client else "")
-        response = RedirectResponse(site_url + "/#oauth_token=" + token)
+        response = RedirectResponse(site_url + "/")
+        _set_auth_cookie(response, token)
     except (ValueError, PermissionError, httpx.HTTPError) as exc:
         auth.audit_log(None, "", "login_github_failed", type(exc).__name__ + ": " + str(exc)[:200], request.client.host if request.client else "")
         response = RedirectResponse(site_url + "/?oauth_error=github")

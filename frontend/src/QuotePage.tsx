@@ -105,11 +105,10 @@ export default function QuotePage() {
     const requestId = ++chartRequestRef.current
     setChartLoading(true)
     try {
-      const token = localStorage.getItem('financecrew_token')
       // A股用腾讯5分钟，美股用yfinance 5分钟（后端自动选择）
       const count = 48 * (days + 3)
       const r = await fetch(`/api/kline/${code}?period=5min&count=${count}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'same-origin',
       })
       const d = await r.json()
       if (d.bars && requestId === chartRequestRef.current) {
@@ -145,10 +144,9 @@ export default function QuotePage() {
     const requestId = ++chartRequestRef.current
     setChartLoading(true)
     try {
-      const token = localStorage.getItem('financecrew_token')
       const count = p.endsWith('min') ? 100000 : 250
       const r = await fetch(`/api/kline/${code}?period=${p}&count=${count}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'same-origin',
       })
       const d = await r.json()
       if (d.bars && requestId === chartRequestRef.current) {

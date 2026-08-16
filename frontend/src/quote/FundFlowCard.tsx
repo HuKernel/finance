@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { getToken } from '../api'
 import { Loading } from '../States'
 
 // ========== 资金流向卡片 ==========
@@ -8,9 +7,8 @@ export default function FundFlowCard({ code }: { code: string }) {
     queryKey: ['fund-flow', code],
     queryFn: async () => {
       // 后端API获取资金流向（服务器环境直连东财，本地开发可能被代理拦截）
-      const token = getToken()
       const r = await fetch(`/api/fund-flow/${code}?days=5`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'same-origin',
       })
       return r.json()
     },

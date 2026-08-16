@@ -4,7 +4,7 @@ import {
   Globe, History, Home, MessageSquare, PanelLeftClose, PanelLeftOpen,
   ScrollText, Shield, User, type LucideIcon,
 } from 'lucide-react'
-import { api, getToken, setToken } from './api'
+import { api, setLoggedIn } from './api'
 import type { AuthResponse } from './types'
 import LoginPage from './LoginPage'
 import AlertBell from './AlertBell'
@@ -105,20 +105,15 @@ function App() {
   const [feedbackAfterLogin, setFeedbackAfterLogin] = useState(false)
   const { theme, toggle } = useTheme()
 
-  // 启动时校验 token
+  // 启动时通过 /api/auth/me 确认登录态（HttpOnly Cookie 认证，前端不保存 token）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const hashParams = new URLSearchParams(window.location.hash.slice(1))
-    const oauthToken = hashParams.get('oauth_token')
-    if (oauthToken) {
-      setToken(oauthToken)
-      window.history.replaceState({}, '', window.location.pathname)
-    }
     if (params.get('oauth_error')) setLoginTarget('home')
-    if (!getToken()) { setBooted(true); return }
     api.me()
       .then((r) => {
-        setAuth({ token: getToken()!, user: r.user, profile: r.profile })
+        if (!r?.user) { setLoggedIn(false); return }
+        setLoggedIn(true)
+        setAuth({ token: 'cookie', user: r.user, profile: r.profile })
         // replaceState 不触发 hashchange，避免与下方监听器竞争
         const initial = tabFromHash()
         if (!initial) window.history.replaceState({}, '', '#/analyze')
@@ -126,7 +121,7 @@ function App() {
         // 检查管理员权限
         api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
       })
-      .catch(() => setToken(null))
+      .catch(() => setLoggedIn(false))
       .finally(() => setBooted(true))
   }, [])
 
@@ -197,7 +192,8 @@ function App() {
   }
 
   const logout = () => {
-    setToken(null)
+    api.logout().catch(() => {})
+    setLoggedIn(false)
     setAuth(null)
     setIsAdmin(false)
     window.history.pushState({}, '', '#/home')

@@ -12,6 +12,7 @@ test('游客可浏览行情，受保护功能和反馈会要求登录', async ({
     else if (path === '/api/hot') body = []
     else if (path === '/api/auth/profile') body = { watchlist: [] }
     else if (path === '/api/auth/login') body = { token: 'guest-token', user: { id: 8, username: 'visitor' }, profile: { watchlist: [] } }
+    // 登录响应模拟服务端写入认证 Cookie
     else if (path === '/api/auth/is-admin') body = { is_admin: false }
     else if (path === '/api/alerts') body = []
     else if (path === '/api/feedback') body = route.request().method() === 'GET'
@@ -25,7 +26,9 @@ test('游客可浏览行情，受保护功能和反馈会要求登录', async ({
     else if (path.startsWith('/api/news/')) body = { symbol: '600519', news: [] }
     else if (path.startsWith('/api/industry/')) body = { peers: [], avg_pe: null, avg_pb: null }
 
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+    const headers: Record<string, string> = {}
+    if (path === '/api/auth/login') headers['Set-Cookie'] = 'fc_token=guest-token; Path=/; HttpOnly; SameSite=Lax'
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body), headers })
   })
 
   await page.goto('/')
@@ -50,7 +53,7 @@ test('游客可浏览行情，受保护功能和反馈会要求登录', async ({
   await page.getByRole('button', { name: '提交反馈' }).click()
   const request = await requestPromise
 
-  expect(request.headers().authorization).toBe('Bearer guest-token')
+  expect(request.headers().cookie || '').toContain('fc_token=guest-token')
   expect(request.postDataJSON()).toEqual({ category: 'data', content: '港股行情时间显示不正确', page: '行情' })
   await expect(page.getByText('反馈已提交，感谢你的建议')).toBeVisible()
 })

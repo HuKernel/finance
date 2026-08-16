@@ -17,9 +17,12 @@ TOKEN_TTL = 7 * 24 * 3600  # 7 天
 
 
 def create_token(user_id: int, username: str) -> str:
+    # pwd_version：改密码后自增，使所有已签发的 token 立即失效
+    from . import users as _users
     payload = {
         "sub": str(user_id),
         "username": username,
+        "pwd_version": _users.get_pwd_version(user_id),
         "iat": int(time.time()),
         "exp": int(time.time()) + TOKEN_TTL,
     }
@@ -47,5 +50,6 @@ def consume_auth_token(raw: str, kind: str) -> Optional[int]:
         row = conn.execute("SELECT * FROM auth_tokens WHERE token_hash=? AND kind=? AND used=0 AND expires_at>?", (digest, kind, int(time.time()))).fetchone()
         if not row:
             return None
+        # 一次性 token：32字节随机数无爆破面，命中即作废
         conn.execute("UPDATE auth_tokens SET used=1 WHERE token_hash=?", (digest,))
     return int(row["user_id"])

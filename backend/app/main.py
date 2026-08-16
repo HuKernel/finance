@@ -57,6 +57,12 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="FinanceCrew API", version="0.4.0", lifespan=lifespan)
 
 
+# TrustedHost：部署时可用 TRUSTED_HOSTS=a.com,b.com 收紧 Host 头（防 DNS rebinding / host 注入）
+_trusted = [h.strip() for h in os.environ.get("TRUSTED_HOSTS", "").split(",") if h.strip()]
+if _trusted:
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_trusted)
+
 # CORS: 环境变量 CORS_ORIGINS（逗号分隔）可覆盖，默认只允许本机和局域网
 _default_origins = [
     "http://localhost:8000", "http://127.0.0.1:8000",

@@ -28,7 +28,7 @@ def _init_db() -> None:
             )"""
         )
         cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
-        for col, definition in [("email", "TEXT"), ("email_verified", "INTEGER DEFAULT 0"), ("mfa_secret", "TEXT"), ("mfa_enabled", "INTEGER DEFAULT 0")]:
+        for col, definition in [("email", "TEXT"), ("email_verified", "INTEGER DEFAULT 0"), ("mfa_secret", "TEXT"), ("mfa_enabled", "INTEGER DEFAULT 0"), ("pwd_version", "INTEGER DEFAULT 0")]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
         conn.execute(
@@ -85,7 +85,7 @@ def _init_db() -> None:
         )
         # 确保旧表升级（ALTER ADD COLUMN）
         cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
-        for col, default in [("is_admin", "0"), ("is_active", "1"), ("is_invited", "0")]:
+        for col, default in [("is_admin", "0"), ("is_active", "1"), ("is_invited", "0"), ("pwd_version", "0")]:
             if col not in cols:
                 conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT {default}")
         if "plan_code" not in cols:

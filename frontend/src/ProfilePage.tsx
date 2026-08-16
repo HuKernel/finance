@@ -406,7 +406,7 @@ function AnalystConfigSection() {
   useEffect(() => {
     Promise.all([
       fetch('/api/analysts').then(r => r.json()),
-      fetch('/api/auth/profile', { headers: { Authorization: 'Bearer ' + localStorage.getItem('financecrew_token') } }).then(r => r.json()),
+      fetch('/api/auth/profile', { credentials: 'same-origin' }).then(r => r.json()),
     ]).then(([aList, profile]) => {
       setAnalysts(aList || [])
       const config = profile?.analyst_config
@@ -424,7 +424,7 @@ function AnalystConfigSection() {
     try {
       const r = await fetch('/api/auth/analyst-config', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('financecrew_token') },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled_analysts: enabled }),
       })
       if (r.ok) { setMsg('保存成功') } else { setMsg('保存失败') }

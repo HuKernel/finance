@@ -1,14 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { getToken } from '../api'
 
 // ========== K线形态卡片 ==========
 export default function PatternCard({ code }: { code: string }) {
   const { data } = useQuery({
     queryKey: ['patterns', code],
     queryFn: async () => {
-      const token = getToken()
       const r = await fetch(`/api/patterns/${code}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'same-origin',
       })
       return r.json()
     },

@@ -76,7 +76,7 @@ def ml_signal_api(
 
 
 @router.get("/api/ic-evaluate/{symbol}")
-def ic_evaluate_api(symbol: str, forward_days: int = 5) -> dict[str, Any]:
+def ic_evaluate_api(symbol: str, forward_days: int = 5, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     """IC/Rank IC信号评估：评估技术指标对未来收益的预测力。"""
     from ..ic_evaluator import evaluate_strategy_signals
     sym = datalayer._norm_symbol(symbol)
@@ -118,6 +118,7 @@ def backtest_analysis_api(
     strategy: str = "ma_cross",
     days: int = 120,
     analysis_type: str = "full",
+    user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     """回测深度分析：PF/RF/综合评分 + 蒙特卡洛 + 分层测试 + 参数敏感度。
 
@@ -204,7 +205,7 @@ def backtest_api(
 def walk_forward_api(
     symbol: str,
     strategy: str = "ma_cross",
-    total_days: int = 500,
+    user: dict[str, Any] = Depends(get_current_user),
     train_window: int = 60,
     test_window: int = 20,
 ) -> dict[str, Any]:
@@ -232,6 +233,7 @@ def backtest_cpcv_api(
     symbol: str,
     strategy: str = "ma_cross",
     days: int = 500,
+    user: dict[str, Any] = Depends(get_current_user),
     n_groups: int = 6,
     n_test_groups: int = 2,
     embargo_pct: float = 0.01,
@@ -260,6 +262,7 @@ def backtest_pbo_api(
     symbol: str,
     strategy: str = "ma_cross",
     days: int = 500,
+    user: dict[str, Any] = Depends(get_current_user),
     n_groups: int = 8,
     n_test_groups: int = 2,
 ) -> dict[str, Any]:

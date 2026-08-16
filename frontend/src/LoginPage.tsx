@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, setToken } from './api'
+import { api, setLoggedIn } from './api'
 import { useModal } from './Modal'
 import type { AuthResponse } from './types'
 
@@ -33,7 +33,7 @@ export default function LoginPage({ onLogin, onCancel }: { onLogin: (r: AuthResp
       const r = mode === 'login'
         ? await api.login(username.trim(), password, mfaCode)
         : await api.register(username.trim(), password, inviteCode.trim(), email.trim(), agreementsAccepted)
-      setToken(r.token)
+      setLoggedIn(true)
       if (remember) {
         localStorage.setItem('fc_remember_user', username.trim())
         // 安全：不再明文存储密码，只记住用户名

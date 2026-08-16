@@ -21,6 +21,7 @@ def create_user(username: str, password: str, invite_code: str = "") -> dict[str
     首个注册用户自动成为管理员。
     """
     _init_db()
+    validate_password_policy(password)
     # 邀请码校验：如果存在邀请码记录，则必须提供有效码
     with _connect() as conn:
         from ..config import get_invite_required
@@ -89,14 +90,25 @@ def set_email_verified(user_id: int) -> None:
 
 
 def set_mfa(user_id: int, secret: Optional[str], enabled: bool) -> None:
+    # TOTP 密钥用 Fernet 加密存储（拿到数据库文件也无法生成验证码）
+    from .crypto import encrypt_key
+    stored = encrypt_key(secret) if secret else None
     with _connect() as conn:
-        conn.execute("UPDATE users SET mfa_secret=?, mfa_enabled=? WHERE id=?", (secret, 1 if enabled else 0, user_id))
+        conn.execute("UPDATE users SET mfa_secret=?, mfa_enabled=? WHERE id=?", (stored, 1 if enabled else 0, user_id))
 
 
 def get_mfa_secret(user_id: int) -> Optional[str]:
     with _connect() as conn:
         row = conn.execute("SELECT mfa_secret,mfa_enabled FROM users WHERE id=?", (user_id,)).fetchone()
-    return row["mfa_secret"] if row and row["mfa_enabled"] else None
+    if not row or not row["mfa_enabled"] or not row["mfa_secret"]:
+        return None
+    stored = row["mfa_secret"]
+    from .crypto import decrypt_key
+    plain = decrypt_key(stored)
+    if plain:
+        return plain
+    # 兼容旧版明文密钥（无法解密时按明文返回）
+    return stored if stored and not stored.startswith("gAAAA") else None
 
 
 def get_or_create_oauth_user(provider: str, provider_user_id: str, preferred_username: str) -> dict[str, Any]:
@@ -214,12 +226,40 @@ def change_password(user_id: int, old_password: str, new_password: str) -> bool:
         return False
     if not verify_password(old_password, row["salt"], row["password_hash"]):
         return False
-    if len(new_password) < 6:
-        raise ValueError("新密码至少6位")
+    validate_password_policy(new_password)
     new_hash, new_salt = hash_password(new_password)
     with _connect() as conn:
         conn.execute(
-            "UPDATE users SET password_hash=?, salt=? WHERE id=?",
+            "UPDATE users SET password_hash=?, salt=?, pwd_version=COALESCE(pwd_version,0)+1 WHERE id=?",
             (new_hash, new_salt, user_id),
         )
     return True
+
+
+def get_pwd_version(user_id: int) -> int:
+    """获取用户当前密码版本（改密码自增；token 中版本不匹配即失效）。"""
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT pwd_version FROM users WHERE id=?", (user_id,)).fetchone()
+    return int(row["pwd_version"]) if row and row["pwd_version"] is not None else 0
+
+
+# 常见弱密码黑名单（前30）与策略校验
+_WEAK_PASSWORDS = {
+    "123456", "1234567", "12345678", "123456789", "1234567890",
+    "password", "password1", "qwerty", "qwerty123", "abc123",
+    "111111", "000000", "666666", "888888", "123123",
+    "iloveyou", "admin", "admin123", "root", "letmein",
+    "welcome", "monkey", "dragon", "sunshine", "princess",
+    "a123456", "123qwe", "1q2w3e4r", "qwe123", "woaini",
+}
+
+
+def validate_password_policy(password: str) -> None:
+    """密码策略：至少8位，且不得是常见弱密码或纯数字/纯字母。"""
+    if len(password) < 8:
+        raise ValueError("密码至少8位")
+    if password.lower() in _WEAK_PASSWORDS:
+        raise ValueError("密码过于常见，请更换")
+    if password.isdigit() or password.isalpha():
+        raise ValueError("密码需同时包含字母和数字")

@@ -46,6 +46,8 @@ from .llm_config import (
 )
 from .users import (
     AGREEMENT_VERSION,
+    get_pwd_version,
+    validate_password_policy,
     authenticate,
     change_password,
     create_user,
@@ -109,6 +111,8 @@ __all__ = [
     "get_effective_llm_config",
     "save_user_llm_config",
     "AGREEMENT_VERSION",
+    "get_pwd_version",
+    "validate_password_policy",
     "create_user",
     "authenticate",
     "get_user",

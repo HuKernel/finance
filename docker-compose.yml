@@ -5,7 +5,7 @@ services:
     build: .
     container_name: financecrew
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"  # 只绑本机，外网访问必须经 nginx TLS 反代
     volumes:
       - financecrew-data:/app/data
     environment:

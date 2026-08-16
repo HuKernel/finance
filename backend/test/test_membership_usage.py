@@ -41,9 +41,9 @@ def test_model_config_requires_membership():
 
 
 def test_invite_reward_increases_bonus_not_used(isolated_db):
-    auth.create_user("inviter", "password")
+    auth.create_user("inviter", "Str0ngPassw0rd")
     code = auth.create_invite_code(1)["code"]
-    auth.create_user("invited", "password", code)
+    auth.create_user("invited", "Str0ngPassw0rd", code)
     usage = auth.get_model_usage({"id": 1, "is_admin": 0, "plan_code": "free", "membership_expires_at": None})
     assert usage["used"] == 0
     assert usage["bonus"] == 1
@@ -51,16 +51,16 @@ def test_invite_reward_increases_bonus_not_used(isolated_db):
 
 
 def test_delete_invited_user_does_not_reuse_invite_code(isolated_db):
-    auth.create_user("inviter", "password")
+    auth.create_user("inviter", "Str0ngPassw0rd")
     code = auth.create_invite_code(1)["code"]
-    invited = auth.create_user("invited", "password", code)
+    invited = auth.create_user("invited", "Str0ngPassw0rd", code)
 
     assert auth.delete_user(invited["id"])
     with pytest.raises(ValueError, match="邀请码无效或已被使用"):
-        auth.create_user("replacement", "password", code)
+        auth.create_user("replacement", "Str0ngPassw0rd", code)
 
     new_code = auth.create_invite_code(1)["code"]
-    replacement = auth.create_user("invited", "password", new_code)
+    replacement = auth.create_user("invited", "Str0ngPassw0rd", new_code)
     assert replacement["username"] == "invited"
 
 
