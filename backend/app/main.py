@@ -118,8 +118,10 @@ async def rate_limit_middleware(request: Request, call_next):
             _rate_map.pop(ip, None)
         _last_cleanup = now
 
+    # 登录类接口与普通接口分桶计数：共享桶会导致普通浏览量高时误伤登录接口
     limit = RATE_MAX_AUTH if path in _AUTH_PATHS else RATE_MAX
-    bucket = _rate_map[client_ip]
+    bucket_key = f"auth:{client_ip}" if path in _AUTH_PATHS else client_ip
+    bucket = _rate_map[bucket_key]
     bucket[:] = [t for t in bucket if now - t < RATE_WINDOW]
     if len(bucket) >= limit:
         return JSONResponse(status_code=429, content={"detail": "请求过于频繁，请稍后再试"})

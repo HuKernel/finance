@@ -97,10 +97,17 @@ def set_mfa(user_id: int, secret: Optional[str], enabled: bool) -> None:
         conn.execute("UPDATE users SET mfa_secret=?, mfa_enabled=? WHERE id=?", (stored, 1 if enabled else 0, user_id))
 
 
-def get_mfa_secret(user_id: int) -> Optional[str]:
+def get_mfa_secret(user_id: int, only_enabled: bool = True) -> Optional[str]:
+    """读取 MFA 密钥（自动解密）。
+
+    only_enabled=True：仅在已启用时返回（登录校验用）；
+    only_enabled=False：setup 后 enable 前也能读到（启用流程需要先验码）。
+    """
     with _connect() as conn:
         row = conn.execute("SELECT mfa_secret,mfa_enabled FROM users WHERE id=?", (user_id,)).fetchone()
-    if not row or not row["mfa_enabled"] or not row["mfa_secret"]:
+    if not row or not row["mfa_secret"]:
+        return None
+    if only_enabled and not row["mfa_enabled"]:
         return None
     stored = row["mfa_secret"]
     from .crypto import decrypt_key
@@ -252,6 +259,8 @@ _WEAK_PASSWORDS = {
     "iloveyou", "admin", "admin123", "root", "letmein",
     "welcome", "monkey", "dragon", "sunshine", "princess",
     "a123456", "123qwe", "1q2w3e4r", "qwe123", "woaini",
+    "password123", "password1234", "admin1234", "qwertyuiop",
+    "1qaz2wsx", "abcd1234", "asd123456", "zxc123456", "520131400",
 }
 
 

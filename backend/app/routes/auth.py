@@ -156,7 +156,7 @@ def mfa_setup(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str
 
 @router.post("/api/auth/mfa/enable")
 def mfa_enable(body: dict[str, str], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
-    secret = auth.get_mfa_secret(user["id"])
+    secret = auth.get_mfa_secret(user["id"], only_enabled=False)
     if not secret or not auth.verify_totp(secret, body.get("code", "")):
         raise HTTPException(400, "验证码不正确")
     auth.set_mfa(user["id"], secret, True)
@@ -165,7 +165,7 @@ def mfa_enable(body: dict[str, str], user: dict[str, Any] = Depends(get_current_
 
 @router.post("/api/auth/mfa/disable")
 def mfa_disable(body: dict[str, str], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
-    secret = auth.get_mfa_secret(user["id"])
+    secret = auth.get_mfa_secret(user["id"], only_enabled=False)
     if not secret or not auth.verify_totp(secret, body.get("code", "")):
         raise HTTPException(400, "验证码不正确")
     auth.set_mfa(user["id"], None, False)
