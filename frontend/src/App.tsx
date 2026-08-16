@@ -299,12 +299,10 @@ function App() {
               )}
             </>
           ) : (
-            <>
+            <div className="sidebar-guest-row">
               <button className="sidebar-login" onClick={() => setLoginTarget(tab)}>登录</button>
-              <div className="sidebar-actions">
-                <button className="ghost" onClick={toggle}>{theme === 'dark' ? '亮色' : '暗色'}</button>
-              </div>
-            </>
+              <button className="ghost" onClick={toggle} title={theme === 'dark' ? '切换亮色' : '切换暗色'}>{theme === 'dark' ? '亮色' : '暗色'}</button>
+            </div>
           )}
         </div>
       </aside>

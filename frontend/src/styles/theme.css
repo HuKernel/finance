@@ -397,3 +397,8 @@ button.ghost:hover { background: var(--surface-hover); }
 @media (prefers-reduced-motion: reduce) {
   .drawer-panel, .drawer-overlay { animation: none; }
 }
+
+/* 游客态底部：登录与主题切换并排两列 */
+.sidebar-guest-row { display: flex; gap: 8px; align-items: stretch; }
+.sidebar-guest-row .sidebar-login { flex: 1; }
+.sidebar-guest-row .ghost { flex: 0 0 auto; padding: 8px 12px; font-size: 12px; }
