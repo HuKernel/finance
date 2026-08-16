@@ -128,7 +128,8 @@ def stream_chat(session_id: int, user_id: int, message: str):
         ):
             if mode == "messages":
                 chunk, _meta = payload
-                if getattr(chunk, "type", "") != "ai":
+                # langchain-core 不同版本 chunk.type 为 'ai' 或 'AIMessageChunk'
+                if getattr(chunk, "type", "") not in ("ai", "AIMessageChunk"):
                     continue
                 piece = chunk.content
                 if isinstance(piece, list):  # 多模态内容块取文本
