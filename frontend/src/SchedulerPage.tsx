@@ -1,6 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
+
+function openAnalyze(symbol: string, topic = '复查这只定时跟踪标的最新结论') {
+  window.location.hash = `#/analyze?symbol=${encodeURIComponent(symbol)}&topic=${encodeURIComponent(topic)}`
+}
+
+function openQuote(symbol: string) {
+  window.location.hash = `#/quote?symbol=${encodeURIComponent(symbol)}`
+}
+
+function shortTime(value?: string) {
+  return value ? value.slice(5, 16) : '—'
+}
 
 // 定时/自动化分析页面
 export default function SchedulerPage() {
@@ -76,6 +88,14 @@ export default function SchedulerPage() {
     }
   }
 
+  const summary = useMemo(() => {
+    const enabled = tasks.filter(t => t.enabled).length
+    const paused = tasks.length - enabled
+    const symbols = new Set(tasks.flatMap((t: any) => t.symbols || []))
+    const failed = tasks.filter((t: any) => String(t.last_result_summary || '').includes('失败') || String(t.last_result_summary || '').includes('401')).length
+    return { enabled, paused, symbols: symbols.size, failed }
+  }, [tasks])
+
   return (
     <div className="pane">
       <div className="pane-head">
@@ -92,6 +112,15 @@ export default function SchedulerPage() {
 
       {showForm && <TaskForm onDone={() => { setShowForm(false); load() }} />}
 
+      {tasks.length > 0 && (
+        <div className="scheduler-summary-grid">
+          <div className="scheduler-summary-card"><span>启用中</span><strong>{summary.enabled}</strong><p>当前仍在运行的定时策略</p></div>
+          <div className="scheduler-summary-card"><span>已暂停</span><strong>{summary.paused}</strong><p>保留配置但暂不自动执行</p></div>
+          <div className="scheduler-summary-card"><span>覆盖标的</span><strong>{summary.symbols}</strong><p>跨任务累计跟踪的股票数量</p></div>
+          <div className="scheduler-summary-card"><span>待处理</span><strong>{summary.failed}</strong><p>最近结果里出现失败或认证异常的任务</p></div>
+        </div>
+      )}
+
       {tasks.length === 0 ? (
         <div className="empty-state">
           <p>暂无定时分析任务</p>
@@ -101,6 +130,7 @@ export default function SchedulerPage() {
         <div className="task-list">
           {tasks.map(t => {
             const isRunning = runningIds.has(t.id)
+            const primarySymbol = (t.symbols || [])[0]
             return (
               <div key={t.id} className={`task-card ${t.enabled ? '' : 'disabled'}`}>
                 <div className="task-header" onClick={() => !isRunning && toggleExpand(t.id)}>
@@ -129,6 +159,10 @@ export default function SchedulerPage() {
                     <span key={s} className="symbol-tag">{s}</span>
                   ))}
                 </div>
+                <div className="task-quick-actions">
+                  {primarySymbol && <button className="ghost-btn" onClick={() => openAnalyze(primarySymbol)}>继续研究</button>}
+                  {primarySymbol && <button className="ghost-btn" onClick={() => openQuote(primarySymbol)}>查看行情</button>}
+                </div>
                 {t.last_run_at && (
                   <div className="task-last-run">
                     <span className="label">上次运行: {t.last_run_at}</span>
@@ -147,18 +181,43 @@ export default function SchedulerPage() {
                     {results.length === 0 ? (
                       <p className="hint">暂无执行记录</p>
                     ) : (
-                      results.map((r: any, i: number) => (
-                        <div key={i} className="result-item">
-                          <span className="result-time">{r.run_at}</span>
-                          {r.results?.skipped ? (
-                            <span className="result-skipped">跳过: {r.results.reason}</span>
-                          ) : (
-                            <div className="result-detail">
-                              {r.results?.summary && <span className="result-summary">{r.results.summary}</span>}
+                      results.map((r: any, i: number) => {
+                        const symbolEntries = Object.entries(r.results?.symbols || {}) as [string, any][]
+                        return (
+                          <div key={i} className="result-block">
+                            <div className="result-item">
+                              <span className="result-time">{shortTime(r.run_at)}</span>
+                              {r.results?.skipped ? (
+                                <span className="result-skipped">跳过: {r.results.reason}</span>
+                              ) : (
+                                <div className="result-detail">
+                                  {r.results?.summary && <span className="result-summary">{r.results.summary}</span>}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))
+                            {symbolEntries.length > 0 && (
+                              <div className="result-symbol-grid">
+                                {symbolEntries.map(([symbol, item]) => (
+                                  <div key={symbol} className="result-symbol-card">
+                                    <div>
+                                      <strong>{item.name || symbol}</strong>
+                                      <span>{symbol} · {item.action || '待定'}</span>
+                                    </div>
+                                    <div className="result-symbol-metrics">
+                                      <em className={(item.score ?? 0) >= 0 ? 'up' : 'down'}>{(item.score ?? 0) > 0 ? '+' : ''}{item.score ?? 0}</em>
+                                      <span>{item.price ?? '--'} / {item.change_pct != null ? `${item.change_pct > 0 ? '+' : ''}${item.change_pct}%` : '--'}</span>
+                                    </div>
+                                    <div className="result-symbol-actions">
+                                      <button className="ghost-btn" onClick={() => openAnalyze(symbol, '复查这次定时分析结论')}>继续研究</button>
+                                      <button className="ghost-btn" onClick={() => openQuote(symbol)}>看行情</button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
                     )}
                   </div>
                 )}

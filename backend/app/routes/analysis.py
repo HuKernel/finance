@@ -15,7 +15,7 @@ from ..pipeline import run_analysis, _GRAPH
 from ..models import AnalysisRequest
 from ..data import fetcher as datalayer
 from ..config import get_config, save_config
-from ..llm import LLMClient
+from ..llm import LLMClient, friendly_llm_error
 from ..analysis_trace import AnalysisTrace, attach_trace
 from .. import memory
 import json, time
@@ -33,7 +33,7 @@ def create_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
     try:
         return run_analysis(resolved, req.topic, user_id=user["id"], mode=req.mode)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"分析失败: {e}")
+        raise HTTPException(status_code=500, detail=f"分析失败: {friendly_llm_error(e)}")
 
 
 # 节点名 -> 中文标签映射（SSE 推送给前端展示）
@@ -142,24 +142,25 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
 
             yield _sse({"type": "done"})
         except Exception as e:
-            trace.finish("error", str(e))
+            safe_error = friendly_llm_error(e)
+            trace.finish("error", safe_error)
             final_result = attach_trace({
                 "id": analysis_id,
                 "ticker": ticker,
                 "name": ticker,
                 "status": "error",
                 "consensus_score": 0,
-                "consensus_verdict": f"分析流程异常: {e}",
+                "consensus_verdict": safe_error,
                 "analyst_views": [],
                 "debate": [],
                 "risk_review": None,
                 "trade_plan": None,
                 "disclaimer": "分析过程中出现错误，请稍后重试或检查 LLM 配置。",
-                "error": str(e),
+                "error": safe_error,
             }, trace)
             if analysis_id is not None:
                 memory.update_analysis(analysis_id, final_result, status="error")
-            yield _sse({"type": "error", "message": str(e), "run_id": trace.run_id})
+            yield _sse({"type": "error", "message": safe_error, "run_id": trace.run_id})
         finally:
             _analysis_semaphore.release()
             if not trace.finished and analysis_id is not None:

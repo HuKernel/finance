@@ -8,7 +8,11 @@ export default function ProfilePage() {
   const [section, setSection] = useState<Section>('membership')
   const [isMember, setIsMember] = useState(false)
 
-  useEffect(() => { api.getCapabilities().then(({ plan }) => setIsMember(plan !== 'free')).catch(() => {}) }, [])
+  useEffect(() => {
+    api.getCapabilities().then(({ plan, is_admin }) => {
+      setIsMember(Boolean(is_admin) || plan !== 'free')
+    }).catch(() => {})
+  }, [])
 
   return (
     <div className="pane profile-page">
@@ -51,7 +55,7 @@ function InviteSection() {
 
 function MembershipSection() {
   const [config, setConfig] = useState<{plans: {code:string;name:string;amount_fen:number}[];channels: Record<string, boolean>} | null>(null)
-  const [membership, setMembership] = useState<{plan:string;membership_expires_at:string|null;model_usage:{used:number;limit:number|null;remaining:number|null}} | null>(null)
+  const [membership, setMembership] = useState<{plan:string;is_admin:boolean;membership_expires_at:string|null;model_usage:{used:number;limit:number|null;remaining:number|null}} | null>(null)
   const [plan, setPlan] = useState('monthly')
   const [channel, setChannel] = useState('wechat')
   const [order, setOrder] = useState<{order_no:string;channel:string;status:string;qr_code?:string;pay_url?:string} | null>(null)
@@ -91,12 +95,12 @@ function MembershipSection() {
   }
 
   if (!config || !membership) return <div className="loading loading-center">加载中...</div>
-  const isMember = membership.plan !== 'free'
+  const isMember = membership.is_admin || membership.plan !== 'free'
   return (
     <div className="config-section membership-section">
       <div className="membership-current">
-        <strong>{isMember ? '专业会员' : '免费用户'}</strong>
-        <span>{isMember ? `有效期至 ${membership.membership_expires_at?.slice(0, 10) || '长期'}` : `本月 AI 剩余 ${membership.model_usage.remaining ?? 0} 次`}</span>
+        <strong>{membership.is_admin ? '管理员（无限模型额度）' : isMember ? '专业会员' : '免费用户'}</strong>
+        <span>{membership.is_admin ? '模型使用不受普通会员额度限制' : isMember ? `有效期至 ${membership.membership_expires_at?.slice(0, 10) || '长期'}` : `本月 AI 剩余 ${membership.model_usage.remaining ?? 0} 次`}</span>
       </div>
       <div className="plan-cards">
         {config.plans.map(item => <button key={item.code} className={plan === item.code ? 'active' : ''} onClick={() => setPlan(item.code)}>

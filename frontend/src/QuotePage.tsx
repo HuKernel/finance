@@ -13,6 +13,15 @@ import OrderBookPanel from './quote/OrderBookPanel'
 import FundFlowCard from './quote/FundFlowCard'
 import PatternCard from './quote/PatternCard'
 
+function selectedFromHash(): SearchItem | null {
+  const hash = window.location.hash || ''
+  const [, query = ''] = hash.split('?')
+  const params = new URLSearchParams(query)
+  const raw = params.get('symbol')?.trim()
+  if (!raw) return null
+  return { market: inferMarket(raw), code: stripMarket(raw), name: raw, type: 'GP' }
+}
+
 
 export default function QuotePage() {
   const [query, setQuery] = useState('')
@@ -42,8 +51,15 @@ export default function QuotePage() {
   const searchTimer = useRef<number | null>(null)
   const chartRequestRef = useRef(0)
 
-  // 默认展示 A 股全市场当日成交额第一；数据源失败时回退到稳定示例。
+  // 默认展示 hash 里指定标的；否则展示 A 股全市场当日成交额第一；数据源失败时回退到稳定示例。
   useEffect(() => {
+    const fromHash = selectedFromHash()
+    if (fromHash) {
+      setSelected(fromHash)
+      setQuery(fromHash.name)
+      setDefaultRank(null)
+      return
+    }
     api.getTopTurnoverStock().then((stock) => {
       const market = stock.code.startsWith('6') ? 'sh' : /^[48]/.test(stock.code) ? 'bj' : 'sz'
       setSelected({ market, code: stock.code, name: stock.name, type: 'GP' })

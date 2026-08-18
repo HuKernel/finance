@@ -9,6 +9,7 @@ Ollama(本地)、vLLM 等。
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any
 
@@ -16,6 +17,22 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
 from .config import get_config
+
+logger = logging.getLogger(__name__)
+
+
+def friendly_llm_error(error: Exception) -> str:
+    """把供应商原始错误转换为可直接展示给用户的提示。"""
+    text = str(error).lower()
+    if '401' in text or 'authentication' in text or 'api key' in text or 'invalid_request_error' in text:
+        return '模型服务认证失败，请到个人中心 → 模型配置检查 API Key 和接口地址。'
+    if '403' in text or 'permission' in text or 'forbidden' in text:
+        return '模型服务拒绝了当前请求，请检查账号权限、模型权限或接口配置。'
+    if '429' in text or 'rate limit' in text or 'too many requests' in text:
+        return '模型服务当前请求过多，请稍后再试。'
+    if 'timeout' in text or 'timed out' in text or 'time out' in text:
+        return '模型服务响应超时，请稍后重试；如果持续出现，请检查接口地址。'
+    return '模型服务暂时不可用，请检查个人中心的模型配置后重试。'
 
 
 class LLMClient:
@@ -67,9 +84,16 @@ class LLMClient:
                 return resp.content or ""
             except Exception as e:
                 last_err = e
+                logger.warning(
+                    "LLM call failed provider=%s model=%s attempt=%s error_type=%s",
+                    self.config.get("provider", "unknown"),
+                    self.config.get("model", "unknown"),
+                    attempt + 1,
+                    type(e).__name__,
+                )
                 if attempt < 2:
                     time.sleep(1.5 * (attempt + 1))
-        return f"[LLM调用失败: {last_err}]"
+        return f"[LLM调用失败: {friendly_llm_error(last_err or RuntimeError('unknown'))}]"
 
     def chat_json(self, system: str, user: str) -> dict[str, Any]:
         """调用 LLM 并解析 JSON 输出；解析失败自动追问一次。"""

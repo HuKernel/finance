@@ -58,6 +58,11 @@
 
 /* ==================== 定时分析 ==================== */
 .scheduler-status { display: flex; align-items: center; gap: 12px; }
+.scheduler-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0 0 16px; background: var(--border); border: 1px solid var(--border); }
+.scheduler-summary-card { min-height: 118px; padding: 16px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
+.scheduler-summary-card span { color: var(--text-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.scheduler-summary-card strong { font-size: 28px; font-family: var(--mono); }
+.scheduler-summary-card p { color: var(--text-2); font-size: 12px; line-height: 1.6; }
 .trading-badge { font-size: 12px; padding: 4px 10px; border: 1px solid var(--border); font-family: var(--mono); }
 .trading-badge.open { color: var(--up); border-color: var(--up); }
 .trading-badge.closed { color: var(--text-3); }
@@ -77,14 +82,28 @@
 .ghost-btn.danger:hover { color: var(--down); border-color: var(--down); }
 .task-symbols { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .symbol-tag { font-size: 11px; font-family: var(--mono); padding: 2px 8px; border: 1px solid var(--border); color: var(--text-2); }
+.task-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.task-quick-actions .ghost-btn { padding: 5px 10px; font-size: 12px; }
 .task-last-run { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); display: flex; gap: 12px; }
 .task-last-run .summary { color: var(--text-2); }
 .task-results { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .task-results h4 { font-size: 13px; margin-bottom: 8px; color: var(--text-2); }
+.result-block { padding: 10px 0; border-top: 1px solid var(--border); }
+.result-block:first-of-type { border-top: 0; }
 .result-item { display: flex; gap: 12px; align-items: baseline; padding: 4px 0; font-size: 12px; }
 .result-time { color: var(--text-3); font-family: var(--mono); }
 .result-skipped { color: var(--text-3); }
 .result-summary { color: var(--text-2); }
+.result-symbol-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1px; margin-top: 8px; background: var(--border); border: 1px solid var(--border); }
+.result-symbol-card { padding: 12px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; }
+.result-symbol-card strong { font-size: 14px; }
+.result-symbol-card span { color: var(--text-3); font-size: 12px; }
+.result-symbol-metrics { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.result-symbol-metrics em { font-style: normal; font-family: var(--mono); }
+.result-symbol-metrics em.up { color: var(--up); }
+.result-symbol-metrics em.down { color: var(--down); }
+.result-symbol-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.result-symbol-actions .ghost-btn { padding: 5px 10px; font-size: 12px; }
 .task-form { border: 1px solid var(--border); padding: 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
 .form-row { display: flex; gap: 8px; }
 .form-row .alert-input, .form-row .alert-select { flex: 1; }
@@ -94,3 +113,8 @@
 .bt-round-trips summary { padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text-2); }
 .bt-round-trips summary:hover { color: var(--text); }
 .bt-round-trips table { border-top: 1px solid var(--border); }
+
+@media (max-width: 900px) {
+  .scheduler-summary-grid,
+  .result-symbol-grid { grid-template-columns: 1fr; }
+}

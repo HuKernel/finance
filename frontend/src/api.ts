@@ -153,7 +153,7 @@ export const api = {
   saveProfile: (patch: Partial<UserProfile>) =>
     request<UserProfile>('/api/auth/profile', { method: 'PUT', body: JSON.stringify(patch) }),
 
-  getCapabilities: () => request<{plan:string;membership_expires_at:string|null;model_usage:{used:number;limit:number|null;remaining:number|null}}>('/api/auth/capabilities'),
+  getCapabilities: () => request<{plan:string;is_admin:boolean;membership_expires_at:string|null;model_usage:{used:number;limit:number|null;remaining:number|null}}>('/api/auth/capabilities'),
 
   getPaymentConfig: () => request<{plans:{code:string;name:string;amount_fen:number}[];channels:Record<string,boolean>}>('/api/payments/config'),
 

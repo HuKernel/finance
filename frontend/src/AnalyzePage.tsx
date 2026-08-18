@@ -1,9 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from './api'
 import type { AnalysisResult } from './types'
 import Markdown from './Markdown'
 import { useModal } from './Modal'
 import QuoteCard from './QuoteCard'
+
+function analyzeParamsFromHash(): { symbol: string; topic: string } {
+  const hash = window.location.hash || ''
+  const [, query = ''] = hash.split('?')
+  const params = new URLSearchParams(query)
+  return {
+    symbol: params.get('symbol')?.trim() || '',
+    topic: params.get('topic')?.trim() || '',
+  }
+}
 
 function AnalyzePane({ onBacktest, onQuote }: { onBacktest: () => void; onQuote: () => void }) {
   const { toast } = useModal()
@@ -19,6 +29,19 @@ function AnalyzePane({ onBacktest, onQuote }: { onBacktest: () => void; onQuote:
   const [reflections, setReflections] = useState<any[]>([])
   const [reflectionLoading, setReflectionLoading] = useState(false)
   const quoteCode = /^(?:\d{6}|(?:hk|us)[a-z0-9]{2,8})$/i.test(ticker.trim()) ? ticker.trim() : ''
+  const topicTemplates = [
+    '短线异动值不值得追？',
+    '财报后最关键的变化是什么？',
+    '这只股票现在适合继续持有吗？',
+    '和同行相比它贵不贵？',
+    '如果准备建仓，风险点主要在哪？',
+  ]
+
+  useEffect(() => {
+    const next = analyzeParamsFromHash()
+    if (next.symbol) setTicker(next.symbol)
+    if (next.topic) setTopic(next.topic)
+  }, [])
 
   const loadReflections = async (t: string) => {
     setReflectionLoading(true)
@@ -220,8 +243,15 @@ function AnalyzePane({ onBacktest, onQuote }: { onBacktest: () => void; onQuote:
             rows={4}
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="研究问题（可选），例如：未来两年增长来自哪里？"
+            placeholder="研究问题（可选），例如：研究这只票未来两年增长来自哪里？"
           />
+          <div className="research-topic-templates">
+            {topicTemplates.map((item) => (
+              <button key={item} type="button" className={`ghost research-template-btn ${topic === item ? 'active' : ''}`} onClick={() => setTopic(item)}>
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="research-mode-row research-side-modes">
           <label>
@@ -256,13 +286,19 @@ function ReportView({ result }: { result: AnalysisResult }) {
   const trend = score >= 3 ? '偏多' : score <= -3 ? '偏空' : '中性'
   const plan = result.trade_plan
   const risk = result.risk_review
-  // gauge 标记位置：-10 ~ +10 映射到 0% ~ 100%
   const gaugeLeft = `${((score + 10) / 20) * 100}%`
 
   const price = result.price
   const changePct = result.change_pct
   const trace = result.raw?.trace
   const evidence = result.raw?.report
+  const hasAlertTargets = Boolean(plan?.target_price || plan?.stop_loss)
+  const actionSummary = [
+    { label: '保存为 thesis', detail: '沉淀核心逻辑与证伪条件', action: 'thesis' },
+    { label: '创建价格预警', detail: hasAlertTargets ? '按目标价/止损价自动建预警' : '当前报告暂无目标价或止损价', action: 'alerts' },
+    { label: '建立每日跟踪', detail: '交易日 09:30 自动复查观点', action: 'schedule' },
+    { label: '去做策略验证', detail: '切到回测页验证历史表现', action: 'backtest' },
+  ]
 
   const saveThesis = async () => {
     setActionBusy('thesis')
@@ -359,6 +395,25 @@ function ReportView({ result }: { result: AnalysisResult }) {
         <button className="ghost" disabled={!!actionBusy} onClick={scheduleTracking}>
           {actionBusy === 'schedule' ? '创建中...' : '每日 09:30 跟踪'}
         </button>
+      </div>
+
+      <div className="report-next-actions">
+        {actionSummary.map((item) => (
+          <button
+            key={item.action}
+            className={`report-next-card ${item.action === 'alerts' && !hasAlertTargets ? 'disabled' : ''}`}
+            disabled={!!actionBusy || (item.action === 'alerts' && !hasAlertTargets)}
+            onClick={() => {
+              if (item.action === 'thesis') saveThesis()
+              else if (item.action === 'alerts') createPlanAlerts()
+              else if (item.action === 'schedule') scheduleTracking()
+              else window.location.hash = `#/backtest?symbol=${encodeURIComponent(result.ticker)}`
+            }}
+          >
+            <span>{item.label}</span>
+            <strong>{item.detail}</strong>
+          </button>
+        ))}
       </div>
 
       {evidence && <ReportEvidenceView evidence={evidence} />}

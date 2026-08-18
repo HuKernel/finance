@@ -73,6 +73,71 @@ const fmtYiCap = (v: number | null | undefined): string => {
 // ============== 主组件 ==============
 export default function MarketDataPage() {
   const [tab, setTab] = useState<PageTab>('sector')
+  const [focus, setFocus] = useState<{
+    turnover: any | null
+    leader: any | null
+    ladder: any | null
+    flash: any | null
+  }>({ turnover: null, leader: null, ladder: null, flash: null })
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [rankings, sentiment, flash] = await Promise.all([
+          api.get<any>('/api/market/rankings'),
+          api.get<any>('/api/market/sentiment'),
+          api.get<any>('/api/news/flash?limit=5'),
+        ])
+        if (cancelled) return
+        setFocus({
+          turnover: rankings?.turnover?.[0] || null,
+          leader: rankings?.gainers?.[0] || null,
+          ladder: sentiment?.ladder?.[0] || null,
+          flash: flash?.news?.[0] || null,
+        })
+      } catch {
+        if (cancelled) return
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const openQuote = (code?: string) => {
+    if (!code) return
+    window.location.hash = `#/quote?symbol=${encodeURIComponent(code)}`
+  }
+
+  const focusCards = [
+    {
+      label: '成交额核心',
+      title: focus.turnover?.name || '--',
+      sub: focus.turnover?.code || '今日最受关注的成交额龙头',
+      value: focus.turnover ? `${fmtPct(focus.turnover.change_pct)} · ${fmtYi(focus.turnover.amount)}亿` : '—',
+      onClick: () => openQuote(focus.turnover?.code),
+    },
+    {
+      label: '涨幅龙头',
+      title: focus.leader?.name || '--',
+      sub: focus.leader?.code || '强势方向温度计',
+      value: focus.leader ? `${fmtPct(focus.leader.change_pct)} · ${fmtNum(focus.leader.price)}` : '—',
+      onClick: () => openQuote(focus.leader?.code),
+    },
+    {
+      label: '连板高度',
+      title: focus.ladder?.name || '--',
+      sub: focus.ladder?.code || '情绪高度代表',
+      value: focus.ladder ? `${focus.ladder.boards || 0}板 · ${focus.ladder.reason || '题材跟踪'}` : '—',
+      onClick: () => openQuote(focus.ladder?.code),
+    },
+    {
+      label: '快讯焦点',
+      title: focus.flash?.source || '快讯',
+      sub: focus.flash?.published_at || focus.flash?.time || '最新消息',
+      value: focus.flash?.title || '—',
+      onClick: () => setTab('radar'),
+    },
+  ]
 
   return (
     <div className="pane">
@@ -87,6 +152,17 @@ export default function MarketDataPage() {
           <button className={tab === 'margin' ? 'active' : ''} onClick={() => setTab('margin')}>融资融券</button>
           <button className={tab === 'north' ? 'active' : ''} onClick={() => setTab('north')}>北向资金</button>
         </div>
+      </div>
+
+      <div className="mkt-focus-grid">
+        {focusCards.map((card) => (
+          <button key={card.label} className="mkt-focus-card" onClick={card.onClick}>
+            <span>{card.label}</span>
+            <strong>{card.title}</strong>
+            <em>{card.sub}</em>
+            <p>{card.value}</p>
+          </button>
+        ))}
       </div>
 
       {tab === 'sector' && <SectorTab />}

@@ -5,6 +5,22 @@
   gap: 12px;
   margin-bottom: 20px;
 }
+.portfolio-workbench { display: grid; gap: 16px; margin-bottom: 20px; }
+.portfolio-workbench-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.portfolio-panel { padding: 16px; background: var(--surface); }
+.portfolio-panel-label { display: block; color: var(--text-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.portfolio-panel strong { display: block; margin-top: 8px; font-size: 22px; font-family: var(--mono); }
+.portfolio-panel p { margin-top: 8px; color: var(--text-2); font-size: 12px; line-height: 1.7; }
+.portfolio-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.portfolio-inline-actions .ghost { padding: 6px 10px; font-size: 12px; }
+.portfolio-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.portfolio-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.portfolio-activity-list { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.portfolio-activity-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--surface-2); }
+.portfolio-activity-item strong { display: block; font-size: 14px; font-family: var(--sans); }
+.portfolio-activity-item span { display: block; margin-top: 4px; color: var(--text-3); font-size: 12px; }
+.portfolio-activity-item em { font-style: normal; font-family: var(--mono); color: var(--text-2); }
+.portfolio-activity-item .ghost { padding: 6px 10px; font-size: 12px; }
 .portfolio-table {
   width: 100%;
   border-collapse: collapse;
@@ -24,6 +40,8 @@
 }
 .portfolio-table td.up { color: var(--up); }
 .portfolio-table td.down { color: var(--down); }
+.portfolio-table-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.portfolio-table-actions .ghost { padding: 5px 8px; font-size: 12px; }
 .empty-row { text-align: center; color: var(--text-3); padding: 20px !important; }
 .pf-name { font-weight: 500; }
 .pf-code { color: var(--text-3); font-size: 11px; font-family: var(--mono); margin-left: 4px; }
@@ -96,4 +114,10 @@
 .backtest-trades h4 {
   font-size: 13px;
   margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+  .portfolio-summary,
+  .portfolio-workbench-grid,
+  .portfolio-split { grid-template-columns: 1fr; }
 }

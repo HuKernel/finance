@@ -1,4 +1,11 @@
 /* ==================== 市场数据页 ==================== */
+.mkt-focus-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0 0 16px; background: var(--border); border: 1px solid var(--border); }
+.mkt-focus-card { min-height: 132px; padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; background: var(--surface); border: 0; color: var(--text); text-align: left; }
+.mkt-focus-card:hover { background: var(--surface-hover); }
+.mkt-focus-card span { color: var(--text-3); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.mkt-focus-card strong { font-size: 18px; }
+.mkt-focus-card em { color: var(--text-3); font-style: normal; font-family: var(--mono); font-size: 11px; }
+.mkt-focus-card p { color: var(--text-2); font-size: 12px; line-height: 1.6; }
 .mkt-pools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 .mkt-rank-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
 .mkt-block-title { font-size: 13px; margin: 0 0 8px; }
@@ -40,6 +47,7 @@
 @media (max-width: 1024px) {
   .app { padding: 16px 20px; }
   .pane { padding: 16px; }
+  .mkt-focus-grid { grid-template-columns: repeat(2, 1fr); }
   .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
   .input-row { flex-wrap: wrap; gap: 8px; }
   .ticker-input { width: 140px; }
@@ -60,6 +68,7 @@
   .portfolio-table thead, .portfolio-table tbody, .history-table thead, .history-table tbody { width: max-content; }
 
   /* KPI卡片单列 */
+  .mkt-focus-grid { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 
   /* 聊天区 */

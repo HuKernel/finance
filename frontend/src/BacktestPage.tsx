@@ -1,7 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from './api'
 import type { BacktestResult } from './types'
 import { lazy, Suspense } from 'react'
+
+function symbolFromHash(): string {
+  const hash = window.location.hash || ''
+  const [, query = ''] = hash.split('?')
+  return new URLSearchParams(query).get('symbol')?.trim() || ''
+}
 
 const BacktestAnalysis = lazy(() => import('./BacktestAnalysis'))
 // 图表组件懒加载：recharts 库很大(~300KB)，只有回测出结果后才加载
@@ -47,6 +53,11 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [params, setParams] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const next = symbolFromHash()
+    if (next) setSymbol(next)
+  }, [])
 
   const currentStrategy = STRATEGIES.find(s => s.key === strategy)
 

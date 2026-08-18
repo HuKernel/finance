@@ -109,6 +109,20 @@ export default function ThesisPage() {
     }
   }
 
+  const shortDate = (value?: string) => value ? value.slice(0, 10) : '—'
+  const openAnalyze = (ticker: string, topic = '') => {
+    window.location.hash = `#/analyze?symbol=${encodeURIComponent(ticker)}${topic ? `&topic=${encodeURIComponent(topic)}` : ''}`
+  }
+  const openBacktest = (ticker: string) => {
+    window.location.hash = `#/backtest?symbol=${encodeURIComponent(ticker)}`
+  }
+
+  const activeTheses = theses.filter(t => t.status === 'active')
+  const invalidatedTheses = theses.filter(t => t.status === 'invalidated')
+  const highConviction = activeTheses.filter(t => Math.abs(Number(t.score || 0)) >= 5)
+  const longHorizon = activeTheses.filter(t => t.horizon === '长线')
+  const spotlight = [...activeTheses].sort((a, b) => Math.abs(Number(b.score || 0)) - Math.abs(Number(a.score || 0)))[0]
+
   return (
     <div className="pane">
       <div className="pane-head">
@@ -132,6 +146,32 @@ export default function ThesisPage() {
           </button>
         ))}
       </div>
+
+      <div className="thesis-summary-grid">
+        <div className="thesis-summary-card"><span>追踪中</span><strong>{activeTheses.length}</strong><p>仍在验证中的 thesis</p></div>
+        <div className="thesis-summary-card"><span>高确信</span><strong>{highConviction.length}</strong><p>绝对评分大于等于 5</p></div>
+        <div className="thesis-summary-card"><span>长线</span><strong>{longHorizon.length}</strong><p>更适合持续跟踪的判断</p></div>
+        <div className="thesis-summary-card"><span>已证伪</span><strong>{invalidatedTheses.length}</strong><p>需要回看错误模式的 thesis</p></div>
+      </div>
+
+      {spotlight && (
+        <div className="thesis-spotlight">
+          <div>
+            <span className="thesis-spotlight-label">优先处理</span>
+            <h3>{spotlight.name || spotlight.ticker} <span>{spotlight.ticker}</span></h3>
+            <p>{spotlight.thesis_text}</p>
+          </div>
+          <div className="thesis-spotlight-meta">
+            <div><span>当前状态</span><strong>{spotlight.status === 'active' ? '追踪中' : '已证伪'}</strong></div>
+            <div><span>评分</span><strong className={Number(spotlight.score || 0) >= 0 ? 'up' : 'down'}>{Number(spotlight.score || 0) > 0 ? '+' : ''}{spotlight.score}</strong></div>
+            <div><span>周期</span><strong>{spotlight.horizon || '未设置'}</strong></div>
+            <div><span>建立日期</span><strong>{shortDate(spotlight.created_at)}</strong></div>
+            <button className="ghost-btn" onClick={() => openAnalyze(spotlight.ticker, '这只股票现在适合继续持有吗？')}>继续研究</button>
+            <button className="ghost-btn" onClick={() => openBacktest(spotlight.ticker)}>做回测</button>
+            <button className="ghost-btn" onClick={() => toggleExpand(spotlight.id)}>{expandedId === spotlight.id ? '收起详情' : '展开详情'}</button>
+          </div>
+        </div>
+      )}
 
       {drift && (
         <div className="drift-panel">
@@ -197,10 +237,19 @@ export default function ThesisPage() {
                 </div>
 
                 <div className="thesis-body">
+                  <div className="thesis-meta-row">
+                    <span>建立 {shortDate(t.created_at)}</span>
+                    {t.updated_at && <span>更新 {shortDate(t.updated_at)}</span>}
+                    {t.invalidated_at && <span>证伪 {shortDate(t.invalidated_at)}</span>}
+                  </div>
                   <div className="thesis-score">
                     评分: <span className={t.score >= 0 ? 'up' : 'down'}>{t.score > 0 ? '+' : ''}{t.score}</span>
                   </div>
                   <div className="thesis-text">{t.thesis_text}</div>
+                  <div className="thesis-inline-actions">
+                    <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); openAnalyze(t.ticker, '这只股票现在适合继续持有吗？') }}>继续研究</button>
+                    <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); openBacktest(t.ticker) }}>做回测</button>
+                  </div>
                   {t.key_assumptions?.length > 0 && (
                     <div className="thesis-section">
                       <span className="label">关键假设:</span>

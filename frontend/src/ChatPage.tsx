@@ -9,6 +9,17 @@ import { FlowPanel, ThinkingDots, ThinkingTimer, type FlowStep } from './chat/Fl
 import { WatchList } from './chat/WatchList'
 import { MessageItem } from './chat/MessageItem'
 
+function openAnalyze(symbol: string, topic = '复查这只股票的最新结论') {
+  window.location.hash = `#/analyze?symbol=${encodeURIComponent(symbol)}&topic=${encodeURIComponent(topic)}`
+}
+
+function openQuote(symbol: string) {
+  window.location.hash = `#/quote?symbol=${encodeURIComponent(symbol)}`
+}
+
+function openBacktest(symbol: string) {
+  window.location.hash = `#/backtest?symbol=${encodeURIComponent(symbol)}`
+}
 
 export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
@@ -35,6 +46,26 @@ export default function ChatPage() {
   const [thinkStart, setThinkStart] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const mentionedCodes = [...new Set(messages.flatMap((m) => extractCodes(m.content)))].slice(0, 6)
+  const focusCode = mentionedCodes[mentionedCodes.length - 1] || ''
+  const promptTemplates = focusCode
+    ? [
+        `复查 ${focusCode} 现在适合继续持有吗？`,
+        `总结 ${focusCode} 最新风险点`,
+        `对比 ${focusCode} 和同行估值`,
+        `给我 ${focusCode} 的下一步跟踪计划`,
+      ]
+    : [
+        '分析一下 600519 的基本面',
+        '短线异动值不值得追？',
+        '最近最值得跟踪的股票有哪些？',
+        '给我一份今天的市场主线摘要',
+      ]
+
+  const applyPrompt = (text: string) => {
+    setInput(text)
+  }
 
   const loadSessions = useCallback(async () => {
     try {
@@ -202,10 +233,33 @@ export default function ChatPage() {
       </aside>
 
       <div className="chat-main">
+        {focusCode && (
+          <div className="chat-context-bar">
+            <div className="chat-context-head">
+              <strong>{`当前研究主线 · ${focusCode}`}</strong>
+              <span>围绕同一只股票连续追问、连续跟踪，减少上下文跳转。</span>
+            </div>
+            {mentionedCodes.length > 0 && (
+              <div className="chat-context-codes">
+                {mentionedCodes.map(code => <button key={code} className="ghost chat-code-chip" onClick={() => setInput(code)}>{code}</button>)}
+              </div>
+            )}
+            <div className="chat-context-actions">
+              <button className="ghost" onClick={() => openAnalyze(focusCode)}>继续研究</button>
+              <button className="ghost" onClick={() => openQuote(focusCode)}>看行情</button>
+              <button className="ghost" onClick={() => openBacktest(focusCode)}>做回测</button>
+            </div>
+          </div>
+        )}
         <div className="chat-messages" ref={scrollRef}>
           {messages.length === 0 && (
             <div className="chat-welcome">
               <HotCarousel />
+              <div className="chat-welcome-prompts">
+                {promptTemplates.map((item) => (
+                  <button key={item} className="ghost chat-context-prompt" onClick={() => applyPrompt(item)}>{item}</button>
+                ))}
+              </div>
               <h3>我是 FinanceCrew 投研助理</h3>
               <p>可以问我任何股票问题，例如：</p>
               <ul>

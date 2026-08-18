@@ -1,7 +1,24 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
 import type { PortfolioPosition, PortfolioSummary, TransactionItem } from './types'
+
+function toMoney(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return '-'
+  return value.toLocaleString()
+}
+
+function openAnalyze(symbol: string, topic = '这只持仓现在适合继续持有吗？') {
+  window.location.hash = `#/analyze?symbol=${encodeURIComponent(symbol)}&topic=${encodeURIComponent(topic)}`
+}
+
+function openQuote(symbol: string) {
+  window.location.hash = `#/quote?symbol=${encodeURIComponent(symbol)}`
+}
+
+function openBacktest(symbol: string) {
+  window.location.hash = `#/backtest?symbol=${encodeURIComponent(symbol)}`
+}
 
 // 投资组合页面
 export default function PortfolioPage() {
@@ -37,6 +54,19 @@ export default function PortfolioPage() {
     const timer = setInterval(load, 15000)
     return () => clearInterval(timer)
   }, [])
+
+  const exposure = useMemo(() => {
+    const total = summary?.total_market_value || 0
+    const priced = positions.filter(p => p.market_value != null && p.market_value > 0)
+    const best = [...priced].sort((a, b) => (b.pnl_pct ?? -Infinity) - (a.pnl_pct ?? -Infinity))[0] || null
+    const worst = [...priced].sort((a, b) => (a.pnl_pct ?? Infinity) - (b.pnl_pct ?? Infinity))[0] || null
+    const concentration = total > 0 && best?.market_value ? (best.market_value / total) * 100 : 0
+    const lossCount = priced.filter(p => (p.pnl_pct ?? 0) < 0).length
+    const gainCount = priced.filter(p => (p.pnl_pct ?? 0) >= 0).length
+    return { best, worst, concentration, lossCount, gainCount }
+  }, [positions, summary])
+
+  const recentActivity = useMemo(() => transactions.slice(0, 5), [transactions])
 
   const handleDeleteTransaction = async (id: number) => {
     if (!await confirm('确定撤销这笔交易吗？持仓会按剩余流水重新计算。', { danger: true, confirmText: '撤销' })) return
@@ -81,22 +111,80 @@ export default function PortfolioPage() {
         <div className="alert-error">{summary.unpriced_count} 项持仓暂时无法获取行情，总市值和总盈亏仅统计有报价的持仓。</div>
       )}
 
+      {summary && (
+        <div className="portfolio-workbench">
+          <div className="portfolio-workbench-grid">
+            <div className="portfolio-panel">
+              <span className="portfolio-panel-label">集中度</span>
+              <strong>{exposure.concentration ? `${exposure.concentration.toFixed(1)}%` : '--'}</strong>
+              <p>{exposure.best ? `${exposure.best.symbol_name} 是当前最大已定价持仓` : '暂无可计算持仓集中度'}</p>
+            </div>
+            <div className="portfolio-panel">
+              <span className="portfolio-panel-label">盈利 / 亏损</span>
+              <strong>{exposure.gainCount} / {exposure.lossCount}</strong>
+              <p>快速判断组合内部扩散程度，而不是只看总收益。</p>
+            </div>
+            <div className="portfolio-panel">
+              <span className="portfolio-panel-label">最佳持仓</span>
+              <strong>{exposure.best ? `${exposure.best.symbol_name} ${exposure.best.pnl_pct ?? 0}%` : '--'}</strong>
+              <div className="portfolio-inline-actions">
+                {exposure.best && <button className="ghost" onClick={() => openAnalyze(exposure.best!.symbol, '这只盈利持仓现在要不要继续拿？')}>继续研究</button>}
+                {exposure.best && <button className="ghost" onClick={() => openQuote(exposure.best!.symbol)}>看行情</button>}
+              </div>
+            </div>
+            <div className="portfolio-panel">
+              <span className="portfolio-panel-label">最弱持仓</span>
+              <strong>{exposure.worst ? `${exposure.worst.symbol_name} ${exposure.worst.pnl_pct ?? 0}%` : '--'}</strong>
+              <div className="portfolio-inline-actions">
+                {exposure.worst && <button className="ghost" onClick={() => openAnalyze(exposure.worst!.symbol, '这只亏损持仓是否应该减仓或退出？')}>复盘风险</button>}
+                {exposure.worst && <button className="ghost" onClick={() => openBacktest(exposure.worst!.symbol)}>做回测</button>}
+              </div>
+            </div>
+          </div>
+
+          <div className="portfolio-split">
+            <div className="portfolio-panel">
+              <div className="portfolio-panel-head">
+                <span className="portfolio-panel-label">最近动作</span>
+                <button className="ghost" onClick={() => setView('history')}>看全部流水</button>
+              </div>
+              <div className="portfolio-activity-list">
+                {recentActivity.length === 0 && <div className="empty">暂无交易记录</div>}
+                {recentActivity.map(item => (
+                  <div key={item.id} className="portfolio-activity-item">
+                    <div>
+                      <strong>{item.symbol_name}</strong>
+                      <span>{item.date} · {item.action === 'buy' ? '买入' : '卖出'} {item.shares} 股</span>
+                    </div>
+                    <em>{toMoney(item.total)}</em>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="portfolio-panel">
+              <div className="portfolio-panel-head">
+                <span className="portfolio-panel-label">公司事件</span>
+                <button className="ghost" onClick={() => setView('holdings')}>回持仓</button>
+              </div>
+              <div className="portfolio-activity-list">
+                {events.length === 0 && <div className="empty">暂无公司事件</div>}
+                {events.slice(0, 5).map(event => (
+                  <div key={`${event.symbol}-${event.period}`} className="portfolio-activity-item">
+                    <div>
+                      <strong>{event.name}</strong>
+                      <span>{event.date || '日期待定'} · {event.status}</span>
+                    </div>
+                    <button className="ghost" onClick={() => openQuote(event.symbol)}>看标的</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showForm && <TradeForm onDone={() => { setShowForm(false); load() }} />}
 
-      {events.length > 0 && (
-        <details className="company-events">
-          <summary>公司事件日历（{events.length}）</summary>
-          <div className="company-event-list">
-            {events.map(event => (
-              <div key={`${event.symbol}-${event.period}`}>
-                <strong>{event.date || '日期待定'}</strong>
-                <span>{event.name}（{event.symbol}）</span>
-                <em>{event.status}</em>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
       {eventsError && <div className="hint">公司事件日历暂不可用：{eventsError}</div>}
 
       <div className="tabs">
@@ -108,12 +196,12 @@ export default function PortfolioPage() {
         <table className="portfolio-table">
           <thead>
             <tr>
-              <th>股票</th><th>持仓</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th><th>收益率</th>
+              <th>股票</th><th>持仓</th><th>成本</th><th>现价</th><th>市值</th><th>盈亏</th><th>收益率</th><th>动作</th>
             </tr>
           </thead>
           <tbody>
             {positions.length === 0 && (
-              <tr><td colSpan={7} className="empty-row">暂无持仓，点击"记录交易"添加</td></tr>
+              <tr><td colSpan={8} className="empty-row">暂无持仓，点击"记录交易"添加</td></tr>
             )}
             {positions.map(p => (
               <tr key={p.id}>
@@ -127,6 +215,12 @@ export default function PortfolioPage() {
                 </td>
                 <td className={p.pnl_pct != null && p.pnl_pct >= 0 ? 'up' : 'down'}>
                   {p.pnl_pct != null ? (p.pnl_pct >= 0 ? '+' : '') + p.pnl_pct + '%' : '-'}
+                </td>
+                <td>
+                  <div className="portfolio-table-actions">
+                    <button className="ghost" onClick={() => openAnalyze(p.symbol)}>研究</button>
+                    <button className="ghost" onClick={() => openQuote(p.symbol)}>行情</button>
+                  </div>
                 </td>
               </tr>
             ))}

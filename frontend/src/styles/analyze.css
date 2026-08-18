@@ -31,6 +31,15 @@
 .report-evidence-grid > div { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--border); }
 .report-evidence-grid span, .report-evidence p { color: var(--text-3); line-height: 1.5; }
 .report-evidence p { margin: 12px 0 0; }
+.report-next-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 18px 0 24px; background: var(--border); border: 1px solid var(--border); }
+.report-next-card { min-height: 116px; padding: 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; background: var(--surface); border: 0; color: var(--text); text-align: left; }
+.report-next-card:hover:not(:disabled) { background: var(--surface-hover); }
+.report-next-card span { color: var(--accent); font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.report-next-card strong { font-size: 14px; line-height: 1.6; font-weight: 600; }
+.report-next-card.disabled, .report-next-card:disabled { opacity: 0.55; }
+.research-topic-templates { display: flex; flex-wrap: wrap; gap: 8px; }
+.research-template-btn { padding: 7px 10px; font-size: 12px; }
+.research-template-btn.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
 /* ---------- 共识评分 ---------- */
 .consensus { background: var(--surface); border: 1px solid var(--border); padding: 20px; margin-bottom: 24px; }
@@ -113,6 +122,7 @@
 .feature-row strong { text-align: right; color: var(--text-3); }
 @media (max-width: 768px) {
   .report-evidence-grid { grid-template-columns: 1fr; }
+  .report-next-actions { grid-template-columns: 1fr; }
   .ml-grid { grid-template-columns: 1fr; }
   .ml-controls > * { width: 100%; }
   .ml-verdict { flex-direction: column; }
