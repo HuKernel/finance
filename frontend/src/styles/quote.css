@@ -17,7 +17,15 @@
 .qp-hot-item.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .qp-hot-item.active:hover { color: var(--accent); background: var(--accent-soft); }
 .qp-main { background: var(--surface); border: 1px solid var(--border); padding: 24px; }
-.qp-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.quote-decision-card { display: flex; justify-content: space-between; gap: 16px; margin: 12px 0; padding: 14px 16px; border: 1px solid var(--border); background: var(--surface); }
+.quote-decision-card > div:first-child { display: grid; gap: 5px; }
+.quote-decision-card span { color: var(--text-3); font-size: 11px; }
+.quote-decision-card strong { font-size: 13px; line-height: 1.6; }
+.quote-decision-card.up { border-left: 3px solid var(--up); }
+.quote-decision-card.down { border-left: 3px solid var(--down); }
+.quote-decision-card.neutral { border-left: 3px solid var(--border-strong); }
+.quote-decision-metrics { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.quote-decision-metrics span { padding: 5px 8px; border: 1px solid var(--border); font-family: var(--mono); }
 .qp-title { display: flex; align-items: baseline; gap: 10px; }
 .qp-rank-badge { padding: 3px 8px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 600; }
 .data-status { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0; color: var(--text-3); font: 10px var(--mono); }

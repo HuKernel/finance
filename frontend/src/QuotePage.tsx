@@ -281,6 +281,10 @@ export default function QuotePage() {
   const klineMeta = data?.metadata?.kline
   const delayLabel = ({ near_realtime: '近实时', delayed: '延迟', end_of_day: '日终' } as Record<string, string>)[klineMeta?.delay ?? ''] ?? klineMeta?.delay
   const adjustmentLabel = ({ qfq: '前复权', hfq: '后复权', none: '不复权' } as Record<string, string>)[klineMeta?.adjustment ?? ''] ?? klineMeta?.adjustment
+  const trendLabel = bars.length >= 20 && bars[bars.length - 1].close >= bars[bars.length - 20].close ? '短期趋势偏强' : '短期趋势偏弱'
+  const volumeLabel = b?.volume_ratio != null ? (b.volume_ratio >= 1.5 ? '放量' : b.volume_ratio <= 0.7 ? '缩量' : '量能正常') : '量能未知'
+  const decisionTone = change >= 3 ? 'up' : change <= -3 ? 'down' : 'neutral'
+  const decisionSummary = change >= 3 ? '价格强势，先确认量能和新闻是否形成共振。' : change <= -3 ? '价格承压，优先排查风险和资金流出原因。' : '价格波动中性，适合继续观察趋势与基本面变化。'
 
   return (
     <div className="quote-page">
@@ -436,7 +440,14 @@ export default function QuotePage() {
                 {klineMeta?.fallback_used && <strong>已启用备用数据源{klineMeta.fallback_reason ? `（${klineMeta.fallback_reason}）` : ''}</strong>}
               </div>
 
-              {/* 周期切换工具栏 - 单独一行 */}
+              <div className={`quote-decision-card ${decisionTone}`}>
+                <div><span>决策摘要</span><strong>{decisionSummary}</strong></div>
+                <div className="quote-decision-metrics">
+                  <span>{trendLabel}</span><span>{volumeLabel}</span><span>换手率 {b?.turnover != null ? `${b.turnover}%` : '--'}</span>
+                </div>
+              </div>
+
+
               <div className="qp-toolbar">
                 <select className="period-select" value={multiDay ? `day${multiDay}` : (mode === 'minute' && !multiDay ? 'minute' : 'none')} onChange={(e) => {
                   const v = e.target.value
