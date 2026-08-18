@@ -43,9 +43,22 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
     )
   }
 
+  const stats = items ? {
+    total: items.length,
+    completed: items.filter(item => item.status === 'completed' || item.status === 'success').length,
+    errors: items.filter(item => item.status === 'error' || item.status === 'failed').length,
+    symbols: new Set(items.map(item => item.ticker)).size,
+  } : null
+
   return (
     <div className="pane">
       {error && <ErrorState message={error} onRetry={load} />}
+      {stats && items && items.length > 0 && <div className="history-insights">
+        <div><span>分析总数</span><strong>{stats.total}</strong><p>已保存的研究记录</p></div>
+        <div><span>覆盖标的</span><strong>{stats.symbols}</strong><p>不同股票数量</p></div>
+        <div><span>已完成</span><strong>{stats.completed}</strong><p>可回看完整结论</p></div>
+        <div><span>异常记录</span><strong className={stats.errors ? 'down' : 'up'}>{stats.errors}</strong><p>需要检查模型或数据配置</p></div>
+      </div>}
       {!error && items === null && <Skeleton variant="table" lines={5} />}
       {items?.length === 0 && (
         <EmptyState title="暂无分析记录" hint="去「投研分析」页跑一次，结果会自动保存到这里" />
