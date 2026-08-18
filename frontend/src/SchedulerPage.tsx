@@ -14,6 +14,11 @@ function shortTime(value?: string) {
   return value ? value.slice(5, 16) : '—'
 }
 
+function formatDelta(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—'
+  return `${value > 0 ? '+' : ''}${value}`
+}
+
 // 定时/自动化分析页面
 export default function SchedulerPage() {
   const { toast, confirm } = useModal()
@@ -192,6 +197,7 @@ export default function SchedulerPage() {
                               ) : (
                                 <div className="result-detail">
                                   {r.results?.summary && <span className="result-summary">{r.results.summary}</span>}
+                                  {r.results?.comparison?.summary && <span className="result-comparison">变化：{r.results.comparison.summary}</span>}
                                 </div>
                               )}
                             </div>
@@ -206,6 +212,9 @@ export default function SchedulerPage() {
                                     <div className="result-symbol-metrics">
                                       <em className={(item.score ?? 0) >= 0 ? 'up' : 'down'}>{(item.score ?? 0) > 0 ? '+' : ''}{item.score ?? 0}</em>
                                       <span>{item.price ?? '--'} / {item.change_pct != null ? `${item.change_pct > 0 ? '+' : ''}${item.change_pct}%` : '--'}</span>
+                                      {r.results?.comparison?.symbols?.[symbol] && (
+                                        <small className="result-delta">评分变化 {formatDelta(r.results.comparison.symbols[symbol].score_delta)}</small>
+                                      )}
                                     </div>
                                     <div className="result-symbol-actions">
                                       <button className="ghost-btn" onClick={() => openAnalyze(symbol, '复查这次定时分析结论')}>继续研究</button>

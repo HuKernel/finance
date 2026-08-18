@@ -243,6 +243,47 @@ def run_task_now(task_id: int, user_id: int) -> dict[str, Any] | None:
     return _execute_task(task)
 
 
+def _latest_result(task_id: int, user_id: int) -> dict[str, Any] | None:
+    """读取上一条结果，用于计算定时跟踪的变化。"""
+    previous = list_results(task_id, user_id, limit=1)
+    if not previous:
+        return None
+    return previous[0].get("results") or {}
+
+
+def _with_result_changes(current: dict[str, Any], previous: dict[str, Any] | None) -> dict[str, Any]:
+    """给本次结果补充与上次结果的可读变化摘要。"""
+    if not previous:
+        current["comparison"] = {"has_previous": False, "summary": "首次运行，暂无上次结果可对比。", "symbols": {}}
+        return current
+    old_symbols = previous.get("symbols") or {}
+    changes: dict[str, Any] = {}
+    for symbol, item in (current.get("symbols") or {}).items():
+        old = old_symbols.get(symbol) or {}
+        if item.get("error"):
+            continue
+        score_delta = round(float(item.get("score") or 0) - float(old.get("score") or 0), 2)
+        price = item.get("price")
+        old_price = old.get("price")
+        price_delta = round(float(price) - float(old_price), 2) if price is not None and old_price is not None else None
+        change = item.get("change_pct")
+        old_change = old.get("change_pct")
+        change_delta = round(float(change) - float(old_change), 2) if change is not None and old_change is not None else None
+        changes[symbol] = {
+            "score_delta": score_delta,
+            "price_delta": price_delta,
+            "change_pct_delta": change_delta,
+            "action_changed": bool(old.get("action")) and old.get("action") != item.get("action"),
+            "verdict_changed": bool(old.get("verdict")) and old.get("verdict") != item.get("verdict"),
+            "previous_action": old.get("action", ""),
+            "current_action": item.get("action", ""),
+        }
+    moved = [s for s, c in changes.items() if c["score_delta"] or c["action_changed"] or c["verdict_changed"]]
+    summary = f"{len(moved)} 只标的出现结论变化。" if moved else "本次结论与上次相比基本稳定。"
+    current["comparison"] = {"has_previous": True, "summary": summary, "symbols": changes}
+    return current
+
+
 # ---------- 调度器 ----------
 
 def _job_id(task_id: int) -> str:
@@ -399,12 +440,14 @@ def _execute_task(task: dict[str, Any]) -> dict[str, Any]:
 
     summary_text = "; ".join(summaries)
     run_at = datetime.now().isoformat(timespec="seconds")
-
-    _save_result(task["id"], user_id, {
+    previous_result = _latest_result(task["id"], user_id)
+    payload = _with_result_changes({
         "run_at": run_at,
         "symbols": all_results,
         "summary": summary_text,
-    })
+    }, previous_result)
+
+    _save_result(task["id"], user_id, payload)
 
     # 更新任务最后运行信息
     with _connect() as conn:
