@@ -4,6 +4,7 @@
 //   右栏 300px：盘口数据表 / 资金流向卡 / K线形态卡
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, requireLogin } from './api'
+import { getResearchContext, setResearchContext } from './researchContext'
 import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 import { StarButton } from './QuoteCard'
@@ -24,9 +25,9 @@ function selectedFromHash(): SearchItem | null {
 
 
 export default function QuotePage() {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => getResearchContext().symbol)
   const [results, setResults] = useState<SearchItem[]>([])
-  const [selected, setSelected] = useState<SearchItem>({ market: 'sh', code: '', name: '', type: 'GP' })
+  const [selected, setSelected] = useState<SearchItem>(() => { const context = getResearchContext(); const code = context.symbol; return code ? { market: inferMarket(code), code: stripMarket(code), name: code, type: 'GP' } : { market: 'sh', code: '', name: '', type: 'GP' } })
   const [hotItems, setHotItems] = useState(HOT_FALLBACK)
   const [compareCode, setCompareCode] = useState('')
   const [compareData, setCompareData] = useState<QuoteResponse | null>(null)
@@ -251,6 +252,7 @@ export default function QuotePage() {
 
   const pick = (item: SearchItem) => {
     setSelected(item)
+    setResearchContext({ symbol: item.market + item.code, topic: getResearchContext().topic })
     setDefaultRank(null)
     setQuery(item.name)
     setResults([])
@@ -259,6 +261,7 @@ export default function QuotePage() {
   // 自选股点击切换：尝试用名称（拉取 brief 后再展示真实名称）
   const pickWatchlistCode = (code: string) => {
     setSelected({ market: inferMarket(code), code: stripMarket(code), name: code, type: 'GP' })
+    setResearchContext({ symbol: code, topic: getResearchContext().topic })
     setDefaultRank(null)
     setQuery('')
     setResults([])

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import type { BacktestResult } from './types'
 import { lazy, Suspense } from 'react'
+import { getResearchContext, setResearchContext } from './researchContext'
 
 function symbolFromHash(): string {
   const hash = window.location.hash || ''
@@ -45,7 +46,7 @@ type PageTab = 'basic' | 'analysis'
 
 export default function BacktestPage() {
   const [pageTab, setPageTab] = useState<PageTab>('basic')
-  const [symbol, setSymbol] = useState('')
+  const [symbol, setSymbol] = useState(() => symbolFromHash() || getResearchContext().symbol)
   const [strategy, setStrategy] = useState('ma_cross')
   const [days, setDays] = useState(120)
   const [enableCost, setEnableCost] = useState(true)
@@ -58,6 +59,10 @@ export default function BacktestPage() {
     const next = symbolFromHash()
     if (next) setSymbol(next)
   }, [])
+
+  useEffect(() => {
+    if (symbol.trim()) setResearchContext({ symbol: symbol.trim() })
+  }, [symbol])
 
   const currentStrategy = STRATEGIES.find(s => s.key === strategy)
 

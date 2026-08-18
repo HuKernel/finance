@@ -4,6 +4,7 @@ import type { AnalysisResult } from './types'
 import Markdown from './Markdown'
 import { useModal } from './Modal'
 import QuoteCard from './QuoteCard'
+import { getResearchContext, setResearchContext } from './researchContext'
 
 function analyzeParamsFromHash(): { symbol: string; topic: string } {
   const hash = window.location.hash || ''
@@ -17,8 +18,8 @@ function analyzeParamsFromHash(): { symbol: string; topic: string } {
 
 function AnalyzePane({ onBacktest, onQuote }: { onBacktest: () => void; onQuote: () => void }) {
   const { toast } = useModal()
-  const [ticker, setTicker] = useState('600519')
-  const [topic, setTopic] = useState('')
+  const [ticker, setTicker] = useState(() => analyzeParamsFromHash().symbol || getResearchContext().symbol || '600519')
+  const [topic, setTopic] = useState(() => analyzeParamsFromHash().topic || getResearchContext().topic || '')
   const [mode, setMode] = useState<'standard' | 'agentic'>('standard')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -42,6 +43,10 @@ function AnalyzePane({ onBacktest, onQuote }: { onBacktest: () => void; onQuote:
     if (next.symbol) setTicker(next.symbol)
     if (next.topic) setTopic(next.topic)
   }, [])
+
+  useEffect(() => {
+    if (ticker.trim()) setResearchContext({ symbol: ticker.trim(), topic })
+  }, [ticker, topic])
 
   const loadReflections = async (t: string) => {
     setReflectionLoading(true)

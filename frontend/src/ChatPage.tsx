@@ -8,6 +8,7 @@ import { HotCarousel } from './chat/HotCarousel'
 import { FlowPanel, ThinkingDots, ThinkingTimer, type FlowStep } from './chat/FlowPanel'
 import { WatchList } from './chat/WatchList'
 import { MessageItem } from './chat/MessageItem'
+import { getResearchContext, setResearchContext } from './researchContext'
 
 function openAnalyze(symbol: string, topic = '复查这只股票的最新结论') {
   window.location.hash = `#/analyze?symbol=${encodeURIComponent(symbol)}&topic=${encodeURIComponent(topic)}`
@@ -48,7 +49,8 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const mentionedCodes = [...new Set(messages.flatMap((m) => extractCodes(m.content)))].slice(0, 6)
-  const focusCode = mentionedCodes[mentionedCodes.length - 1] || ''
+  const storedContext = getResearchContext()
+  const focusCode = mentionedCodes[mentionedCodes.length - 1] || storedContext.symbol || ''
   const promptTemplates = focusCode
     ? [
         `复查 ${focusCode} 现在适合继续持有吗？`,
@@ -117,6 +119,8 @@ export default function ChatPage() {
   const send = async (overrideText?: string) => {
     const text = (overrideText ?? input).trim()
     if (!text || busy) return
+    const textCodes = extractCodes(text)
+    if (textCodes.length > 0) setResearchContext({ symbol: textCodes[textCodes.length - 1], topic: text })
     if (text.length > 200) { setError('每条消息最多输入 200 个字符'); return }
     if (!overrideText) setInput('')
     setBusy(true)
