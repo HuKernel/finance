@@ -240,6 +240,8 @@ export interface PortfolioPosition {
   pnl: number | null
   pnl_pct: number | null
   change_pct: number | null
+  industry?: string
+  portfolio_action?: string
 }
 
 export interface PortfolioSummary {
@@ -249,6 +251,14 @@ export interface PortfolioSummary {
   total_pnl_pct: number
   position_count: number
   unpriced_count: number
+}
+
+export interface PortfolioRisk {
+  industry_exposure: { industry: string; market_value: number; weight_pct: number }[]
+  largest_position: string | null
+  largest_position_weight_pct: number
+  current_drawdown_pct: number
+  priced_position_count: number
 }
 
 export interface TransactionItem {

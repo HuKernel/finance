@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { useModal } from './Modal'
-import type { PortfolioPosition, PortfolioSummary, TransactionItem } from './types'
+import type { PortfolioPosition, PortfolioRisk, PortfolioSummary, TransactionItem } from './types'
 
 function toMoney(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return '-'
@@ -25,6 +25,7 @@ export default function PortfolioPage() {
   const { toast, confirm } = useModal()
   const [positions, setPositions] = useState<PortfolioPosition[]>([])
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
+  const [risk, setRisk] = useState<PortfolioRisk | null>(null)
   const [transactions, setTransactions] = useState<TransactionItem[]>([])
   const [events, setEvents] = useState<{ symbol: string; name: string; period: string; date: string; status: string }[]>([])
   const [loadError, setLoadError] = useState('')
@@ -38,6 +39,7 @@ export default function PortfolioPage() {
       const [p, t] = await Promise.all([api.getPortfolio(), api.getTransactions()])
       setPositions(p.positions)
       setSummary(p.summary)
+      setRisk(p.risk)
       setTransactions(t)
     } catch (error) { setLoadError(error instanceof Error ? error.message : '组合数据加载失败') }
   }
@@ -107,6 +109,14 @@ export default function PortfolioPage() {
           </div>
         </div>
       )}
+      {risk && summary && (
+        <div className="portfolio-risk-grid">
+          <div className="portfolio-panel"><span className="portfolio-panel-label">相对成本回撤</span><strong className={risk.current_drawdown_pct < 0 ? 'down' : 'up'}>{risk.current_drawdown_pct.toFixed(2)}%</strong><p>当前市值相对持仓成本的回撤，不代表历史最大回撤。</p></div>
+          <div className="portfolio-panel"><span className="portfolio-panel-label">最大仓位</span><strong>{risk.largest_position_weight_pct.toFixed(1)}%</strong><p>{risk.largest_position || '--'} 当前占组合市值比例。</p></div>
+          <div className="portfolio-panel portfolio-industry-panel"><span className="portfolio-panel-label">行业暴露</span>{risk.industry_exposure.slice(0, 4).map(item => <div className="portfolio-exposure-row" key={item.industry}><span>{item.industry}</span><strong>{item.weight_pct.toFixed(1)}%</strong></div>)}{risk.industry_exposure.length === 0 && <p>暂无可计算行业数据</p>}</div>
+        </div>
+      )}
+
       {summary && summary.unpriced_count > 0 && (
         <div className="alert-error">{summary.unpriced_count} 项持仓暂时无法获取行情，总市值和总盈亏仅统计有报价的持仓。</div>
       )}
@@ -218,6 +228,7 @@ export default function PortfolioPage() {
                 </td>
                 <td>
                   <div className="portfolio-table-actions">
+                    <span className="portfolio-action-label">{p.portfolio_action || '继续跟踪'}</span>
                     <button className="ghost" onClick={() => openAnalyze(p.symbol)}>研究</button>
                     <button className="ghost" onClick={() => openQuote(p.symbol)}>行情</button>
                   </div>

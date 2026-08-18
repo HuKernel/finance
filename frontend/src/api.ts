@@ -2,7 +2,7 @@
 import type {
   AnalysisResult, AuthResponse, ChatMessage, ChatReply, ChatSession,
   HistoryItem, LLMConfig, NewsItem, QuoteResponse, SearchItem, UserProfile,
-  AlertItem, SentimentData, DCFResult, PortfolioPosition, PortfolioSummary,
+  AlertItem, SentimentData, DCFResult, PortfolioPosition, PortfolioRisk, PortfolioSummary,
   TransactionItem, BacktestResult, DataMetadata, NotificationItem,
 } from './types'
 
@@ -254,7 +254,7 @@ export const api = {
 
   // 投资组合
   getPortfolio: () =>
-    request<{ positions: PortfolioPosition[]; summary: PortfolioSummary }>(`/api/portfolio`),
+    request<{ positions: PortfolioPosition[]; summary: PortfolioSummary; risk: PortfolioRisk }>(`/api/portfolio`),
 
   getCompanyEvents: () =>
     request<{ items: { symbol: string; name: string; period: string; date: string; status: string }[]; periods: string[]; source: string; as_of: string }>('/api/company-events'),

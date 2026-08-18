@@ -13,7 +13,11 @@
 .portfolio-panel p { margin-top: 8px; color: var(--text-2); font-size: 12px; line-height: 1.7; }
 .portfolio-inline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .portfolio-inline-actions .ghost { padding: 6px 10px; font-size: 12px; }
-.portfolio-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.portfolio-risk-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(180px, .8fr) minmax(280px, 1.4fr); gap: 1px; margin-bottom: 16px; background: var(--border); border: 1px solid var(--border); }
+.portfolio-industry-panel { display: grid; gap: 8px; }
+.portfolio-exposure-row { display: flex; justify-content: space-between; gap: 12px; color: var(--text-2); font-size: 12px; }
+.portfolio-exposure-row strong { margin-top: 0; font-size: 13px; }
+.portfolio-action-label { color: var(--text-3); font-size: 11px; margin-right: 4px; }
 .portfolio-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .portfolio-activity-list { display: grid; gap: 1px; background: var(--border); border: 1px solid var(--border); }
 .portfolio-activity-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; background: var(--surface-2); }
@@ -119,5 +123,6 @@
 @media (max-width: 900px) {
   .portfolio-summary,
   .portfolio-workbench-grid,
+  .portfolio-risk-grid,
   .portfolio-split { grid-template-columns: 1fr; }
 }

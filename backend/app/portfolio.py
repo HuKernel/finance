@@ -155,6 +155,8 @@ def get_portfolio(user_id: int) -> dict[str, Any]:
     total_pnl = 0.0
     priced_cost = 0.0
     unpriced_count = 0
+    industry_values: dict[str, float] = {}
+    priced_positions: list[dict[str, Any]] = []
 
     for row in rows:
         pos = dict(row)
@@ -176,14 +178,40 @@ def get_portfolio(user_id: int) -> dict[str, Any]:
                 "pnl": round(pnl, 2),
                 "pnl_pct": round(pnl_pct, 2),
                 "change_pct": brief.get("change_pct"),
+                "industry": brief.get("industry") or "未分类",
             })
+            industry = pos["industry"]
+            industry_values[industry] = industry_values.get(industry, 0.0) + market_value
+            if pnl_pct <= -10:
+                pos["portfolio_action"] = "复盘风险"
+            elif pnl_pct >= 20:
+                pos["portfolio_action"] = "关注止盈"
+            elif brief.get("change_pct") is not None and brief.get("change_pct") <= -5:
+                pos["portfolio_action"] = "观察异动"
+            else:
+                pos["portfolio_action"] = "继续跟踪"
+            priced_positions.append(pos)
         else:
             unpriced_count += 1
             pos.update({"current_price": None, "market_value": None, "cost": round(cost, 2), "pnl": None, "pnl_pct": None})
         positions.append(pos)
 
+    industry_exposure = [
+        {"industry": industry, "market_value": round(value, 2), "weight_pct": round(value / total_market_value * 100, 2)}
+        for industry, value in sorted(industry_values.items(), key=lambda item: item[1], reverse=True)
+    ] if total_market_value > 0 else []
+    largest_position = max(priced_positions, key=lambda item: item.get("market_value") or 0, default=None)
+    current_drawdown_pct = round(min(0.0, total_pnl / priced_cost * 100), 2) if priced_cost > 0 else 0.0
+
     return {
         "positions": positions,
+        "risk": {
+            "industry_exposure": industry_exposure,
+            "largest_position": largest_position["symbol"] if largest_position else None,
+            "largest_position_weight_pct": round((largest_position.get("market_value", 0) / total_market_value) * 100, 2) if largest_position and total_market_value > 0 else 0.0,
+            "current_drawdown_pct": current_drawdown_pct,
+            "priced_position_count": len(priced_positions),
+        },
         "summary": {
             "total_market_value": round(total_market_value, 2),
             "total_cost": round(total_cost, 2),
