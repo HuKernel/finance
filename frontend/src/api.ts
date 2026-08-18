@@ -311,6 +311,8 @@ export const api = {
   // per-user LLM 配置
   getUserLLMConfig: () =>
     request<LLMConfig & { api_key: string }>('/api/auth/llm-config'),
+  testLLMConnection: () => request<{ok:boolean;message:string}>('/api/auth/llm-test', { method: 'POST' }),
+
 
   saveUserLLMConfig: (cfg: Partial<LLMConfig>) =>
     request<LLMConfig & { api_key: string }>('/api/auth/llm-config', {

@@ -334,7 +334,14 @@ async def save_llm_config_api(request: Request, user: dict[str, Any] = Depends(r
     return auth.save_user_llm_config(user["id"], body)
 
 
-# ---------- 投研分析 ----------
+@router.post("/api/auth/llm-test")
+def test_llm_connection(user: dict[str, Any] = Depends(require_membership)) -> dict[str, Any]:
+    """测试当前用户实际生效的模型配置，不返回密钥。"""
+    from ..llm import LLMClient
+    ok, message = LLMClient(user_id=user["id"]).test_connection()
+    return {"ok": ok, "message": message}
+
+
 
 def _resolve_ticker(ticker: str) -> str | None:
     """把用户输入（公司名/代码）解析为标准代码，复用 tools.resolve_symbol。"""

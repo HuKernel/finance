@@ -128,6 +128,8 @@ function LLMConfigSection() {
   const [cfg, setCfg] = useState<LLMConfig | null>(null)
   const [providers, setProviders] = useState<Record<string, { base_url: string; model: string }>>({})
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testMsg, setTestMsg] = useState('')
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
 
@@ -155,6 +157,16 @@ function LLMConfigSection() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : '保存失败')
     } finally { setSaving(false) }
+  }
+
+  const testConnection = async () => {
+    setTesting(true); setTestMsg('')
+    try {
+      const result = await api.testLLMConnection()
+      setTestMsg(result.message)
+    } catch (e) {
+      setTestMsg(e instanceof Error ? e.message : '连接测试失败')
+    } finally { setTesting(false) }
   }
 
   if (!cfg) return <div className="loading loading-center">加载中...</div>
@@ -186,8 +198,10 @@ function LLMConfigSection() {
       </label>
 
       <div className="config-actions">
-        <button className="btn-primary" onClick={save} disabled={saving}>{saving ? '保存中...' : '保存配置'}</button>
+        <button className="btn-primary" onClick={save} disabled={saving || testing}>{saving ? '保存中...' : '保存配置'}</button>
+        <button onClick={testConnection} disabled={saving || testing}>{testing ? '测试中...' : '测试连接'}</button>
         {msg && <span className="ok-msg">{msg}</span>}
+        {testMsg && <span className={testMsg.includes('成功') ? 'ok-msg' : 'err-msg'}>{testMsg}</span>}
         {err && <span className="err-msg">{err}</span>}
       </div>
     </div>

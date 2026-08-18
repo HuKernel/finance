@@ -67,6 +67,20 @@ class LLMClient:
             kwargs["base_url"] = base_url
         return ChatOpenAI(**kwargs)
 
+    def test_connection(self) -> tuple[bool, str]:
+        """用当前配置发起最小请求，返回用户可读结果。"""
+        model = self._build_model()
+        if model is None:
+            return False, "未配置 API Key，请先填写模型服务配置。"
+        try:
+            response = model.invoke([
+                SystemMessage(content="你是连接测试助手，只需回复：连接成功"),
+                HumanMessage(content="连接测试"),
+            ])
+            return (True, "模型连接成功。") if response.content else (False, "模型服务已响应，但返回内容为空。")
+        except Exception as error:
+            return False, friendly_llm_error(error)
+
     def chat(self, system: str, user: str, temperature: float | None = None) -> str:
         """调用 LLM 返回文本；无 api_key 时返回模拟输出。
 
