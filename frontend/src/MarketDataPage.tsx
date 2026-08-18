@@ -139,6 +139,11 @@ export default function MarketDataPage() {
     },
   ]
 
+  const marketLine = focus.leader?.name && focus.ladder?.name
+    ? `${focus.leader.name} 领涨、${focus.ladder.name} 维持情绪高度；先观察成交额核心是否同步，避免只追单一强势股。`
+    : '等待板块、资金和情绪数据齐全后生成今日主线判断。'
+  const marketLineTone = focus.leader?.change_pct >= 5 && focus.ladder?.boards >= 3 ? 'strong' : focus.leader?.change_pct < 0 ? 'weak' : 'neutral'
+
   return (
     <div className="pane">
       <div className="pane-head">
@@ -152,6 +157,11 @@ export default function MarketDataPage() {
           <button className={tab === 'margin' ? 'active' : ''} onClick={() => setTab('margin')}>融资融券</button>
           <button className={tab === 'north' ? 'active' : ''} onClick={() => setTab('north')}>北向资金</button>
         </div>
+      </div>
+
+      <div className={`mkt-line-summary ${marketLineTone}`}>
+        <div><span>今日主线研判</span><strong>{marketLine}</strong></div>
+        <div className="mkt-line-tags"><span>成交额</span><span>涨幅</span><span>情绪高度</span></div>
       </div>
 
       <div className="mkt-focus-grid">
