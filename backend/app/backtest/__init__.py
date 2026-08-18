@@ -251,13 +251,22 @@ def run_backtest(
     """
     sym = datalayer._norm_symbol(symbol)
     hist = datalayer.get_history(sym, days=min(max(days, 30), 500))
-    if hist is None or len(hist) < 30:
+    if hist is None or len(hist) < 12:
         return None
+    # 新股适配：上市不足30个交易日也能回测（自适应均线），但给出明确提示
+    short_history = len(hist) < 30
+    result_warnings: list[str] = []
+    if short_history:
+        result_warnings.append(
+            f"该股上市时间较短（仅{len(hist)}个交易日），回测样本有限、"
+            "均线按可用数据自适应计算，早期信号参考性有限，结果不具统计意义"
+        )
 
     df = hist.copy()
-    # 计算 ma5/ma20（兼容老逻辑与AI策略）
-    df["ma5"] = df["close"].rolling(5).mean()
-    df["ma20"] = df["close"].rolling(20).mean()
+    # 计算 ma5/ma20（兼容老逻辑与AI策略；短历史时自适应）
+    minp = 1 if short_history else None
+    df["ma5"] = df["close"].rolling(5, min_periods=minp).mean()
+    df["ma20"] = df["close"].rolling(20, min_periods=minp).mean()
     # ATR（供 atr_trailing 移动止损使用）
     _prev_close = df["close"].shift(1)
     _tr = pd.concat([
@@ -291,6 +300,8 @@ def run_backtest(
     gen_kwargs["slow_period"] = slow_period
 
     generator = _build_signal_generator(strategy, **gen_kwargs)
+    if generator is not None and short_history:
+        generator.short_history = True
 
     if generator is not None:
         try:
@@ -391,5 +402,7 @@ def run_backtest(
         evaluation_df, result, sym, strategy, generator,
         initial_capital, enable_cost, percentage, slippage,
     )
+    if result_warnings:
+        result["warnings"] = result_warnings
 
     return result

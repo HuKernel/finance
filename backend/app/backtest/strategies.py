@@ -45,8 +45,11 @@ class MACrossSignal(SignalGenerator):
 
     def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
-        df["ma_fast"] = df["close"].rolling(self.fast_period).mean()
-        df["ma_slow"] = df["close"].rolling(self.slow_period).mean()
+        # short_history（新股数据不足全窗口时由 run_backtest 置位）：
+        # 均线按可用数据自适应（min_periods=1），早期信号基于不完整窗口
+        minp = 1 if getattr(self, "short_history", False) else None
+        df["ma_fast"] = df["close"].rolling(self.fast_period, min_periods=minp).mean()
+        df["ma_slow"] = df["close"].rolling(self.slow_period, min_periods=minp).mean()
         df = df.dropna(subset=["ma_fast", "ma_slow"]).reset_index(drop=True)
         return df
 
