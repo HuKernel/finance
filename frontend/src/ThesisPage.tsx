@@ -116,6 +116,18 @@ export default function ThesisPage() {
   const openBacktest = (ticker: string) => {
     window.location.hash = `#/backtest?symbol=${encodeURIComponent(ticker)}`
   }
+  const createTracking = async (thesis: any) => {
+    try {
+      await api.createScheduledTask({ name: `${thesis.name || thesis.ticker} thesis跟踪`, symbols: [thesis.ticker], mode: 'standard', cron_hour: 9, cron_minute: 30 })
+      toast('已创建每日跟踪', 'success')
+    } catch (e: any) { toast(e.message || '创建跟踪失败', 'error') }
+  }
+  const createRiskAlert = async (thesis: any) => {
+    try {
+      await api.createAlert(thesis.ticker, thesis.name || thesis.ticker, 'change_pct_down', 5)
+      toast('已创建下跌风险预警', 'success')
+    } catch (e: any) { toast(e.message || '创建预警失败', 'error') }
+  }
 
   const activeTheses = theses.filter(t => t.status === 'active')
   const invalidatedTheses = theses.filter(t => t.status === 'invalidated')
@@ -249,6 +261,8 @@ export default function ThesisPage() {
                   <div className="thesis-inline-actions">
                     <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); openAnalyze(t.ticker, '这只股票现在适合继续持有吗？') }}>继续研究</button>
                     <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); openBacktest(t.ticker) }}>做回测</button>
+                    <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); createTracking(t) }}>每日跟踪</button>
+                    <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); createRiskAlert(t) }}>风险预警</button>
                   </div>
                   {t.key_assumptions?.length > 0 && (
                     <div className="thesis-section">
